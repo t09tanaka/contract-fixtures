@@ -2,7 +2,7 @@
  * What the contract tests of the provider share.
  *
  * - The tests reach the API over HTTP, through the server the entry point starts
- *   (`createServer`), with an HTTP test client. Nothing between the client and the handler is
+ *   (`assembleServer`), with an HTTP test client. Nothing between the client and the handler is
  *   replaced, so a fixture holds what the deployed API answers.
  * - The API has two readers, and each has a contracts directory of its own: the app (Dart,
  *   `../contracts`) and the web client (TypeScript, `../contracts-web`). A response that both
@@ -19,7 +19,7 @@ import {
   type VolatileEntry,
 } from "@t09tanaka/contract-fixtures";
 
-import { createServer } from "../src/server.js";
+import { assembleServer } from "../src/server.js";
 
 export type Reader = "app" | "web";
 
@@ -33,7 +33,7 @@ const SECRETS: Record<string, string> = { "token:customer-1": "Bearer test-token
 export const TOKEN = SECRETS["token:customer-1"]!;
 
 /** A fresh server, assembled the way the entry point assembles it. */
-export const api = () => request(createServer({ tokens: { "test-token-of-customer-1": "customer-1" } }));
+export const api = () => request(assembleServer({ tokens: { "test-token-of-customer-1": "customer-1" } }));
 
 export interface Call {
   method: "GET" | "POST";

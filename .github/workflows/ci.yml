@@ -32,8 +32,6 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -w packages/ts
-      - name: "Example: provider side and web consumer (reset, test, check, each)"
-        run: npm run example
       - name: Package contents
         run: npm pack --dry-run --ignore-scripts
         working-directory: packages/ts
@@ -52,21 +50,12 @@ jobs:
         with:
           sdk: ${{ matrix.sdk }}
       - name: Get dependencies
-        run: |
-          dart pub get --directory packages/dart
-          dart pub get --directory example/consumer
+        run: dart pub get --directory packages/dart
       - name: Format
         # The formatter's output differs between SDK versions; the newest one decides.
         if: matrix.sdk == 'stable'
-        run: dart format --output=none --set-exit-if-changed packages/dart example/consumer
+        run: dart format --output=none --set-exit-if-changed packages/dart
       - run: dart analyze --fatal-infos
         working-directory: packages/dart
       - run: dart test
         working-directory: packages/dart
-      - name: "Example: app consumer (reset, analyze, test, check)"
-        working-directory: example/consumer
-        run: |
-          dart analyze --fatal-infos
-          dart run contract_fixtures reset --side consumer --dir ../contracts
-          dart test
-          dart run contract_fixtures check --side consumer --dir ../contracts

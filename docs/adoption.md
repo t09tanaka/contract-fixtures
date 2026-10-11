@@ -41,9 +41,9 @@ call it from both places. In the example, [`server.ts`](../example/provider/src/
 is that function:
 
 ```ts
-export function createServer(options: Parameters<typeof createApp>[0]): http.Server {
+export function assembleServer(options: Parameters<typeof createApp>[0]): http.Server {
   const app = createApp(options);
-  return http.createServer((req, res) => {
+  return new http.Server((req, res) => {
     // read the body, answer 400 to a body that is not JSON, call app.handle,
     // write the status, the headers and the JSON body
   });
@@ -55,14 +55,14 @@ The entry point adds nothing but the port
 
 ```ts
 const tokens = JSON.parse(process.env.ORDER_API_TOKENS ?? "{}") as Record<string, string>;
-createServer({ tokens }).listen(Number(process.env.PORT ?? 3000));
+assembleServer({ tokens }).listen(Number(process.env.PORT ?? 3000));
 ```
 
 and the contract tests start the same server
 ([`support.ts`](../example/provider/test/support.ts)):
 
 ```ts
-export const api = () => request(createServer({ tokens: { "test-token-of-customer-1": "customer-1" } }));
+export const api = () => request(assembleServer({ tokens: { "test-token-of-customer-1": "customer-1" } }));
 ```
 
 With a framework, the function is the one that creates the application **and** registers its
@@ -347,14 +347,18 @@ other's results, only the committed fixtures. The workflow of the example in thi
 
 ```yaml
   web:
-    name: Web client (reset, test, check)
+    name: Web client (reset, test, check), Node ${{ matrix.node }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 24]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
       - run: npm run build
@@ -438,8 +442,8 @@ and the job after them:
           npm run check -w example/provider
 ```
 
-The ledger is copied out of `.ledger/` under another name because artifact uploads skip
-hidden directories by default.
+The ledger is copied out of `.ledger/` under another name, so that the upload does not depend
+on how the action treats hidden directories.
 
 Several workers on **one** machine need nothing: every verify and read appends one line to
 the same file, from whichever process it runs in. Reset once before the run, not in a setup

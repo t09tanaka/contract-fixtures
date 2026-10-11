@@ -1,7 +1,7 @@
 /**
  * The HTTP server of the order API: the one place where the handler is put behind HTTP.
  *
- * Both the entry point (`main.ts`) and the contract tests call `createServer`. That is what
+ * Both the entry point (`main.ts`) and the contract tests call `assembleServer`. That is what
  * makes a fixture a record of what the deployed API answers: a test that built its own server
  * around the handler, or called the handler directly, would record the answers of something
  * that is never deployed. What only this layer does (the answer to a body that is not JSON,
@@ -19,9 +19,9 @@ function send(res: http.ServerResponse, response: HttpResponse): void {
   res.end(text);
 }
 
-export function createServer(options: Parameters<typeof createApp>[0]): http.Server {
+export function assembleServer(options: Parameters<typeof createApp>[0]): http.Server {
   const app = createApp(options);
-  return http.createServer((req, res) => {
+  return new http.Server((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
