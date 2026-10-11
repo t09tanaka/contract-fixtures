@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typescript:
+    name: TypeScript (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 24]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Build and test
+        run: npm test
+      - name: "Example: provider side (reset, test, check)"
+        run: npm run example
+      - name: Package contents
+        run: npm pack --dry-run
+        working-directory: packages/ts
+
+  dart:
+    name: Dart (${{ matrix.sdk }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: ["3.5.0", stable]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ matrix.sdk }}
+      - run: dart pub get
+        working-directory: packages/dart
+      - name: Format
+        # The formatter's output differs between SDK versions; the newest one decides.
+        if: matrix.sdk == 'stable'
+        run: dart format --output=none --set-exit-if-changed packages/dart example/consumer
+      - run: dart analyze --fatal-infos
+        working-directory: packages/dart
+      - run: dart test
+        working-directory: packages/dart
+      - name: "Example: consumer side (reset, analyze, test, check)"
+        working-directory: example/consumer
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart run contract_fixtures reset --side consumer --dir ../contracts
+          dart test
+          dart run contract_fixtures check --side consumer --dir ../contracts
