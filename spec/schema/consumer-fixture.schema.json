@@ -73,6 +73,9 @@
               "pattern": {
                 "type": "string",
                 "maxLength": 1000
+              },
+              "nullable": {
+                "const": true
               }
             }
           }

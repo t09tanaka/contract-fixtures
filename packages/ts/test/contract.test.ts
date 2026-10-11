@@ -31,13 +31,34 @@ const observedResponse = {
 };
 
 describe("contractFixtures", () => {
-  it("needs a directory", () => {
+  it("needs a directory at the first use, not when it is created", () => {
     const saved = process.env.CONTRACT_FIXTURES_DIR;
     delete process.env.CONTRACT_FIXTURES_DIR;
     try {
-      assert.throws(() => contractFixtures({ side: "provider" }), ContractUsageError);
+      // A tool that only loads the test file gets this far without a directory.
+      const contract = contractFixtures({ side: "provider" });
+      assert.equal(contract.side, "provider");
+      const message = /pass the contracts directory as `dir` or set CONTRACT_FIXTURES_DIR/;
+      for (const use of [
+        () => contract.dir,
+        () => contract.list("provider"),
+        () => contract.assertCovers("provider", []),
+        () => contract.assertPrefixesCover("provider", []),
+        () => contract.readTable("order-total"),
+        () => contract.readRequest("create-order.request"),
+        () => contract.verifyResponse(observedResponse),
+      ]) {
+        assert.throws(use, (error: unknown) => error instanceof ContractUsageError && message.test(error.message));
+      }
+      // The environment is read at that first use, and the answer is kept.
+      const dir = copyOfContracts();
+      process.env.CONTRACT_FIXTURES_DIR = dir;
+      assert.equal(contract.dir, path.resolve(dir));
+      delete process.env.CONTRACT_FIXTURES_DIR;
+      assert.deepEqual(contract.list("tables"), ["order-total"]);
     } finally {
-      if (saved !== undefined) process.env.CONTRACT_FIXTURES_DIR = saved;
+      if (saved === undefined) delete process.env.CONTRACT_FIXTURES_DIR;
+      else process.env.CONTRACT_FIXTURES_DIR = saved;
     }
   });
 
@@ -252,6 +273,74 @@ describe("contractFixtures", () => {
     assert.deepEqual(ledgerLines(dir, "provider"), []);
     assert.equal(ledgerLines(dir, "consumer").length, 1);
     resetLedger({ dir, side: "provider" });
+  });
+
+  it("a ledger that cannot be written fails the verify and the read", () => {
+    const dir = copyOfContracts();
+    fs.mkdirSync(path.join(dir, ".ledger", "provider.jsonl"), { recursive: true });
+    const contract = contractFixtures({ side: "provider", dir });
+    const unusable = (error: unknown): boolean =>
+      error instanceof ContractUsageError &&
+      error.message ===
+        "contract-fixtures: the ledger .ledger/provider.jsonl cannot be used " +
+          "(it is not a file, or it cannot be read or written)";
+    assert.throws(() => contract.readTable("order-total"), unusable);
+    assert.throws(() => contract.verifyResponse(observedResponse), unusable);
+    assert.throws(() => resetLedger({ dir, side: "provider" }), unusable);
+    assert.throws(() => checkContracts({ dir, side: "provider" }), unusable);
+    // The other side is not affected.
+    contractFixtures({ side: "consumer", dir }).readTable("order-total");
+    assert.equal(ledgerLines(dir, "consumer").length, 1);
+  });
+
+  it("a file in the place of the ledger directory: nothing to reset or to check, and no place to write", () => {
+    const dir = copyOfContracts();
+    fs.writeFileSync(path.join(dir, ".ledger"), "");
+    resetLedger({ dir, side: "provider" });
+    assert.equal(checkContracts({ dir, side: "provider" }).untouched, true);
+    assert.throws(
+      () => contractFixtures({ side: "provider", dir }).readTable("order-total"),
+      /the ledger \.ledger\/provider\.jsonl cannot be used/,
+    );
+  });
+
+  it("the configuration of the directory is read for every verify and read", () => {
+    const dir = copyOfContracts();
+    const consumer = contractFixtures({ side: "consumer", dir });
+    assert.equal(consumer.readResponse("order.created").response.status, 201);
+    // What it forbids is refused on the reading side too.
+    writeFile(dir, "config.json", '{ "format": 1, "forbidden": ["^ord_"] }');
+    assert.throws(
+      () => consumer.readResponse("order.created"),
+      (error: unknown) =>
+        error instanceof ContractFixtureError &&
+        error.file === "provider/order.created.json" &&
+        error.issues.every((issue) => issue.code === "forbidden") &&
+        !error.message.includes("ord_81f3"),
+    );
+    // A configuration that is not valid stops reading and verifying, and nothing is recorded.
+    writeFile(dir, "config.json", "{");
+    const invalid = (error: unknown): boolean =>
+      error instanceof ContractFixtureError &&
+      error.file === "config.json" &&
+      error.message === "config.json of the contracts directory does not follow the format:\n  (root): is not valid JSON";
+    assert.throws(() => consumer.readTable("order-total"), invalid);
+    assert.throws(() => contractFixtures({ side: "provider", dir }).verifyResponse(observedResponse), invalid);
+    assert.deepEqual(ledgerLines(dir, "consumer").length, 1);
+    assert.deepEqual(ledgerLines(dir, "provider"), []);
+    // Bytes that are not UTF-8 are reported like a fixture's.
+    fs.writeFileSync(path.join(dir, "config.json"), Buffer.from([0x7b, 0xff, 0x7d]));
+    assert.deepEqual(
+      checkContracts({ dir, side: "consumer" }).problems.filter((p) => p.file === "config.json").map((p) => p.message),
+      ["invalid configuration: (root) is not valid UTF-8"],
+    );
+  });
+
+  it("a file in the place of a directory of fixtures holds no fixtures", () => {
+    const dir = tempDir();
+    fs.writeFileSync(path.join(dir, "provider"), "");
+    assert.deepEqual(contractFixtures({ side: "provider", dir }).list("provider"), []);
+    assert.deepEqual(checkContracts({ dir, side: "provider" }).problems.map((p) => p.code), ["empty"]);
   });
 });
 

@@ -17,11 +17,45 @@ const _request = ExchangeRequest(
 
 void main() {
   group('ContractFixtures', () {
-    test('needs a directory', () {
-      expect(
-        () => ContractFixtures(side: ContractSide.provider, environment: {}),
-        throwsA(isA<ContractUsageException>()),
+    test('needs a directory at the first use, not when it is created', () {
+      // A tool that only loads the test file gets this far without a directory.
+      final environment = <String, String>{};
+      final contract = ContractFixtures(
+        side: ContractSide.provider,
+        environment: environment,
       );
+      expect(contract.side, ContractSide.provider);
+      final missing = throwsA(
+        isA<ContractUsageException>().having(
+          (e) => e.message,
+          'message',
+          contains(
+            'pass the contracts directory as `dir` or set CONTRACT_FIXTURES_DIR',
+          ),
+        ),
+      );
+      for (final use in <void Function()>[
+        () => contract.dir,
+        () => contract.list(FixtureKind.provider),
+        () => contract.assertCovers(FixtureKind.provider, const []),
+        () => contract.assertPrefixesCover(FixtureKind.provider, const []),
+        () => contract.readTable('order-total'),
+        () => contract.readRequest('create-order.request'),
+        () => contract.verifyResponse(
+              name: 'order.out-of-stock',
+              description: 'The item is out of stock',
+              request: _request,
+              response: const ExchangeResponse(status: 409),
+            ),
+      ]) {
+        expect(use, missing);
+      }
+      // The environment is read at that first use, and the answer is kept.
+      final dir = copyOfContracts();
+      environment['CONTRACT_FIXTURES_DIR'] = dir;
+      expect(contract.dir, Directory(dir).absolute.path);
+      environment.remove('CONTRACT_FIXTURES_DIR');
+      expect(contract.list(FixtureKind.tables), ['order-total']);
     });
 
     test('takes the directory and update mode from the environment', () {
@@ -423,6 +457,145 @@ void main() {
       expect(ledgerLines(dir, 'provider'), isEmpty);
       expect(ledgerLines(dir, 'consumer'), hasLength(1));
       resetLedger(dir: dir, side: ContractSide.provider);
+    });
+
+    test('a ledger that cannot be written fails the verify and the read', () {
+      final dir = copyOfContracts();
+      Directory('$dir/.ledger/provider.jsonl').createSync(recursive: true);
+      final contract = ContractFixtures(side: ContractSide.provider, dir: dir);
+      final unusable = throwsA(
+        isA<ContractUsageException>().having(
+          (e) => e.message,
+          'message',
+          'contract_fixtures: the ledger .ledger/provider.jsonl cannot be used '
+              '(it is not a file, or it cannot be read or written)',
+        ),
+      );
+      expect(() => contract.readTable('order-total'), unusable);
+      expect(
+        () => contract.verifyResponse(
+          name: 'order.out-of-stock',
+          description: 'The item is out of stock',
+          request: _request,
+          response: const ExchangeResponse(
+            status: 409,
+            body: {'error': 'out_of_stock'},
+          ),
+        ),
+        unusable,
+      );
+      expect(
+        () => resetLedger(dir: dir, side: ContractSide.provider),
+        unusable,
+      );
+      expect(
+        () => checkContracts(dir: dir, side: ContractSide.provider),
+        unusable,
+      );
+      // The other side is not affected.
+      ContractFixtures(side: ContractSide.consumer, dir: dir)
+          .readTable('order-total');
+      expect(ledgerLines(dir, 'consumer'), hasLength(1));
+    });
+
+    test(
+        'a file in the place of the ledger directory: nothing to reset or to check, and no place to write',
+        () {
+      final dir = copyOfContracts();
+      File('$dir/.ledger').writeAsStringSync('');
+      resetLedger(dir: dir, side: ContractSide.provider);
+      expect(
+        checkContracts(dir: dir, side: ContractSide.provider).untouched,
+        isTrue,
+      );
+      expect(
+        () => ContractFixtures(side: ContractSide.provider, dir: dir)
+            .readTable('order-total'),
+        throwsA(
+          isA<ContractUsageException>().having(
+            (e) => e.message,
+            'message',
+            contains('the ledger .ledger/provider.jsonl cannot be used'),
+          ),
+        ),
+      );
+    });
+
+    test('the configuration of the directory is read for every verify and read',
+        () {
+      final dir = copyOfContracts();
+      final consumer = ContractFixtures(side: ContractSide.consumer, dir: dir);
+      expect(consumer.readResponse('order.created').response.status, 201);
+      // What it forbids is refused on the reading side too.
+      writeFile(dir, 'config.json', '{ "format": 1, "forbidden": ["^ord_"] }');
+      expect(
+        () => consumer.readResponse('order.created'),
+        throwsA(
+          isA<ContractFixtureException>()
+              .having((e) => e.file, 'file', 'provider/order.created.json')
+              .having(
+                (e) => e.issues.map((issue) => issue.code),
+                'codes',
+                everyElement('forbidden'),
+              )
+              .having((e) => e.message, 'message', isNot(contains('ord_81f3'))),
+        ),
+      );
+      // A configuration that is not valid stops reading and verifying, and nothing is
+      // recorded.
+      writeFile(dir, 'config.json', '{');
+      final invalid = throwsA(
+        isA<ContractFixtureException>()
+            .having((e) => e.file, 'file', 'config.json')
+            .having(
+              (e) => e.message,
+              'message',
+              'config.json of the contracts directory does not follow the format:\n'
+                  '  (root): is not valid JSON',
+            ),
+      );
+      expect(() => consumer.readTable('order-total'), invalid);
+      expect(
+        () => ContractFixtures(side: ContractSide.provider, dir: dir)
+            .verifyResponse(
+          name: 'order.out-of-stock',
+          description: 'The item is out of stock',
+          request: _request,
+          response: const ExchangeResponse(
+            status: 409,
+            body: {'error': 'out_of_stock'},
+          ),
+        ),
+        invalid,
+      );
+      expect(ledgerLines(dir, 'consumer'), hasLength(1));
+      expect(ledgerLines(dir, 'provider'), isEmpty);
+      // Bytes that are not UTF-8 are reported like a fixture's.
+      File('$dir/config.json').writeAsBytesSync([0x7b, 0xff, 0x7d]);
+      expect(
+        checkContracts(dir: dir, side: ContractSide.consumer)
+            .problems
+            .where((p) => p.file == 'config.json')
+            .map((p) => p.message),
+        ['invalid configuration: (root) is not valid UTF-8'],
+      );
+    });
+
+    test('a file in the place of a directory of fixtures holds no fixtures',
+        () {
+      final dir = tempDir();
+      File('$dir/provider').writeAsStringSync('');
+      expect(
+        ContractFixtures(side: ContractSide.provider, dir: dir)
+            .list(FixtureKind.provider),
+        isEmpty,
+      );
+      expect(
+        checkContracts(dir: dir, side: ContractSide.provider)
+            .problems
+            .map((p) => p.code),
+        ['empty'],
+      );
     });
   });
 

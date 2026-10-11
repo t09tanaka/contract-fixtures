@@ -1,5 +1,5 @@
 {
-  "description": "Cases for format validation. `value` is the parsed file (or `text` its raw text); `name` is the file name without .json. Every implementation must report exactly these issues, in this order. When a case has `absent`, none of those strings may appear in the message of an issue.",
+  "description": "Cases for format validation. `value` is the parsed file (or `text` its raw text); `name` is the file name without .json. Every implementation must report exactly these issues, in this order. When a case has `forbidden`, validate with a configuration that forbids those patterns. When a case has `absent`, none of those strings may appear in the message of an issue. When a case has `shown`, each of those strings must appear in the message of at least one issue.",
   "cases": [
     {
       "case": "valid provider fixture",
@@ -4167,6 +4167,724 @@
           "code": "pattern",
           "path": "volatile.2.pattern"
         }
+      ]
+    },
+    {
+      "case": "nullable: one entry names strings and nulls",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "sessions": [
+              {
+                "id": "s1",
+                "closed_at": "2026-01-15T09:30:00Z"
+              },
+              {
+                "id": "s2",
+                "closed_at": null
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.**.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": true
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "nullable: without it, a null where a pattern applies is not valid",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "sessions": [
+              {
+                "id": "s1",
+                "closed_at": "2026-01-15T09:30:00Z"
+              },
+              {
+                "id": "s2",
+                "closed_at": null
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.**.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.sessions.1.closed_at"
+        }
+      ]
+    },
+    {
+      "case": "nullable: a string must still match, and a number is neither",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "sessions": [
+              {
+                "id": "s1",
+                "closed_at": "yesterday"
+              },
+              {
+                "id": "s2",
+                "closed_at": null
+              },
+              {
+                "id": "s3",
+                "closed_at": 1768469400
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.**.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": true
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.sessions.0.closed_at"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.sessions.2.closed_at"
+        }
+      ]
+    },
+    {
+      "case": "nullable: only true is allowed",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "sessions": [
+              {
+                "id": "s1",
+                "closed_at": "2026-01-15T09:30:00Z"
+              },
+              {
+                "id": "s2",
+                "closed_at": null
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.**.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": false
+          },
+          {
+            "path": "response.body.**.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": "true"
+          },
+          {
+            "path": "response.body.**.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": null
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.1"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.2"
+        }
+      ]
+    },
+    {
+      "case": "nullable: needs a pattern",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "sessions": [
+              {
+                "id": "s1",
+                "closed_at": "2026-01-15T09:30:00Z"
+              },
+              {
+                "id": "s2",
+                "closed_at": null
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.sessions.1.closed_at",
+            "nullable": true
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ]
+    },
+    {
+      "case": "nullable: not with a path that ends in **",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "sessions": [
+              {
+                "id": "s1",
+                "closed_at": "2026-01-15T09:30:00Z"
+              },
+              {
+                "id": "s2",
+                "closed_at": null
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.sessions.**",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": true
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ]
+    },
+    {
+      "case": "volatile: an entry with a key that is none of path, pattern, nullable",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "sessions": [
+              {
+                "id": "s1",
+                "closed_at": "2026-01-15T09:30:00Z"
+              },
+              {
+                "id": "s2",
+                "closed_at": null
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.sessions.0.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "optional": true
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ]
+    },
+    {
+      "case": "nullable: a secret path and a nullable volatile path on one node are still refused",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "token": "<token:session-1>"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.token",
+            "pattern": "^<.*>$",
+            "nullable": true
+          }
+        ],
+        "secret": {
+          "response.body.token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.token"
+        }
+      ]
+    },
+    {
+      "case": "volatile: the message shows a value that misses its pattern, but not one a secret path names or a token",
+      "kind": "provider",
+      "name": "session.list",
+      "value": {
+        "format": 1,
+        "name": "session.list",
+        "description": "The sessions of a customer, open and closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "a": "plain-value",
+            "b": "hand-written-secret",
+            "c": "Bearer eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.*",
+            "pattern": "^x$"
+          }
+        ],
+        "secret": {
+          "response.body.b": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.b"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.c"
+        },
+        {
+          "code": "secret-value",
+          "path": "response.body.b"
+        },
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.b"
+        },
+        {
+          "code": "jwt",
+          "path": "response.body.c"
+        }
+      ],
+      "absent": [
+        "hand-written-secret",
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6"
+      ],
+      "shown": [
+        "\"plain-value\" does not match the pattern ^x$ of volatile.0"
+      ]
+    },
+    {
+      "case": "forbidden: every string is searched, also inside a longer one and in a repeated header",
+      "kind": "provider",
+      "name": "payment.started",
+      "forbidden": [
+        "sec_(live|test)_[A-Za-z0-9]+"
+      ],
+      "value": {
+        "format": 1,
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments",
+          "headers": {
+            "authorization": "Bearer sec_test_71Mabc",
+            "x-trace": [
+              "t1",
+              "id sec_live_9zz"
+            ]
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q",
+            "note": "use sec_test_7 here",
+            "webhook": "hook_abc"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "request.headers.authorization"
+        },
+        {
+          "code": "forbidden",
+          "path": "request.headers.x-trace.1"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.client_key"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.note"
+        }
+      ],
+      "absent": [
+        "sec_test_71Mabc",
+        "sec_live_9zz",
+        "sec_live_9fK27Q",
+        "sec_test_7"
+      ]
+    },
+    {
+      "case": "forbidden: without a configuration nothing is refused",
+      "kind": "provider",
+      "name": "payment.started",
+      "value": {
+        "format": 1,
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments",
+          "headers": {
+            "authorization": "Bearer sec_test_71Mabc",
+            "x-trace": [
+              "t1",
+              "id sec_live_9zz"
+            ]
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q",
+            "note": "use sec_test_7 here",
+            "webhook": "hook_abc"
+          }
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "forbidden: every pattern that matches a string is reported, in the order of the configuration",
+      "kind": "provider",
+      "name": "payment.started",
+      "forbidden": [
+        "^hook_",
+        "nothing-like-this",
+        "ok_abc$"
+      ],
+      "value": {
+        "format": 1,
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments",
+          "headers": {
+            "authorization": "Bearer sec_test_71Mabc",
+            "x-trace": [
+              "t1",
+              "id sec_live_9zz"
+            ]
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q",
+            "note": "use sec_test_7 here",
+            "webhook": "hook_abc"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "response.body.webhook"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.webhook"
+        }
+      ],
+      "absent": [
+        "hook_abc"
+      ]
+    },
+    {
+      "case": "forbidden: a placeholder in the place of the value is what the pattern asks for",
+      "kind": "provider",
+      "name": "payment.started",
+      "forbidden": [
+        "sec_(live|test)_[A-Za-z0-9]+",
+        "^hook_"
+      ],
+      "value": {
+        "format": 1,
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "<key:payment-1>"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": "<token:customer-1>",
+          "response.body.client_key": "<key:payment-1>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "forbidden: a token is reported as a token first",
+      "kind": "provider",
+      "name": "payment.started",
+      "forbidden": [
+        "eyJ"
+      ],
+      "value": {
+        "format": 1,
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "<key:payment-1>",
+            "jwt": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": "<token:customer-1>",
+          "response.body.client_key": "<key:payment-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.body.jwt"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.jwt"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6"
+      ]
+    },
+    {
+      "case": "forbidden: a consumer fixture is searched as well",
+      "kind": "consumer",
+      "name": "start-payment.request",
+      "forbidden": [
+        "sec_(live|test)_[A-Za-z0-9]+"
+      ],
+      "value": {
+        "format": 1,
+        "name": "start-payment.request",
+        "description": "The request that starts a payment",
+        "request": {
+          "method": "POST",
+          "path": "/payments?key=sec_live_9fK27Q",
+          "body": {
+            "order_id": "ord_1"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "request.path"
+        }
+      ],
+      "absent": [
+        "sec_live_9fK27Q"
+      ]
+    },
+    {
+      "case": "forbidden: a table is not searched",
+      "kind": "tables",
+      "name": "order-total",
+      "forbidden": [
+        "sec_(live|test)_[A-Za-z0-9]+"
+      ],
+      "value": {
+        "format": 1,
+        "name": "order-total",
+        "description": "Totals",
+        "rows": [
+          {
+            "case": "sec_live_9fK27Q",
+            "expected_minor": 1
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "forbidden: a value that also misses its volatile pattern is not shown in that message either",
+      "kind": "provider",
+      "name": "payment.started",
+      "forbidden": [
+        "sec_(live|test)_[A-Za-z0-9]+"
+      ],
+      "value": {
+        "format": 1,
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "client_key": "sec_live_9fK27Q"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.client_key",
+            "pattern": "^pub_.*$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.client_key"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.client_key"
+        }
+      ],
+      "absent": [
+        "sec_live_9fK27Q"
       ]
     }
   ]

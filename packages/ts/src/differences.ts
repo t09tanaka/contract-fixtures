@@ -2,6 +2,7 @@ import { compactJson, isObject, jsonType, sortedKeys } from "./json.js";
 import {
   entryParts,
   failedPattern,
+  requirement,
   volatileMode,
   volatileRule,
   type VolatileEntry,
@@ -24,7 +25,8 @@ export interface Difference {
  * `volatile` lists paths that are compared loosely: a plain path compares the JSON type of
  * that node only; a path ending in `**` compares types, object keys and array lengths of the
  * whole subtree; an entry `{ path, pattern }` requires a string that matches the pattern as a
- * whole. Everything else must be equal. Throws for an entry that is not one.
+ * whole (or `null`, with `nullable: true`). Everything else must be equal. Throws for an entry
+ * that is not one.
  */
 export function differences(
   expected: unknown,
@@ -33,8 +35,8 @@ export function differences(
 ): Difference[] {
   const rules = volatile.map((entry) => {
     const parts = entryParts(entry);
-    if (parts === null) throw new TypeError("a volatile entry is a path or { path, pattern }");
-    return volatileRule(parts.path, parts.pattern);
+    if (parts === null) throw new TypeError("a volatile entry is a path or { path, pattern, nullable }");
+    return volatileRule(parts);
   });
   const out: Difference[] = [];
 
@@ -44,6 +46,26 @@ export function differences(
     const typeE = jsonType(e);
     const typeA = jsonType(a);
 
+    if (mode === "exact" && patterns.length > 0) {
+      // The stored value follows its entries (validation saw to that), so only the observed
+      // one is asked. With `nullable`, a string and null may stand in for each other.
+      const failed = failedPattern(patterns, a);
+      if (failed !== null) {
+        out.push(
+          typeE === typeA || typeof a === "string"
+            ? {
+                path,
+                kind: "pattern",
+                text: `${path}: ${compactJson(e)} -> ${compactJson(a)} (volatile: does not match ${failed.source})`,
+              }
+            : { path, kind: "type", text: `${path}: type ${typeE} -> ${typeA} (volatile: ${requirement(failed)})` },
+        );
+      } else if (typeE !== typeA && failedPattern(patterns, e) !== null) {
+        const rule = failedPattern(patterns, e)!;
+        out.push({ path, kind: "type", text: `${path}: type ${typeE} -> ${typeA} (volatile: ${requirement(rule)})` });
+      }
+      return;
+    }
     if (typeE !== typeA) {
       out.push(
         mode === null
@@ -51,26 +73,12 @@ export function differences(
           : {
               path,
               kind: "type",
-              text:
-                `${path}: type ${typeE} -> ${typeA} ` +
-                (patterns.length > 0
-                  ? `(volatile: must be a string that matches ${patterns[0]!.source})`
-                  : "(volatile: only the type is compared)"),
+              text: `${path}: type ${typeE} -> ${typeA} (volatile: only the type is compared)`,
             },
       );
       return;
     }
-    if (mode === "exact") {
-      const failed = failedPattern(patterns, a);
-      if (failed !== null) {
-        out.push({
-          path,
-          kind: "pattern",
-          text: `${path}: ${compactJson(e)} -> ${compactJson(a)} (volatile: does not match ${failed.source})`,
-        });
-      }
-      return;
-    }
+    if (mode === "exact") return;
 
     if (Array.isArray(e) && Array.isArray(a)) {
       if (e.length !== a.length) {

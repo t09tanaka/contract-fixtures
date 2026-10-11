@@ -1,12 +1,33 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'errors.dart';
 import 'types.dart';
 
 enum LedgerAction { verified, read }
 
 File ledgerFile(String dir, ContractSide side) =>
     File('$dir/.ledger/${side.name}.jsonl');
+
+/// Runs one operation on a ledger; [operation] is told whether the file exists. Whatever
+/// goes wrong with the file (a directory in its place, a path that cannot be read or
+/// written) is reported in the same words by every implementation, and never passed over.
+T _onLedger<T>(
+    ContractSide side, File file, T Function(bool exists) operation) {
+  try {
+    final type = FileSystemEntity.typeSync(file.path);
+    if (type == FileSystemEntityType.file ||
+        type == FileSystemEntityType.notFound) {
+      return operation(type == FileSystemEntityType.file);
+    }
+  } on FileSystemException {
+    // reported below
+  }
+  throw ContractUsageException(
+    'contract_fixtures: the ledger .ledger/${side.name}.jsonl cannot be used '
+    '(it is not a file, or it cannot be read or written)',
+  );
+}
 
 void appendLedger(
   String dir,
@@ -16,19 +37,25 @@ void appendLedger(
   String name,
 ) {
   final file = ledgerFile(dir, side);
-  file.parent.createSync(recursive: true);
   final entry = {
     'side': side.name,
     'action': action.name,
     'file': '${kind.name}/$name.json',
   };
-  file.writeAsStringSync('${jsonEncode(entry)}\n', mode: FileMode.append);
+  _onLedger(side, file, (_) {
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync('${jsonEncode(entry)}\n', mode: FileMode.append);
+  });
 }
 
 /// Forgets what earlier test runs of one side did. Run it before that side's tests.
+///
+/// Throws [ContractUsageException] when the ledger cannot be removed.
 void resetLedger({required String dir, required ContractSide side}) {
   final file = ledgerFile(dir, side);
-  if (file.existsSync()) file.deleteSync();
+  _onLedger(side, file, (exists) {
+    if (exists) file.deleteSync();
+  });
 }
 
 /// A line that holds nothing but spaces, tabs and carriage returns (the same in every
@@ -37,6 +64,7 @@ final RegExp _blank = RegExp(r'^[ \t\r]*$');
 
 /// The `action:file` keys of one side's ledger, the files its entries name (one per
 /// entry), the line numbers that could not be parsed, and whether the file exists at all.
+/// Throws [ContractUsageException] when it is there and cannot be read.
 ({Set<String> done, List<String> files, List<int> badLines, bool exists})
     readLedger(
   String dir,
@@ -46,12 +74,17 @@ final RegExp _blank = RegExp(r'^[ \t\r]*$');
   final files = <String>[];
   final badLines = <int>[];
   final file = ledgerFile(dir, side);
-  if (!file.existsSync()) {
+  final bytes = _onLedger(
+    side,
+    file,
+    (exists) => exists ? file.readAsBytesSync() : null,
+  );
+  if (bytes == null) {
     return (done: done, files: files, badLines: badLines, exists: false);
   }
   // Lenient decoding: a damaged line is reported as a bad line, not as a crash. A byte
   // order mark is not a part of the first line.
-  var text = utf8.decode(file.readAsBytesSync(), allowMalformed: true);
+  var text = utf8.decode(bytes, allowMalformed: true);
   if (text.startsWith('\uFEFF')) text = text.substring(1);
   final lines = text.split('\n');
   for (var i = 0; i < lines.length; i++) {

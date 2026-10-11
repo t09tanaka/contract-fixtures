@@ -40,18 +40,49 @@ describe("command line", () => {
   it("check exits 1 and names every fixture this side did not touch", () => {
     const dir = copyOfContracts();
     exerciseProviderSide(dir);
+    fs.writeFileSync(path.join(dir, "tables", "rates.json"), fs.readFileSync(path.join(dir, "tables", "order-total.json"), "utf8").replace('"order-total"', '"rates"'));
+    contractFixtures({ side: "consumer", dir }).readTable("rates");
     const result = run(["check", "--side=consumer", `--dir=${dir}`]);
     assert.equal(result.code, 1);
     assert.equal(result.out, "");
     assert.deepEqual(result.err.split("\n"), [
-      "contract-fixtures check (consumer side): 4 problem(s) in 4 fixture(s)",
+      "contract-fixtures check (consumer side): 4 problem(s) in 5 fixture(s)",
       "  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)",
       "  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
+      "Hint: Only 1 of the 5 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.",
+      "Run `contract-fixtures reset` and the consumer side's tests before this check.",
+    ]);
+  });
+
+  it("check does not list the fixtures one by one when the ledger has no entries", () => {
+    const dir = copyOfContracts();
+    exerciseProviderSide(dir);
+    const result = run(["check", "--side=consumer", `--dir=${dir}`]);
+    assert.equal(result.code, 1);
+    assert.deepEqual(result.err.split("\n"), [
+      "contract-fixtures check (consumer side): 4 problem(s) in 4 fixture(s)",
+      "  - none of the 4 fixture(s) that follow the format was verified or read by the consumer side's tests (they are not listed one by one)",
       "Hint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?",
       "Run `contract-fixtures reset` and the consumer side's tests before this check.",
     ]);
+  });
+
+  it("a command that cannot finish exits with 1 and says so in one line", (t) => {
+    if (process.platform === "win32" || process.getuid?.() === 0) return t.skip("needs a file that cannot be read");
+    const dir = copyOfContracts();
+    fs.chmodSync(path.join(dir, "provider", "order.created.json"), 0o000);
+    for (const [command, argv] of [
+      ["check", ["check", "--side", "provider", "--dir", dir]],
+      ["summary", ["summary", "--dir", dir]],
+    ] as const) {
+      const result = run([...argv]);
+      assert.equal(result.code, 1, command);
+      assert.equal(result.out, "");
+      assert.equal(result.err.split("\n")[0], `contract-fixtures: ${command} could not finish`);
+      assert.ok(result.err.split("\n").length > 1, "the second line has the error of the file system");
+    }
   });
 
   it("check exits 1 for an empty directory", () => {
@@ -124,6 +155,8 @@ describe("command line", () => {
       ["check", "--side"],
       ["summary", "--side", "provider", "--dir", dir],
       ["summary"],
+      ["summary", "--dir", dir, "--depth", "0"],
+      ["check", "--side", "provider", "--dir", dir, "--depth", "2"],
       ["list", "--dir", dir],
     ];
     for (const argv of wrong) {

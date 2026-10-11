@@ -9,6 +9,8 @@ export class ContractMismatchError extends Error {
     /** `<kind>/<name>.json` */
     readonly file: string,
     readonly differences: readonly Difference[],
+    /** Volatile paths of the test that match nothing in what this side produced. */
+    readonly unmatched: readonly FormatIssue[] = [],
   ) {
     super(message);
   }

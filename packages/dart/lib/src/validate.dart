@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'configuration.dart';
 import 'json.dart';
 import 'pattern.dart';
 import 'placeholders.dart';
@@ -15,7 +16,7 @@ class FormatIssue {
   /// A stable identifier, the same in every implementation: `json`, `root`, `format`,
   /// `name`, `description`, `unknown-key`, `request`, `method`, `path`, `headers`, `body`,
   /// `response`, `status`, `volatile`, `volatile-unmatched`, `volatile-pattern`, `pattern`, `secret`, `secret-unmatched`,
-  /// `secret-value`, `secret-volatile`, `jwt`, `rows` or `number`. One more code is not a
+  /// `secret-value`, `secret-volatile`, `jwt`, `forbidden`, `rows` or `number`. One more code is not a
   /// fault of a file: `secret-removed`, when update mode was asked to drop a secret path.
   final String code;
 
@@ -241,12 +242,31 @@ void _validateVolatile(
   List<FormatIssue> issues,
   Map<String, dynamic> fixture,
   List<String> roots,
+  List<CompiledPattern> forbidden,
 ) {
   final volatile = fixture['volatile'];
   if (volatile is! List) {
     issues.add(const FormatIssue('volatile', 'volatile', 'must be an array'));
     return;
   }
+  // A value is shown, so that a pattern that misses can be corrected, unless it may be a
+  // secret: a node that a secret path names, a string of the shape of a token, or one that
+  // the configuration of the directory forbids.
+  final hidden = <String>{};
+  final secret = fixture['secret'];
+  if (secret is Map<String, dynamic>) {
+    for (final key in sortedKeys(secret)) {
+      if (secretPathProblem(key, roots) != null) continue;
+      for (final node in secretNodes(fixture, key.split('.'))) {
+        hidden.add(node.segments.join('.'));
+      }
+    }
+  }
+  String shown(String nodePath, String value) => hidden.contains(nodePath) ||
+          jwtPattern.hasMatch(value) ||
+          forbidden.any((pattern) => pattern.search(value))
+      ? ''
+      : '${compactJson(value)} ';
   for (var i = 0; i < volatile.length; i++) {
     final path = 'volatile.$i';
     final parts = entryParts(volatile[i] as Object?);
@@ -255,8 +275,8 @@ void _validateVolatile(
         FormatIssue(
           'volatile',
           path,
-          'must be a path, or an object with exactly the keys path and pattern '
-              '(both strings)',
+          'must be a path, or an object with the keys path and pattern (both '
+              'strings) and, optionally, nullable (true)',
         ),
       );
       continue;
@@ -279,7 +299,7 @@ void _validateVolatile(
     }
     final VolatileRule rule;
     try {
-      rule = VolatileRule(parts.path, parts.pattern);
+      rule = VolatileRule(parts);
     } on PatternException catch (error) {
       issues.add(
         FormatIssue(
@@ -301,19 +321,21 @@ void _validateVolatile(
       );
       continue;
     }
-    final matcher = rule.matcher;
-    if (matcher == null) continue;
+    if (rule.matcher == null) continue;
     for (final node in nodes) {
       final value = node.value;
-      if (value is String && matcher.test(value)) continue;
+      if (rule.satisfiedBy(value)) continue;
+      final nodePath = node.segments.join('.');
       issues.add(
         FormatIssue(
           'volatile-pattern',
-          node.segments.join('.'),
+          nodePath,
           value is String
-              ? 'does not match the pattern ${rule.source} of $path'
+              ? '${shown(nodePath, value)}does not match the pattern '
+                  '${rule.source} of $path'
               : 'must be a string that matches the pattern ${rule.source} of '
-                  '$path (found ${jsonType(value)})',
+                  "$path${rule.nullable ? ', or null' : ''} "
+                  '(found ${jsonType(value)})',
         ),
       );
     }
@@ -448,16 +470,55 @@ void _validateNoJwt(List<FormatIssue> issues, Object? root) {
   walk(root, '');
 }
 
+/// A string that the configuration of the directory forbids must not be written or stay
+/// stored.
+void _validateNotForbidden(
+  List<FormatIssue> issues,
+  Object? root,
+  List<CompiledPattern> forbidden,
+) {
+  if (forbidden.isEmpty) return;
+  void walk(Object? node, String path) {
+    if (node is String) {
+      for (var i = 0; i < forbidden.length; i++) {
+        if (!forbidden[i].search(node)) continue;
+        // The value itself is never printed: it may be the secret.
+        issues.add(
+          FormatIssue(
+            'forbidden',
+            path,
+            'contains what forbidden.$i of config.json describes '
+                '(list this path in secret, so that a placeholder is stored instead)',
+          ),
+        );
+      }
+    } else if (node is List) {
+      for (var i = 0; i < node.length; i++) {
+        walk(node[i], '$path.$i');
+      }
+    } else if (node is Map<String, dynamic>) {
+      for (final key in sortedKeys(node)) {
+        walk(node[key], path.isEmpty ? key : '$path.$key');
+      }
+    }
+  }
+
+  walk(root, '');
+}
+
 /// Checks a decoded fixture against format 1. [name] is the file name without `.json`.
+/// [config] is what the `config.json` of the contracts directory says (see `readConfig`).
 /// Returns an empty list when the fixture is valid.
 List<FormatIssue> validateFixtureValue(
   FixtureKind kind,
   String name,
-  Object? value,
-) {
+  Object? value, [
+  ContractsConfig config = const ContractsConfig(),
+]) {
   if (value is! Map<String, dynamic>) {
     return const [FormatIssue('root', '(root)', 'must be a JSON object')];
   }
+  final forbidden = config.forbidden.map(compilePattern).toList();
   final issues = <FormatIssue>[];
   _unknownKeys(issues, value, _topLevel[kind]!, '');
   if (value['format'] is! num || value['format'] != formatVersion) {
@@ -526,15 +587,23 @@ List<FormatIssue> validateFixtureValue(
   final roots = kind == FixtureKind.provider
       ? const ['request', 'response']
       : const ['request'];
-  if (value.containsKey('volatile')) _validateVolatile(issues, value, roots);
+  if (value.containsKey('volatile')) {
+    _validateVolatile(issues, value, roots, forbidden);
+  }
   if (value.containsKey('secret')) _validateSecret(issues, value, roots);
   _validateNumbers(issues, value);
   _validateNoJwt(issues, value);
+  _validateNotForbidden(issues, value, forbidden);
   return issues;
 }
 
 /// Decodes the text of a fixture file and checks it against format 1.
-FixtureValidation validateFixture(FixtureKind kind, String name, String text) {
+FixtureValidation validateFixture(
+  FixtureKind kind,
+  String name,
+  String text, [
+  ContractsConfig config = const ContractsConfig(),
+]) {
   final Object? value;
   try {
     value = jsonDecode(text.startsWith('\uFEFF') ? text.substring(1) : text);
@@ -543,13 +612,20 @@ FixtureValidation validateFixture(FixtureKind kind, String name, String text) {
       FormatIssue('json', '(root)', 'is not valid JSON'),
     ]);
   }
-  return FixtureValidation(value, validateFixtureValue(kind, name, value));
+  return FixtureValidation(
+    value,
+    validateFixtureValue(kind, name, value, config),
+  );
 }
 
 /// Reads a fixture file and checks it against format 1. The file must be UTF-8 (a byte
 /// order mark is ignored); anything else is reported as the `json` issue.
 FixtureValidation validateFixtureFile(
-    FixtureKind kind, String name, File file) {
+  FixtureKind kind,
+  String name,
+  File file, [
+  ContractsConfig config = const ContractsConfig(),
+]) {
   final String text;
   try {
     text = utf8.decode(file.readAsBytesSync());
@@ -558,7 +634,7 @@ FixtureValidation validateFixtureFile(
       FormatIssue('json', '(root)', 'is not valid UTF-8'),
     ]);
   }
-  return validateFixture(kind, name, text);
+  return validateFixture(kind, name, text, config);
 }
 
 String formatIssues(Iterable<FormatIssue> issues) =>

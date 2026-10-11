@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { listFixtureNames } from "./check.js";
+import { CONFIG_FILE, readConfig, type ContractsConfig } from "./configuration.js";
 import { differences, formatDifferences } from "./differences.js";
 import {
   ContractCoverageError,
@@ -12,6 +13,7 @@ import {
 import {
   asciiLowerCase,
   canonicalJson,
+  compactJson,
   isObject,
   jsonRoundTrip,
   NotJsonError,
@@ -46,7 +48,10 @@ export const UPDATE_ENV = "CONTRACT_FIXTURES_UPDATE";
 export interface ContractFixturesOptions {
   /** The side whose tests are running. */
   side: Side;
-  /** The contracts directory. Defaults to the environment variable `CONTRACT_FIXTURES_DIR`. */
+  /**
+   * The contracts directory. Defaults to the environment variable `CONTRACT_FIXTURES_DIR`,
+   * read when the directory is first used.
+   */
   dir?: string;
   /** Write fixtures instead of failing. Defaults to `CONTRACT_FIXTURES_UPDATE=1`. */
   update?: boolean;
@@ -54,7 +59,10 @@ export interface ContractFixturesOptions {
 
 export interface ContractFixtures {
   readonly side: Side;
-  /** Absolute path of the contracts directory. */
+  /**
+   * Absolute path of the contracts directory. Looked up at the first use (of this or of any
+   * method), which is when a missing directory throws `ContractUsageError`.
+   */
   readonly dir: string;
   readonly update: boolean;
 
@@ -153,7 +161,9 @@ function candidate(file: string, observed: object): Record<string, unknown> {
   }
   if (Array.isArray(out.volatile)) {
     if (out.volatile.length === 0) delete out.volatile;
-    else out.volatile = out.volatile.map((e: unknown) => (isObject(e) ? ordered(e, ["path", "pattern"]) : e));
+    else {
+      out.volatile = out.volatile.map((e: unknown) => (isObject(e) ? ordered(e, ["path", "pattern", "nullable"]) : e));
+    }
   }
   if (isObject(out.secret) && Object.keys(out.secret).length === 0) delete out.secret;
   // From here on the real values are gone: nothing below can print or write them.
@@ -183,6 +193,21 @@ function removedSecretPaths(produced: Record<string, unknown>, stored: unknown):
 }
 
 /**
+ * A line for the end of a refusal: that the status of the response is another one than the
+ * stored fixture has. A refusal prints no values, so without this line it would hide that the
+ * response as a whole is a different one (an error in the place of the expected answer). A
+ * status is a number, and no secret path can name it.
+ */
+function statusChange(stored: unknown, produced: Record<string, unknown>): string {
+  const status = (fixture: unknown): unknown =>
+    isObject(fixture) && isObject(fixture.response) ? fixture.response.status : undefined;
+  const before = status(stored);
+  const after = status(produced);
+  if (typeof before !== "number" || typeof after !== "number" || before === after) return "";
+  return `\nThe status of the response is not the stored one either: ${compactJson(before)} -> ${compactJson(after)}`;
+}
+
+/**
  * Update mode never drops a secret path: the value behind it would be written as it really
  * is. Whoever wants the path gone removes it from the stored file by hand.
  */
@@ -198,6 +223,17 @@ function refuseToRemoveSecrets(file: string, produced: Record<string, unknown>, 
       `${formatIssues(issues)}\n` +
       "Pass the path as `secret` in this test, or remove it from the stored file by hand.",
     file,
+    issues,
+  );
+}
+
+/** What the `config.json` of the directory says. Nothing is verified or read while it is not valid. */
+function configOf(dir: string): ContractsConfig {
+  const { config, issues } = readConfig(dir);
+  if (issues.length === 0) return config;
+  throw new ContractFixtureError(
+    `${CONFIG_FILE} of the contracts directory does not follow the format:\n${formatIssues(issues)}`,
+    CONFIG_FILE,
     issues,
   );
 }
@@ -222,13 +258,21 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
   if (side !== "provider" && side !== "consumer") {
     throw new ContractUsageError(`contract-fixtures: side must be "provider" or "consumer"`);
   }
-  const given = options.dir ?? process.env[DIR_ENV];
-  if (given === undefined || given === "") {
-    throw new ContractUsageError(
-      `contract-fixtures: pass the contracts directory as \`dir\` or set ${DIR_ENV}`,
-    );
-  }
-  const dir = path.resolve(given);
+  // Asked for at the first use, not here: a tool that only loads a test file (to collect
+  // other tests, say) has no reason to know the directory.
+  let resolved: string | undefined;
+  const resolveDir = (): string => {
+    if (resolved === undefined) {
+      const given = options.dir ?? process.env[DIR_ENV];
+      if (given === undefined || given === "") {
+        throw new ContractUsageError(
+          `contract-fixtures: pass the contracts directory as \`dir\` or set ${DIR_ENV}`,
+        );
+      }
+      resolved = path.resolve(given);
+    }
+    return resolved;
+  };
   const update = options.update ?? updateFromEnvironment(process.env);
 
   const requireSide = (wanted: Side, method: string): void => {
@@ -254,30 +298,37 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
 
   const verify = (kind: "provider" | "consumer", observed: { name: string }): void => {
     const name = requireName(observed?.name);
+    const dir = resolveDir();
     const file = `${kind}/${name}.json`;
     const filePath = path.join(dir, kind, `${name}.json`);
+    const config = configOf(dir);
     const produced = candidate(file, observed);
-    const refuse = (issues: FormatIssue[]): void => {
-      if (issues.length === 0) return;
-      throw new ContractFixtureError(
-        `contract fixture ${file}: what this side produced is not a valid fixture:\n` +
-          formatIssues(issues),
+    const exists = fs.existsSync(filePath);
+    const stored = exists ? validateFixtureFile(kind, name, filePath, config) : null;
+    const invalid = (issues: FormatIssue[], lead = `contract fixture ${file}: what`, end = ""): ContractFixtureError =>
+      new ContractFixtureError(
+        `${lead} this side produced is not a valid fixture:\n${formatIssues(issues)}${end}`,
         file,
         issues,
       );
-    };
-    // A value that does not match the pattern of its own volatile entry is a difference from
-    // the stored fixture, if there is one to compare with. It is never written.
-    const producedIssues = validateFixtureValue(kind, name, produced);
-    const unmatchedPatterns = producedIssues.filter((issue) => issue.code === "volatile-pattern");
-    refuse(producedIssues.filter((issue) => issue.code !== "volatile-pattern"));
+    // Two kinds of issue wait until the stored fixture has been compared, because a difference
+    // says more than they do: a value that does not match the pattern of its own volatile
+    // entry, and a volatile path that matches nothing (the response may be another one
+    // altogether). Neither is ever written. Everything else stops the verify here, before
+    // a value is printed.
+    const producedIssues = validateFixtureValue(kind, name, produced, config);
+    const waits = (issue: FormatIssue): boolean =>
+      issue.code === "volatile-pattern" || issue.code === "volatile-unmatched";
+    const late = producedIssues.filter(waits);
+    const early = producedIssues.filter((issue) => !waits(issue));
+    if (early.length > 0) throw invalid(early, undefined, statusChange(stored?.value, produced));
     const write = (): void => {
-      refuse(unmatchedPatterns);
+      if (late.length > 0) throw invalid(late);
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, canonicalJson(produced));
     };
 
-    if (!fs.existsSync(filePath)) {
+    if (stored === null) {
       if (!update) {
         throw new ContractFixtureError(
           `contract fixture ${file} does not exist. ` +
@@ -287,7 +338,6 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       }
       write();
     } else {
-      const stored = validateFixtureFile(kind, name, filePath);
       if (update) refuseToRemoveSecrets(file, produced, stored.value);
       if (stored.issues.length > 0) {
         if (!update) {
@@ -301,20 +351,35 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       } else {
         const volatile = (stored.value as { volatile?: VolatileEntry[] }).volatile ?? [];
         const diffs = differences(stored.value, comparable(produced, stored.value), volatile);
-        if (diffs.length > 0) {
-          if (!update) {
-            throw new ContractMismatchError(
-              `contract fixture ${file} no longer matches what the ${side} side produces ` +
-                `(stored -> observed):\n${formatDifferences(diffs)}\n` +
-                `If the change is intended, rerun with ${UPDATE_ENV}=1, ` +
-                "then fix the other side's tests in the same change.",
-              file,
-              diffs,
-            );
-          }
-          write();
+        const unmatched = late.filter((issue) => issue.code === "volatile-unmatched");
+        const changed =
+          `contract fixture ${file} no longer matches what the ${side} side produces ` +
+          `(stored -> observed):\n${formatDifferences(diffs)}\n`;
+        if (diffs.length > 0 && !update) {
+          const advice =
+            removedSecretPaths(produced, stored.value).length > 0
+              ? "Update mode does not drop a secret path: pass the path as `secret` in this test, " +
+                "or remove it from the stored file by hand."
+              : `If the change is intended, ${unmatched.length > 0 ? "take these paths out of the test, " : ""}` +
+                `rerun with ${UPDATE_ENV}=1, then fix the other side's tests in the same change.`;
+          throw new ContractMismatchError(
+            changed +
+              (unmatched.length > 0
+                ? `These volatile paths of the test match nothing in what the ${side} side produced:\n` +
+                  `${formatIssues(unmatched)}\n`
+                : "") +
+              advice,
+            file,
+            diffs,
+            unmatched,
+          );
         }
-        refuse(unmatchedPatterns);
+        // In update mode the same order: what changed first, then why it is not written.
+        if (diffs.length > 0 && late.length > 0) {
+          throw invalid(late, `${changed}The fixture is not updated, because what`);
+        }
+        if (diffs.length > 0) write();
+        if (late.length > 0) throw invalid(late);
       }
     }
     appendLedger(dir, side, "verified", kind, name);
@@ -325,12 +390,14 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     if (!NAME_PATTERN.test(name)) {
       throw new ContractUsageError(`contract-fixtures: ${JSON.stringify(name)} is not a fixture name`);
     }
+    const dir = resolveDir();
+    const config = configOf(dir);
     const file = `${kind}/${name}.json`;
     const filePath = path.join(dir, kind, `${name}.json`);
     if (!fs.existsSync(filePath)) {
       throw new ContractFixtureError(`contract fixture ${file} does not exist.`, file);
     }
-    const { value, issues } = validateFixtureFile(kind, name, filePath);
+    const { value, issues } = validateFixtureFile(kind, name, filePath, config);
     if (issues.length > 0) {
       throw new ContractFixtureError(
         `contract fixture ${file} does not follow the format:\n` + formatIssues(issues),
@@ -344,12 +411,14 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
 
   const list = (kind: Kind, listOptions: { prefix?: string } = {}): string[] => {
     const prefix = listOptions.prefix ?? "";
-    return listFixtureNames(dir, kind).filter((name) => name.startsWith(prefix));
+    return listFixtureNames(resolveDir(), kind).filter((name) => name.startsWith(prefix));
   };
 
   return {
     side,
-    dir,
+    get dir() {
+      return resolveDir();
+    },
     update,
     list,
     assertCovers(kind, expected, coverOptions = {}) {

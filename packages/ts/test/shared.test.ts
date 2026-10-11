@@ -23,6 +23,7 @@ import {
   runCli,
   summarizeContracts,
   USAGE,
+  validateConfig,
   validateFixture,
   validateFixtureValue,
   type Kind,
@@ -69,13 +70,16 @@ describe("spec/fixtures/validation.json", () => {
     value?: unknown;
     issues: { code: string; path: string }[];
     absent?: string[];
+    shown?: string[];
+    forbidden?: string[];
   }
   for (const c of loadCases<Case>("validation.json")) {
     it(c.case, () => {
+      const config = c.forbidden === undefined ? undefined : { forbidden: c.forbidden };
       const issues =
         c.text !== undefined
-          ? validateFixture(c.kind, c.name, c.text).issues
-          : validateFixtureValue(c.kind, c.name, c.value);
+          ? validateFixture(c.kind, c.name, c.text, config).issues
+          : validateFixtureValue(c.kind, c.name, c.value, config);
       assert.deepEqual(
         issues.map((i) => ({ code: i.code, path: i.path })),
         c.issues,
@@ -84,6 +88,27 @@ describe("spec/fixtures/validation.json", () => {
         assert.notEqual(issue.message, "");
         for (const text of c.absent ?? []) assert.ok(!issue.message.includes(text));
       }
+      for (const text of c.shown ?? []) assert.ok(issues.some((issue) => issue.message.includes(text)), text);
+    });
+  }
+});
+
+describe("spec/fixtures/configuration.json", () => {
+  interface Case {
+    case: string;
+    text: string;
+    forbidden: string[];
+    issues: { code: string; path: string }[];
+  }
+  for (const c of loadCases<Case>("configuration.json")) {
+    it(c.case, () => {
+      const { config, issues } = validateConfig(c.text);
+      assert.deepEqual(
+        issues.map((i) => ({ code: i.code, path: i.path })),
+        c.issues,
+      );
+      for (const issue of issues) assert.notEqual(issue.message, "");
+      assert.deepEqual(config, { forbidden: c.forbidden });
     });
   }
 });
@@ -122,6 +147,8 @@ describe("spec/fixtures/patterns.json", () => {
     valid: boolean;
     matches?: string[];
     rejects?: string[];
+    finds?: string[];
+    findsNot?: string[];
     native?: boolean;
   }
   for (const c of loadCases<Case>("patterns.json")) {
@@ -133,7 +160,12 @@ describe("spec/fixtures/patterns.json", () => {
       const pattern = compilePattern(c.pattern);
       for (const value of c.matches ?? []) assert.equal(pattern.test(value), true, JSON.stringify(value));
       for (const value of c.rejects ?? []) assert.equal(pattern.test(value), false, JSON.stringify(value));
+      for (const value of c.finds ?? []) assert.equal(pattern.search(value), true, `search ${JSON.stringify(value)}`);
+      for (const value of c.findsNot ?? []) assert.equal(pattern.search(value), false, `search ${JSON.stringify(value)}`);
       if (c.native === false) return;
+      const anywhere = new RegExp(c.pattern);
+      for (const value of c.finds ?? []) assert.equal(anywhere.test(value), true, `RegExp: ${JSON.stringify(value)}`);
+      for (const value of c.findsNot ?? []) assert.equal(anywhere.test(value), false, `RegExp: ${JSON.stringify(value)}`);
       const native = new RegExp(`^(?:${c.pattern})$`);
       for (const value of c.matches ?? []) assert.equal(native.test(value), true, `RegExp: ${JSON.stringify(value)}`);
       for (const value of c.rejects ?? []) assert.equal(native.test(value), false, `RegExp: ${JSON.stringify(value)}`);
@@ -185,6 +217,7 @@ describe("spec/fixtures/cli.json", () => {
     env?: Record<string, string>;
     empty?: boolean;
     ledger?: Record<string, string[]>;
+    ledgerDirectory?: string[];
     ledgerAfter?: Record<string, string[] | null>;
     exit: number;
     stdout: string;
@@ -203,6 +236,9 @@ describe("spec/fixtures/cli.json", () => {
       for (const [side, lines] of Object.entries(c.ledger ?? {})) {
         writeFile(dir, `.ledger/${side}.jsonl`, lines.map((l) => l + "\n").join(""));
       }
+      for (const side of c.ledgerDirectory ?? []) {
+        fs.mkdirSync(path.join(dir, ".ledger", `${side}.jsonl`), { recursive: true });
+      }
       const inDir = (text: string) => text.replaceAll("{dir}", dir);
       const printed = (text: string) =>
         inDir(text).replaceAll("{help}", help).replaceAll("{tool}", TOOL).replaceAll("{version}", version);
@@ -220,6 +256,10 @@ describe("spec/fixtures/cli.json", () => {
       assert.equal(code, c.exit);
       for (const [side, lines] of Object.entries(c.ledgerAfter ?? {})) {
         const file = path.join(dir, ".ledger", `${side}.jsonl`);
+        if (c.ledgerDirectory?.includes(side)) {
+          assert.ok(fs.statSync(file).isDirectory(), file);
+          continue;
+        }
         assert.equal(fs.existsSync(file), lines !== null, file);
         if (lines !== null) assert.deepEqual(ledgerLines(dir, side), lines);
       }
@@ -232,6 +272,7 @@ describe("spec/fixtures/summary.json", () => {
     case: string;
     files?: Record<string, string>;
     empty?: boolean;
+    depth?: number;
     rows: number;
     text: string;
   }
@@ -240,7 +281,7 @@ describe("spec/fixtures/summary.json", () => {
       const dir = c.empty ? tempDir() : copyOfContracts();
       for (const [file, text] of Object.entries(c.files ?? {})) writeFile(dir, file, text);
 
-      const rows = summarizeContracts({ dir });
+      const rows = summarizeContracts(c.depth === undefined ? { dir } : { dir, depth: c.depth });
 
       assert.equal(rows.length, c.rows);
       assert.equal(formatSummary(rows), c.text);
@@ -296,6 +337,8 @@ describe("spec/fixtures/verify.json", () => {
     outcome: string;
     differences?: string[];
     issues?: { code: string; path: string }[];
+    message?: string;
+    config?: string;
     written: string | null;
     absent?: string[];
   }
@@ -305,17 +348,20 @@ describe("spec/fixtures/verify.json", () => {
       const relative = `${c.kind}/${c.observed.name}.json`;
       const file = path.join(dir, c.kind, `${c.observed.name}.json`);
       if (c.storedText !== null) writeFile(dir, relative, c.storedText);
+      if (c.config !== undefined) writeFile(dir, "config.json", c.config);
       const contract = contractFixtures({ side: c.kind, dir, update: c.update });
 
       let outcome = "ok";
       let lines: string[] | undefined;
       let message = "";
+      let said = "";
       let issues: { code: string; path: string }[] | undefined;
       try {
         if (c.kind === "provider") contract.verifyResponse(c.observed as ObservedResponse);
         else contract.verifyRequest(c.observed as ObservedRequest);
       } catch (error) {
         message = String(error instanceof Error ? error.stack : error);
+        said = error instanceof Error ? error.message : "";
         if (error instanceof ContractMismatchError) {
           outcome = "mismatch";
           lines = error.differences.map((d) => d.text);
@@ -324,7 +370,9 @@ describe("spec/fixtures/verify.json", () => {
           outcome = "usage";
         } else if (error instanceof ContractFixtureError) {
           issues = error.issues.map((i) => ({ code: i.code, path: i.path }));
-          outcome = error.issues.some((i) => i.code === "secret-removed")
+          outcome = error.file === "config.json"
+            ? "invalid-config"
+            : error.issues.some((i) => i.code === "secret-removed")
             ? "refused"
             : c.storedText === null && !c.update && error.issues.length === 0
               ? "missing"
@@ -341,6 +389,7 @@ describe("spec/fixtures/verify.json", () => {
       assert.equal(outcome, c.outcome);
       if (c.differences) assert.deepEqual(lines, c.differences);
       if (c.issues) assert.deepEqual(issues, c.issues);
+      if (c.message !== undefined) assert.equal(said, c.message);
       assert.equal(after, c.written ?? c.storedText);
       const succeeded = c.outcome === "ok" || c.outcome === "written";
       assert.deepEqual(

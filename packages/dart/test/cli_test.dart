@@ -62,19 +62,60 @@ void main() {
   test('check exits 1 and names every fixture this side did not touch', () {
     final dir = copyOfContracts();
     exerciseProviderSide(dir);
+    File('$dir/tables/rates.json').writeAsStringSync(
+      File('$dir/tables/order-total.json')
+          .readAsStringSync()
+          .replaceFirst('"order-total"', '"rates"'),
+    );
+    ContractFixtures(side: ContractSide.consumer, dir: dir).readTable('rates');
     final result = run(['check', '--side=consumer', '--dir=$dir']);
     expect(result.code, 1);
     expect(result.out, isEmpty);
     expect(result.err.split('\n'), [
-      'contract_fixtures check (consumer side): 4 problem(s) in 4 fixture(s)',
+      'contract_fixtures check (consumer side): 4 problem(s) in 5 fixture(s)',
       "  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)",
       "  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
+      'Hint: Only 1 of the 5 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.',
+      "Run `contract_fixtures reset` and the consumer side's tests before this check.",
+    ]);
+  });
+
+  test(
+      'check does not list the fixtures one by one when the ledger has no entries',
+      () {
+    final dir = copyOfContracts();
+    exerciseProviderSide(dir);
+    final result = run(['check', '--side=consumer', '--dir=$dir']);
+    expect(result.code, 1);
+    expect(result.err.split('\n'), [
+      'contract_fixtures check (consumer side): 4 problem(s) in 4 fixture(s)',
+      "  - none of the 4 fixture(s) that follow the format was verified or read by the consumer side's tests (they are not listed one by one)",
       "Hint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?",
       "Run `contract_fixtures reset` and the consumer side's tests before this check.",
     ]);
   });
+
+  test('a command that cannot finish exits with 1 and says so in one line', () {
+    final dir = copyOfContracts();
+    Process.runSync('chmod', ['000', '$dir/provider/order.created.json']);
+    for (final (command, arguments) in [
+      ('check', ['check', '--side', 'provider', '--dir', dir]),
+      ('summary', ['summary', '--dir', dir]),
+    ]) {
+      final result = run(arguments);
+      expect(result.code, 1, reason: command);
+      expect(result.out, isEmpty);
+      final lines = result.err.split('\n');
+      expect(lines.first, 'contract_fixtures: $command could not finish');
+      expect(lines.length, greaterThan(1),
+          reason: 'the second line has the error of the file system');
+    }
+  },
+      // Needs a file that cannot be read.
+      skip: Platform.isWindows ||
+          Process.runSync('id', ['-u']).stdout.toString().trim() == '0');
 
   test('check exits 1 for an empty directory', () {
     final result = run(['check', '--side', 'provider', '--dir', tempDir()]);
@@ -164,6 +205,8 @@ void main() {
       ['check', '--side'],
       ['summary', '--side', 'provider', '--dir', dir],
       ['summary'],
+      ['summary', '--dir', dir, '--depth', '0'],
+      ['check', '--side', 'provider', '--dir', dir, '--depth', '2'],
       ['list', '--dir', dir],
     ];
     for (final arguments in wrong) {

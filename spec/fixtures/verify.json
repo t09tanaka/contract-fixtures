@@ -1,5 +1,5 @@
 {
-  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed, refused (update mode would drop a secret path) or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`, and `volatile` entries with a pattern. `issues` are the codes and paths of what an invalid-observed or refused outcome reports, in order. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
+  "description": "Cases for verifying. `storedText` is the file before (null: no file). When a case has `config`, it is the text of config.json in the contracts directory. Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed, refused (update mode would drop a secret path), invalid-config (config.json does not follow the format; `issues` are its issues) or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`, and `volatile` entries with a pattern (and `nullable`). `message` is the whole message of the error, character for character. `issues` are the codes and paths of what an invalid-observed or refused outcome reports, in order. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
   "cases": [
     {
       "case": "a response that equals the stored fixture",
@@ -3500,6 +3500,811 @@
           "path": "response.body.order.id"
         }
       ],
+      "written": null
+    },
+    {
+      "case": "another response altogether: the differences come first, then the volatile paths that match nothing",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\"\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal",
+            "message": "Unexpected token"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)",
+        "response.body.error: (absent) -> \"internal\"",
+        "response.body.id: \"ord_81f3\" -> (absent)",
+        "response.body.message: (absent) -> \"Unexpected token\"",
+        "response.body.status: \"confirmed\" -> (absent)",
+        "response.status: 201 -> 500"
+      ],
+      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)\n  response.body.error: (absent) -> \"internal\"\n  response.body.id: \"ord_81f3\" -> (absent)\n  response.body.message: (absent) -> \"Unexpected token\"\n  response.body.status: \"confirmed\" -> (absent)\n  response.status: 201 -> 500\nThese volatile paths of the test match nothing in what the provider side produced:\n  volatile.0: response.body.id matches nothing in this fixture\n  volatile.1: response.body.created_at matches nothing in this fixture\nIf the change is intended, take these paths out of the test, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.",
+      "written": null
+    },
+    {
+      "case": "another response altogether, update mode: not written, and the message has the same order",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\"\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal",
+            "message": "Unexpected token"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.1"
+        }
+      ],
+      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)\n  response.body.error: (absent) -> \"internal\"\n  response.body.id: \"ord_81f3\" -> (absent)\n  response.body.message: (absent) -> \"Unexpected token\"\n  response.body.status: \"confirmed\" -> (absent)\n  response.status: 201 -> 500\nThe fixture is not updated, because what this side produced is not a valid fixture:\n  volatile.0: response.body.id matches nothing in this fixture\n  volatile.1: response.body.created_at matches nothing in this fixture",
+      "written": null
+    },
+    {
+      "case": "a volatile path that matches nothing, without a stored fixture: the fixture is missing first",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal",
+            "message": "Unexpected token"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "missing",
+      "message": "contract fixture provider/order.created.json does not exist. Run this test once with CONTRACT_FIXTURES_UPDATE=1 to record it.",
+      "written": null
+    },
+    {
+      "case": "a volatile path that matches nothing, without a stored fixture, update mode: not written",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal",
+            "message": "Unexpected token"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.1"
+        }
+      ],
+      "message": "contract fixture provider/order.created.json: what this side produced is not a valid fixture:\n  volatile.0: response.body.id matches nothing in this fixture\n  volatile.1: response.body.created_at matches nothing in this fixture",
+      "written": null
+    },
+    {
+      "case": "a volatile path that matches nothing below a volatile node: no difference to show, so it is refused as it is",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"order\": {\n        \"id\": \"ord_81f3\"\n      }\n    }\n  },\n  \"volatile\": [\n    \"response.body.order\",\n    {\n      \"path\": \"response.body.order.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "order": {
+              "n": 1
+            }
+          }
+        },
+        "volatile": [
+          "response.body.order",
+          {
+            "path": "response.body.order.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.1"
+        }
+      ],
+      "message": "contract fixture provider/order.created.json: what this side produced is not a valid fixture:\n  volatile.1: response.body.order.id matches nothing in this fixture",
+      "written": null
+    },
+    {
+      "case": "a secret path that matches nothing is refused before anything is compared; only the change of the status is added",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal",
+            "token": "tok-live-93b1c0"
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": false,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.body.access_token"
+        }
+      ],
+      "message": "contract fixture provider/session.created.json: what this side produced is not a valid fixture:\n  secret.response.body.access_token: response.body.access_token matches nothing in this fixture\nThe status of the response is not the stored one either: 200 -> 500",
+      "written": null,
+      "absent": [
+        "tok-live-93b1c0"
+      ]
+    },
+    {
+      "case": "a secret path that matches nothing, the status unchanged: nothing is added",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "token": "tok-live-93b1c0",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.body.access_token"
+        }
+      ],
+      "message": "contract fixture provider/session.created.json: what this side produced is not a valid fixture:\n  secret.response.body.access_token: response.body.access_token matches nothing in this fixture",
+      "written": null,
+      "absent": [
+        "tok-live-93b1c0"
+      ]
+    },
+    {
+      "case": "update mode, no stored fixture: a value that misses its pattern is shown",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        }
+      ],
+      "message": "contract fixture provider/order.created.json: what this side produced is not a valid fixture:\n  response.body.id: \"81f3\" does not match the pattern ^ord_[a-z0-9]+$ of volatile.0",
+      "written": null
+    },
+    {
+      "case": "update mode, a stored fixture: the difference first, then the value that misses its pattern",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\"\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        }
+      ],
+      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.body.id: \"ord_81f3\" -> \"81f3\" (volatile: does not match ^ord_[a-z0-9]+$)\nThe fixture is not updated, because what this side produced is not a valid fixture:\n  response.body.id: \"81f3\" does not match the pattern ^ord_[a-z0-9]+$ of volatile.0",
+      "written": null
+    },
+    {
+      "case": "a secret path the test stopped passing: the advice is not update mode, which would refuse",
+      "kind": "consumer",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"secret\": {\n    \"request.headers.authorization\": \"<token:customer-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "Bearer real-93b1c0"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "secret: {\"request.headers.authorization\":\"<token:customer-1>\"} -> (absent)"
+      ],
+      "message": "contract fixture consumer/create-order.request.json no longer matches what the consumer side produces (stored -> observed):\n  secret: {\"request.headers.authorization\":\"<token:customer-1>\"} -> (absent)\nUpdate mode does not drop a secret path: pass the path as `secret` in this test, or remove it from the stored file by hand.",
+      "written": null,
+      "absent": [
+        "real-93b1c0"
+      ]
+    },
+    {
+      "case": "an ordinary difference keeps the advice to rerun in update mode",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\"\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_9",
+            "status": "pending",
+            "created_at": "2026-03-17T21:43:09Z"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.status: \"confirmed\" -> \"pending\""
+      ],
+      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.body.status: \"confirmed\" -> \"pending\"\nIf the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.",
+      "written": null
+    },
+    {
+      "case": "nullable: a stored value and an observed null",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.shown\",\n  \"description\": \"A session, open or closed\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/s1\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"id\": \"s1\",\n      \"closed_at\": \"2026-01-15T09:30:00Z\"\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.closed_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\",\n      \"nullable\": true\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "session.shown",
+        "description": "A session, open or closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions/s1"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "s1",
+            "closed_at": null
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": true
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "nullable: a stored null and an observed value; update mode leaves the file alone",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.shown\",\n  \"description\": \"A session, open or closed\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/s1\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"id\": \"s1\",\n      \"closed_at\": null\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.closed_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\",\n      \"nullable\": true\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "session.shown",
+        "description": "A session, open or closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions/s1"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "s1",
+            "closed_at": "2026-01-15T09:30:00Z"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": true
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "nullable: a stored null and an observed value that does not match",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.shown\",\n  \"description\": \"A session, open or closed\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/s1\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"id\": \"s1\",\n      \"closed_at\": null\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.closed_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\",\n      \"nullable\": true\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "session.shown",
+        "description": "A session, open or closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions/s1"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "s1",
+            "closed_at": "soon"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": true
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.closed_at: null -> \"soon\" (volatile: does not match ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$)"
+      ],
+      "written": null
+    },
+    {
+      "case": "nullable: an entry is written with the keys path, pattern, nullable",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.shown",
+        "description": "A session, open or closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions/s1"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "s1",
+            "closed_at": null
+          }
+        },
+        "volatile": [
+          {
+            "nullable": true,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "path": "response.body.closed_at"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.shown\",\n  \"description\": \"A session, open or closed\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/s1\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"id\": \"s1\",\n      \"closed_at\": null\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.closed_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\",\n      \"nullable\": true\n    }\n  ]\n}\n"
+    },
+    {
+      "case": "nullable: a number is not written, and the message says what is allowed",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.shown",
+        "description": "A session, open or closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions/s1"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "s1",
+            "closed_at": 1768469400
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": true
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.closed_at"
+        }
+      ],
+      "message": "contract fixture provider/session.shown.json: what this side produced is not a valid fixture:\n  response.body.closed_at: must be a string that matches the pattern ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$ of volatile.0, or null (found number)",
+      "written": null
+    },
+    {
+      "case": "nullable: an entry with nullable false is not a volatile entry",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.shown",
+        "description": "A session, open or closed",
+        "request": {
+          "method": "GET",
+          "path": "/sessions/s1"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "s1",
+            "closed_at": null
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.closed_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+            "nullable": false
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "config: a string the configuration forbids is refused before the fixture is looked for",
+      "kind": "provider",
+      "config": "{\n  \"format\": 1,\n  \"forbidden\": [\n    \"sec_(live|test)_[A-Za-z0-9]+\"\n  ]\n}\n",
+      "storedText": null,
+      "observed": {
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "response.body.client_key"
+        }
+      ],
+      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+      "written": null,
+      "absent": [
+        "sec_live_9fK27Q"
+      ]
+    },
+    {
+      "case": "config: and it is not written in update mode",
+      "kind": "provider",
+      "config": "{\n  \"format\": 1,\n  \"forbidden\": [\n    \"sec_(live|test)_[A-Za-z0-9]+\"\n  ]\n}\n",
+      "storedText": null,
+      "observed": {
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "response.body.client_key"
+        }
+      ],
+      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+      "written": null,
+      "absent": [
+        "sec_live_9fK27Q"
+      ]
+    },
+    {
+      "case": "config: with the path under secret, the placeholder is written",
+      "kind": "provider",
+      "config": "{\n  \"format\": 1,\n  \"forbidden\": [\n    \"sec_(live|test)_[A-Za-z0-9]+\"\n  ]\n}\n",
+      "storedText": null,
+      "observed": {
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q"
+          }
+        },
+        "secret": {
+          "response.body.client_key": "<key:payment-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"payment.started\",\n  \"description\": \"Starting a payment returns the key that confirms it\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/payments\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"pay_1\",\n      \"client_key\": \"<key:payment-1>\"\n    }\n  },\n  \"secret\": {\n    \"response.body.client_key\": \"<key:payment-1>\"\n  }\n}\n",
+      "absent": [
+        "sec_live_9fK27Q"
+      ]
+    },
+    {
+      "case": "config: without the file, the same string is written",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"payment.started\",\n  \"description\": \"Starting a payment returns the key that confirms it\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/payments\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"pay_1\",\n      \"client_key\": \"sec_live_9fK27Q\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "config: a stored fixture that holds such a string does not follow the format",
+      "kind": "provider",
+      "config": "{\n  \"format\": 1,\n  \"forbidden\": [\n    \"sec_(live|test)_[A-Za-z0-9]+\"\n  ]\n}\n",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"payment.started\",\n  \"description\": \"Starting a payment returns the key that confirms it\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/payments\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"pay_1\",\n      \"client_key\": \"sec_live_9fK27Q\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q"
+          }
+        },
+        "secret": {
+          "response.body.client_key": "<key:payment-1>"
+        }
+      },
+      "update": false,
+      "outcome": "invalid-stored",
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "response.body.client_key"
+        }
+      ],
+      "message": "contract fixture provider/payment.started.json does not follow the format:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+      "written": null
+    },
+    {
+      "case": "config: a configuration that is not valid stops every verify, in update mode too",
+      "kind": "provider",
+      "config": "{ \"format\": 1, \"forbiden\": [] }",
+      "storedText": null,
+      "observed": {
+        "name": "payment.started",
+        "description": "Starting a payment returns the key that confirms it",
+        "request": {
+          "method": "POST",
+          "path": "/payments"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "pay_1",
+            "client_key": "sec_live_9fK27Q"
+          }
+        },
+        "secret": {
+          "response.body.client_key": "<key:payment-1>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-config",
+      "issues": [
+        {
+          "code": "unknown-key",
+          "path": "forbiden"
+        }
+      ],
+      "message": "config.json of the contracts directory does not follow the format:\n  forbiden: unknown key (allowed: format, forbidden)",
       "written": null
     }
   ]

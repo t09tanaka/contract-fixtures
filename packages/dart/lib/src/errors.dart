@@ -3,13 +3,21 @@ import 'validate.dart';
 
 /// What this side produced no longer equals the stored fixture.
 class ContractMismatch implements Exception {
-  const ContractMismatch(this.message, this.file, this.differences);
+  const ContractMismatch(
+    this.message,
+    this.file,
+    this.differences, [
+    this.unmatched = const [],
+  ]);
 
   final String message;
 
   /// `<kind>/<name>.json`
   final String file;
   final List<Difference> differences;
+
+  /// Volatile paths of the test that match nothing in what this side produced.
+  final List<FormatIssue> unmatched;
 
   @override
   String toString() => message;

@@ -384,7 +384,12 @@ class CompiledPattern {
   final List<_CharSet?> _sets;
 
   /// Whether the whole of [value] matches.
-  bool test(String value) {
+  bool test(String value) => _run(value, anywhere: false);
+
+  /// Whether a part of [value] matches (`^` and `$` are still the ends of the value).
+  bool search(String value) => _run(value, anywhere: true);
+
+  bool _run(String value, {required bool anywhere}) {
     final seen = List<int>.filled(_kinds.length, -1);
 
     /// Follows the states that consume nothing, as they hold at [position].
@@ -409,10 +414,14 @@ class CompiledPattern {
       }
     }
 
+    bool matched(List<int> list) =>
+        list.any((state) => _kinds[state] == _Kind.match);
+
     var current = <int>[];
     enter(current, _entry, 0);
+    if (anywhere && matched(current)) return true;
     for (var position = 0;
-        position < value.length && current.isNotEmpty;
+        position < value.length && (anywhere || current.isNotEmpty);
         position++) {
       final unit = value.codeUnitAt(position);
       final following = <int>[];
@@ -421,9 +430,14 @@ class CompiledPattern {
           enter(following, _next[state], position + 1);
         }
       }
+      if (anywhere) {
+        // A match may start at every position, and it may end before the value does.
+        enter(following, _entry, position + 1);
+        if (matched(following)) return true;
+      }
       current = following;
     }
-    return current.any((state) => _kinds[state] == _Kind.match);
+    return matched(current);
   }
 }
 

@@ -1446,6 +1446,263 @@
           "text": "id: \"ord_81f3\" -> (absent)"
         }
       ]
+    },
+    {
+      "case": "nullable: a stored string and an observed null agree",
+      "expected": {
+        "closed_at": "2026-01-15T09:30:00Z"
+      },
+      "actual": {
+        "closed_at": null
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": []
+    },
+    {
+      "case": "nullable: a stored null and an observed string that matches agree",
+      "expected": {
+        "closed_at": null
+      },
+      "actual": {
+        "closed_at": "2026-03-17T21:43:09Z"
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": []
+    },
+    {
+      "case": "nullable: null on both sides",
+      "expected": {
+        "closed_at": null
+      },
+      "actual": {
+        "closed_at": null
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": []
+    },
+    {
+      "case": "nullable: a stored null and an observed string that does not match",
+      "expected": {
+        "closed_at": null
+      },
+      "actual": {
+        "closed_at": "tomorrow"
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": [
+        {
+          "path": "closed_at",
+          "kind": "pattern",
+          "text": "closed_at: null -> \"tomorrow\" (volatile: does not match ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$)"
+        }
+      ]
+    },
+    {
+      "case": "nullable: a stored null and an observed number",
+      "expected": {
+        "closed_at": null
+      },
+      "actual": {
+        "closed_at": 1768469400
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": [
+        {
+          "path": "closed_at",
+          "kind": "type",
+          "text": "closed_at: type null -> number (volatile: must be a string that matches ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$, or null)"
+        }
+      ]
+    },
+    {
+      "case": "nullable: a stored string and an observed number",
+      "expected": {
+        "closed_at": "2026-01-15T09:30:00Z"
+      },
+      "actual": {
+        "closed_at": 1768469400
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": [
+        {
+          "path": "closed_at",
+          "kind": "type",
+          "text": "closed_at: type string -> number (volatile: must be a string that matches ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$, or null)"
+        }
+      ]
+    },
+    {
+      "case": "nullable: without it, an observed null is a difference",
+      "expected": {
+        "closed_at": "2026-01-15T09:30:00Z"
+      },
+      "actual": {
+        "closed_at": null
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "closed_at",
+          "kind": "type",
+          "text": "closed_at: type string -> null (volatile: must be a string that matches ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$)"
+        }
+      ]
+    },
+    {
+      "case": "nullable: an absent key is still a difference, in both directions",
+      "expected": {
+        "a": {
+          "closed_at": null
+        },
+        "b": {}
+      },
+      "actual": {
+        "a": {},
+        "b": {
+          "closed_at": null
+        }
+      },
+      "volatile": [
+        {
+          "path": "**.closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": [
+        {
+          "path": "a.closed_at",
+          "kind": "missing",
+          "text": "a.closed_at: null -> (absent)"
+        },
+        {
+          "path": "b.closed_at",
+          "kind": "unexpected",
+          "text": "b.closed_at: (absent) -> null"
+        }
+      ]
+    },
+    {
+      "case": "nullable: one entry for rows of which some have the value and some have null",
+      "expected": {
+        "rows": [
+          {
+            "id": 1,
+            "closed_at": "2026-01-15T09:30:00Z"
+          },
+          {
+            "id": 2,
+            "closed_at": null
+          }
+        ]
+      },
+      "actual": {
+        "rows": [
+          {
+            "id": 1,
+            "closed_at": null
+          },
+          {
+            "id": 2,
+            "closed_at": "2026-03-01T12:00:00Z"
+          }
+        ]
+      },
+      "volatile": [
+        {
+          "path": "rows.**.closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": []
+    },
+    {
+      "case": "nullable: every entry that names the node must allow null",
+      "expected": {
+        "closed_at": "2026-01-15T09:30:00Z"
+      },
+      "actual": {
+        "closed_at": null
+      },
+      "volatile": [
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        },
+        {
+          "path": "*",
+          "pattern": "^2026-.*$"
+        },
+        "closed_at"
+      ],
+      "differences": [
+        {
+          "path": "closed_at",
+          "kind": "type",
+          "text": "closed_at: type string -> null (volatile: must be a string that matches ^2026-.*$)"
+        }
+      ]
+    },
+    {
+      "case": "nullable: a plain path for the same node takes nothing away",
+      "expected": {
+        "closed_at": "2026-01-15T09:30:00Z"
+      },
+      "actual": {
+        "closed_at": null
+      },
+      "volatile": [
+        "closed_at",
+        {
+          "path": "closed_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "nullable": true
+        }
+      ],
+      "differences": []
     }
   ]
 }
