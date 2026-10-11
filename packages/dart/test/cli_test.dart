@@ -70,7 +70,7 @@ void main() {
       "  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)",
       "  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
-      'Hint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has entries. Is consumer the side whose tests ran?',
+      "Hint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?",
       "Run `contract_fixtures reset` and the consumer side's tests before this check.",
     ]);
   });

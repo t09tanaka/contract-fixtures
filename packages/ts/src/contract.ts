@@ -245,6 +245,13 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     return name;
   };
 
+  /** A string is an iterable of its characters, which is never what a test means. */
+  const requireNames = (names: unknown, method: string): void => {
+    if (typeof names === "string") {
+      throw new ContractUsageError(`contract-fixtures: ${method} takes a list of names, not one string`);
+    }
+  };
+
   const verify = (kind: "provider" | "consumer", observed: { name: string }): void => {
     const name = requireName(observed?.name);
     const file = `${kind}/${name}.json`;
@@ -346,6 +353,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     update,
     list,
     assertCovers(kind, expected, coverOptions = {}) {
+      requireNames(expected, "assertCovers");
       const onDisk = list(kind, coverOptions);
       const wanted = [...new Set(expected)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       const withoutExpectation = onDisk.filter((name) => !wanted.includes(name));
@@ -364,6 +372,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       throw new ContractCoverageError(lines.join("\n"), withoutExpectation, withoutFixture);
     },
     assertPrefixesCover(kind, prefixes) {
+      requireNames(prefixes, "assertPrefixesCover");
       const onDisk = list(kind);
       const wanted = [...new Set(prefixes)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       const outside = onDisk.filter((name) => !wanted.some((prefix) => name.startsWith(prefix)));

@@ -233,7 +233,9 @@ contract.verifyRequest(
 ```
 
 `http.Response.bytes` with UTF-8, not `http.Response(text, ...)`: the latter encodes as
-Latin-1 unless a `content-type` header says otherwise.
+Latin-1 unless a `content-type` header says otherwise. `package:http` has one value per header
+name, so the values of a repeated header are joined, as it does itself for a real response;
+several `set-cookie` values cannot be taken apart again after that.
 
 ### dio
 

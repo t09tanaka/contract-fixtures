@@ -150,20 +150,21 @@ function checkHints(state: {
   const hints: string[] = [];
   const ledger = `.ledger/${side}.jsonl`;
   if (lines === 0) {
-    const what = state.ledgerExists ? `${ledger} is empty` : `${ledger} does not exist`;
+    const what = state.ledgerExists ? `${ledger} has no entries` : `${ledger} does not exist`;
     hints.push(
       state.otherLines > 0
-        ? `${what}, but .ledger/${other}.jsonl has entries. Is ${side} the side whose tests ran?`
+        ? `${what}, but .ledger/${other}.jsonl has some. ` +
+          `Did the ${side} side's tests run, and is ${side} the side to check?`
         : `${what}. Did the ${side} side's tests run, and do they use this contracts directory?`,
     );
   } else if (missing === asked) {
     hints.push(
       `${ledger} has ${lines} entr${lines === 1 ? "y" : "ies"}, but none that this check asks for. ` +
-        `Do the ${side} side's tests use another contracts directory?`,
+        `Did the ${side} side's tests run since the fixtures changed?`,
     );
   } else if (missing * 2 > asked) {
     hints.push(
-      `Only ${asked - missing} of ${asked} fixtures were verified or read. If a part of the tests ran ` +
+      `Only ${asked - missing} of the ${asked} fixtures that follow the format were verified or read. If a part of the tests ran ` +
         "(a filter, one shard of several), run all of them, or join the ledgers of all shards, " +
         "before this check.",
     );

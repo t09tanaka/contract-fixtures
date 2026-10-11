@@ -40,10 +40,13 @@ export function readLedger(
   const entries: LedgerEntry[] = [];
   const badLines: number[] = [];
   if (!fs.existsSync(file)) return { entries, badLines, exists: false };
+  // A byte order mark is not a part of the first line. A line is blank when it holds nothing
+  // but spaces, tabs and carriage returns (the same in every implementation).
   fs.readFileSync(file, "utf8")
+    .replace(/^\uFEFF/, "")
     .split("\n")
     .forEach((line, i) => {
-      if (line.trim() === "") return;
+      if (/^[ \t\r]*$/.test(line)) return;
       try {
         const entry = JSON.parse(line) as Partial<LedgerEntry> | null;
         if (

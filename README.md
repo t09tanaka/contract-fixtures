@@ -162,7 +162,7 @@ so they fit any HTTP library. Where the values come from in practice:
     return toFetchResponse(contract.readResponse("order.created").response);
   };
   // ... run the client code with fakeFetch, assert what it made of the response, then:
-  contract.verifyRequest({ name: "create-order.request", description: "...", request: sent[0] });
+  contract.verifyRequest({ name: "create-order.request", description: "...", request: sent[0]! });
   ```
 
 - **A provider tested through an HTTP test client** (TypeScript). `exchangeFromTestResponse`
@@ -342,13 +342,13 @@ When the state of the ledger suggests a cause, the report ends with a hint:
 contract-fixtures check (consumer side): 8 problem(s) in 11 fixture(s)
   - provider/order.coupon-unknown.json: not read by the consumer side's tests (add a test that feeds it to the real code)
   ...
-Hint: Only 3 of 11 fixtures were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.
+Hint: Only 3 of the 11 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.
 Run `contract-fixtures reset` and the consumer side's tests before this check.
 ```
 
-Other hints are given when the ledger is missing or empty (did the tests run, and on this
-directory?), when only the other side has one (is `--side` right?), and when it names files
-that are gone (was it reset?). A hint is a guess; the problems and the exit code do not depend
+Other hints are given when the ledger is missing or has no entries (did the tests run, and on
+this directory? is `--side` right, if the other side has a ledger?), when none of its entries
+is for a fixture of this directory, and when it names files that are gone (was it reset?). A hint is a guess; the problems and the exit code do not depend
 on it.
 
 `check` exits with `0` when there are no problems, `1` when a fixture is unverified, unread or

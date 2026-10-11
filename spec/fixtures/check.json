@@ -68,7 +68,7 @@
         }
       ],
       "hints": [
-        ".ledger/provider.jsonl is empty. Did the provider side's tests run, and do they use this contracts directory?"
+        ".ledger/provider.jsonl has no entries. Did the provider side's tests run, and do they use this contracts directory?"
       ]
     },
     {
@@ -95,7 +95,7 @@
         }
       ],
       "hints": [
-        ".ledger/consumer.jsonl is empty. Did the consumer side's tests run, and do they use this contracts directory?"
+        ".ledger/consumer.jsonl has no entries. Did the consumer side's tests run, and do they use this contracts directory?"
       ]
     },
     {
@@ -128,7 +128,7 @@
         }
       ],
       "hints": [
-        ".ledger/consumer.jsonl is empty, but .ledger/provider.jsonl has entries. Is consumer the side whose tests ran?"
+        ".ledger/consumer.jsonl has no entries, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?"
       ]
     },
     {
@@ -473,7 +473,7 @@
         }
       ],
       "hints": [
-        ".ledger/provider.jsonl does not exist, but .ledger/consumer.jsonl has entries. Is provider the side whose tests ran?"
+        ".ledger/provider.jsonl does not exist, but .ledger/consumer.jsonl has some. Did the provider side's tests run, and is provider the side to check?"
       ]
     },
     {
@@ -503,7 +503,7 @@
         }
       ],
       "hints": [
-        ".ledger/provider.jsonl has 2 entries, but none that this check asks for. Do the provider side's tests use another contracts directory?",
+        ".ledger/provider.jsonl has 2 entries, but none that this check asks for. Did the provider side's tests run since the fixtures changed?",
         ".ledger/provider.jsonl names 2 file(s) that are not in this directory. It may be left from an earlier run: run the reset before the tests."
       ]
     },
@@ -533,7 +533,7 @@
         }
       ],
       "hints": [
-        ".ledger/consumer.jsonl has 1 entry, but none that this check asks for. Do the consumer side's tests use another contracts directory?"
+        ".ledger/consumer.jsonl has 1 entry, but none that this check asks for. Did the consumer side's tests run since the fixtures changed?"
       ]
     },
     {
@@ -558,7 +558,7 @@
         }
       ],
       "hints": [
-        "Only 1 of 4 fixtures were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
+        "Only 1 of the 4 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
       ]
     },
     {
@@ -627,7 +627,73 @@
         }
       ],
       "hints": [
-        "Only 1 of 3 fixtures were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
+        "Only 1 of the 3 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
+      ]
+    },
+    {
+      "case": "ledger: a byte order mark at the start is not a part of the first line",
+      "side": "provider",
+      "ledger": [
+        "﻿{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [],
+      "hints": []
+    },
+    {
+      "case": "ledger: a line of spaces, tabs and a carriage return is blank; a line with another white space character is not",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        " \t\r",
+        "",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": ".ledger/provider.jsonl",
+          "code": "ledger"
+        }
+      ],
+      "hints": []
+    },
+    {
+      "case": "hint: a ledger with lines but without entries",
+      "side": "provider",
+      "ledger": [
+        "not an entry"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unverified"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unread"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        },
+        {
+          "file": ".ledger/provider.jsonl",
+          "code": "ledger"
+        }
+      ],
+      "hints": [
+        ".ledger/provider.jsonl has no entries. Did the provider side's tests run, and do they use this contracts directory?"
       ]
     }
   ]

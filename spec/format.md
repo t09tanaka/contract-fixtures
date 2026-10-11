@@ -502,7 +502,8 @@ Every successful verify and read appends one line to `<contracts>/.ledger/<side>
 ```
 
 `action` is `verified` or `read`; `file` uses `/` on every platform. A failed verify or read
-writes nothing.
+writes nothing. A reader ignores a byte order mark at the start of the file and lines that
+hold nothing but spaces, tabs and carriage returns.
 
 ## Check
 
@@ -542,8 +543,8 @@ as such. They never change the problems or the exit code.
 
 | The ledger of the side | Hint |
 |---|---|
-| does not exist, or has no entries | Did this side's tests run, and on this directory? If the other side's ledger has entries: is this the side whose tests ran? |
-| has entries, but no fixture has the verify or read the check asks for | Do the tests use another contracts directory? |
+| does not exist, or has no entries | Did this side's tests run, and on this directory? If the other side's ledger has entries: did they run, and is this the side to check? |
+| has entries, but no fixture has the verify or read the check asks for | Did the tests run since the fixtures changed? |
 | covers fewer than half of the fixtures that follow the format (and at least one) | A part of the tests may have run (a filter, one shard). |
 | names files that are not in the directory | It may be left from an earlier run; reset before the tests. |
 

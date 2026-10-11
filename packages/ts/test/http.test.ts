@@ -59,6 +59,18 @@ describe("toFetchResponse", () => {
     assert.equal(((await response.json()) as { total_minor: number }).total_minor, 1200);
   });
 
+  it("refuses a header fetch does not accept, without showing its value", () => {
+    assert.throws(
+      () => toFetchResponse({ status: 200, headers: { "x-note": "line\nbreak-real" } }),
+      (error: unknown) => {
+        assert.ok(error instanceof ContractUsageError);
+        assert.match(error.message, /the header "x-note"/);
+        assert.ok(!error.message.includes("break-real"));
+        return true;
+      },
+    );
+  });
+
   it("refuses what a Response cannot be", () => {
     for (const status of [100, 199, 600, 200.5]) {
       assert.throws(() => toFetchResponse({ status }), ContractUsageError, String(status));
@@ -140,11 +152,22 @@ describe("requestFromFetch", () => {
       requestFromFetch("/sessions", { method: "POST", body: new URLSearchParams({ password: "hunter2-real" }) }),
       (error: unknown) => {
         assert.ok(error instanceof ContractUsageError);
-        assert.match(error.message, /the body of the request POST \/sessions is not JSON/);
+        assert.match(error.message, /the body of the POST request is not JSON/);
+        assert.ok(!error.message.includes("sessions"));
         assert.ok(!error.message.includes("hunter2-real"));
         return true;
       },
     );
+  });
+
+  it("does not show a URL it cannot use", async () => {
+    for (const url of ["https://user:pw-real@api.example.test/orders", "http://["]) {
+      await assert.rejects(requestFromFetch(url), (error: unknown) => {
+        assert.ok(error instanceof ContractUsageError);
+        assert.ok(!error.message.includes("pw-real"));
+        return true;
+      });
+    }
   });
 
   it("gives what verifyRequest takes, from a fetch a test put in the place of the real one", async () => {
@@ -259,6 +282,24 @@ describe("exchangeFromTestResponse", () => {
       { requestHeaders: ["content-length"] },
     );
     assert.deepEqual(exchange.request, { method: "GET", path: "/orders?limit=2", headers: { "content-length": "17" } });
+  });
+
+  it("refuses the {} a client gives for a body that is not JSON, unless the test says what to record", () => {
+    const html = { ...testResponse(), status: 502, body: {}, text: "<html>Bad Gateway</html>" };
+    assert.throws(() => exchangeFromTestResponse(html), /has a text that is not JSON, and an empty object as its body/);
+    assert.deepEqual(exchangeFromTestResponse(html, { response: { body: null } }).response, { status: 502, body: null });
+    assert.deepEqual(exchangeFromTestResponse(html, { response: { body: html.text } }).response.body, html.text);
+    // A body that really is {} is one.
+    assert.deepEqual(exchangeFromTestResponse({ ...testResponse(), body: {}, text: " {} " }).response.body, {});
+  });
+
+  it("takes each part of the request from the object that has it, and a path a test passes as it is", () => {
+    const exchange = exchangeFromTestResponse({ status: 200, request: { header: { accept: "a/b" } }, req: { method: "GET", path: "/orders" } }, { requestHeaders: ["accept"] });
+    assert.deepEqual(exchange.request, { method: "GET", path: "/orders", headers: { accept: "a/b" } });
+    const passed = exchangeFromTestResponse({ status: 200, request: { method: "GET", url: "http://[" } }, { request: { path: "/orders" } });
+    assert.equal(passed.request.path, "/orders");
+    assert.throws(() => exchangeFromTestResponse({ status: 200, request: { method: "GET", url: "http://[" } }), /does not show request.path;/);
+    assert.throws(() => exchangeFromTestResponse({ status: Number.NaN, request: { method: "GET", url: "/a" } }), /response.status/);
   });
 
   it("says what is lacking", () => {

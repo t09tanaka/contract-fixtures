@@ -164,11 +164,12 @@ List<String> _checkHints({
   final hints = <String>[];
   final ledger = '.ledger/$side.jsonl';
   if (lines == 0) {
-    final what = ledgerExists ? '$ledger is empty' : '$ledger does not exist';
+    final what =
+        ledgerExists ? '$ledger has no entries' : '$ledger does not exist';
     hints.add(
       otherLines > 0
-          ? '$what, but .ledger/$other.jsonl has entries. '
-              'Is $side the side whose tests ran?'
+          ? '$what, but .ledger/$other.jsonl has some. '
+              "Did the $side side's tests run, and is $side the side to check?"
           : "$what. Did the $side side's tests run, "
               'and do they use this contracts directory?',
     );
@@ -176,11 +177,12 @@ List<String> _checkHints({
     hints.add(
       "$ledger has $lines entr${lines == 1 ? 'y' : 'ies'}, "
       'but none that this check asks for. '
-      "Do the $side side's tests use another contracts directory?",
+      "Did the $side side's tests run since the fixtures changed?",
     );
   } else if (missing * 2 > asked) {
     hints.add(
-      'Only ${asked - missing} of $asked fixtures were verified or read. '
+      'Only ${asked - missing} of the $asked fixtures that follow the format '
+      'were verified or read. '
       'If a part of the tests ran (a filter, one shard of several), run all of them, '
       'or join the ledgers of all shards, before this check.',
     );

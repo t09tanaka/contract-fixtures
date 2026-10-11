@@ -33,7 +33,8 @@ First release.
     empty, only the other side has one, a part of the tests ran, or it names files that are
     gone. The problems and the exit code do not depend on them;
   - `assertPrefixesCover`, for tests that split their table of expectations by the prefix of
-    the fixture names: it fails for a fixture that no prefix covers;
+    the fixture names: it fails for a fixture that no prefix covers, and for a prefix that no
+    fixture starts with;
   - a `summary` command (`summarizeContracts`, `formatSummary`) that prints one line per
     fixture, with the status and the keys of the response body, to compare fixtures side by
     side.

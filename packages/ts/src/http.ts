@@ -40,7 +40,17 @@ export function toFetchResponse(response: ExchangeResponse): Response {
   }
   const headers = new Headers();
   for (const [name, value] of Object.entries(response.headers ?? {})) {
-    for (const item of Array.isArray(value) ? value : [value]) headers.append(name, item);
+    for (const item of Array.isArray(value) ? value : [value]) {
+      try {
+        headers.append(name, item);
+      } catch {
+        // The value is not shown: it may be a credential.
+        throw new ContractUsageError(
+          `contract-fixtures: a Response cannot have the header ${JSON.stringify(name)} of the fixture ` +
+            "(the name or the value is not one fetch accepts)",
+        );
+      }
+    }
   }
   // Bytes, not a string: a string would make the Response invent `content-type: text/plain`.
   const bytes = hasBody ? new TextEncoder().encode(JSON.stringify(body)) : null;
@@ -83,7 +93,9 @@ function withoutUndefined<T extends object>(value: T): T {
  * of `fetch(input, init)`, or a `Request`. Use it inside the `fetch` a test puts in the place
  * of the real one, so that the request is the one the client code really built.
  *
- * - `method` is the one of the request (`GET` when none is given).
+ * - `method` is the one of the request (`GET` when none is given), as `fetch` would send it:
+ *   `fetch` writes `get` and `post` in upper case but leaves `patch` alone, and a method in
+ *   lower case then fails the verify, as it would fail on most servers.
  * - `path` is the path and the query string of the URL; the origin is dropped.
  * - `headers` are the headers of the request with lower-case names, or only those named in
  *   `options.headers`. They include what `fetch` adds for the body: a string body without a
@@ -99,11 +111,19 @@ export async function requestFromFetch(
   options: { headers?: readonly string[] } = {},
 ): Promise<ExchangeRequest> {
   let request: Request;
-  if (isRequest(input)) {
-    // A copy, so that the caller's Request can still be read.
-    request = init === undefined ? input.clone() : new Request(input.clone(), init);
-  } else {
-    request = new Request(new URL(String(input), NO_ORIGIN), init);
+  try {
+    if (isRequest(input)) {
+      // A copy, so that the caller's Request can still be read.
+      request = init === undefined ? input.clone() : new Request(input.clone(), init);
+    } else {
+      request = new Request(new URL(String(input), NO_ORIGIN), init);
+    }
+  } catch {
+    // Neither the URL nor the cause is shown: the URL may hold a credential.
+    throw new ContractUsageError(
+      "contract-fixtures: fetch would not send a request for these arguments " +
+        "(a URL that cannot be parsed or that holds a user name, or an init that Request refuses)",
+    );
   }
   const url = new URL(request.url, NO_ORIGIN);
   const all: HeaderMap = {};
@@ -116,9 +136,9 @@ export async function requestFromFetch(
     try {
       body = JSON.parse(text);
     } catch {
-      // The text is not shown: it may hold a credential.
+      // Neither the text nor the path is shown: both may hold a credential.
       throw new ContractUsageError(
-        `contract-fixtures: the body of the request ${request.method} ${url.pathname} is not JSON, ` +
+        `contract-fixtures: the body of the ${request.method} request is not JSON, ` +
           "so it cannot be recorded in a fixture",
       );
     }
@@ -171,6 +191,18 @@ function headerMap(value: unknown): HeaderMap {
   return out;
 }
 
+function isEmptyObject(value: unknown): boolean {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).length === 0;
+}
+
+function parsed(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 function firstOf(source: unknown, keys: readonly string[]): unknown {
   if (typeof source !== "object" || source === null) return undefined;
   for (const key of keys) {
@@ -188,7 +220,8 @@ function firstOf(source: unknown, keys: readonly string[]): unknown {
  *
  * - `status` or `statusCode`: the status.
  * - `body`: the parsed body. No body when `text` is an empty string (clients of this kind
- *   give `{}` as the body of an empty response).
+ *   give `{}` as the body of an empty response). They give `{}` for a body that is not JSON
+ *   as well; when `text` shows that, this throws and asks for `response: { body }`.
  * - `headers`: the response headers, a plain object or something like `Headers`. Only the
  *   names in `responseHeaders` are recorded, because a response carries headers of the
  *   infrastructure (`date`, `connection`, `content-length`) that are not part of the
@@ -207,14 +240,26 @@ export function exchangeFromTestResponse(
   response: unknown,
   options: TestResponseOptions = {},
 ): { request: ExchangeRequest; response: ExchangeResponse } {
-  const sent = firstOf(response, ["request", "req"]);
-  const target = options.request?.path ?? firstOf(sent, ["url", "path"]);
-  const method = options.request?.method ?? firstOf(sent, ["method"]);
+  // Some clients hold two request objects; each key is taken from the first that has it.
+  const sources = [firstOf(response, ["request"]), firstOf(response, ["req"])];
+  const sent = (keys: readonly string[]): unknown =>
+    sources.map((source) => firstOf(source, keys)).find((value) => value !== undefined);
+  const target = sent(["url", "path"]);
+  const method = options.request?.method ?? sent(["method"]);
   const status = options.response?.status ?? firstOf(response, ["status", "statusCode"]);
+  let path = options.request?.path;
+  if (path === undefined && typeof target === "string") {
+    try {
+      const url = new URL(target, NO_ORIGIN);
+      path = url.pathname + url.search;
+    } catch {
+      // Reported below as lacking; the value is not shown.
+    }
+  }
   const lacking = [
     typeof method === "string" ? "" : "request.method",
-    typeof target === "string" ? "" : "request.path",
-    typeof status === "number" ? "" : "response.status",
+    typeof path === "string" ? "" : "request.path",
+    Number.isInteger(status) ? "" : "response.status",
   ].filter((name) => name !== "");
   if (lacking.length > 0) {
     throw new ContractUsageError(
@@ -222,14 +267,26 @@ export function exchangeFromTestResponse(
         "pass it in the options of exchangeFromTestResponse",
     );
   }
-  const url = new URL(target as string, NO_ORIGIN);
-  const empty = typeof response === "object" && response !== null && (response as { text?: unknown }).text === "";
-  const body = empty ? undefined : (response as { body?: unknown }).body;
+  const text = (response as { text?: unknown } | null)?.text;
+  const body = text === "" ? undefined : (response as { body?: unknown } | null)?.body;
+  if (
+    !Object.hasOwn(options.response ?? {}, "body") &&
+    typeof text === "string" &&
+    text !== "" &&
+    isEmptyObject(body) &&
+    !isEmptyObject(parsed(text))
+  ) {
+    // Clients of this kind give `{}` for a body they did not parse (HTML, plain text, CSV).
+    throw new ContractUsageError(
+      "contract-fixtures: the response object has a text that is not JSON, and an empty object as its body. " +
+        "Pass `response: { body: null }` to record no body, or `response: { body: <the text> }` to record the text",
+    );
+  }
   return {
     request: withoutUndefined({
       method: method as string,
-      path: options.request?.path ?? url.pathname + url.search,
-      headers: pickHeaders(headerMap(firstOf(sent, ["headers", "header"])), options.requestHeaders ?? []),
+      path: path as string,
+      headers: pickHeaders(headerMap(sent(["headers", "header"])), options.requestHeaders ?? []),
       ...withoutUndefined(options.request ?? {}),
     }),
     response: withoutUndefined({

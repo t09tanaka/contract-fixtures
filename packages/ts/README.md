@@ -158,14 +158,16 @@ const fetchFixture = (name: string): typeof fetch => async (input, init) => {
 - `toFetchResponse(response)` returns a `Response` with the status, the headers and the JSON
   body of the fixture, and nothing else. It does not add a `content-type`: if the client looks
   at that header, the provider's test should record it. An array of values becomes one header
-  per value (`set-cookie`). A status below 200, and a body with 204, 205 or 304, throw
-  `ContractUsageError`, because a `Response` cannot be built from them.
+  per value (`set-cookie`). What a `Response` cannot be built from throws
+  `ContractUsageError`: a status outside 200 to 599, a body with 204, 205 or 304, a header
+  name or value that `fetch` does not accept.
 - `await requestFromFetch(input, init?, { headers? })` returns `{ method, path, headers, body }`
   for the arguments of `fetch` or for a `Request`. `path` is the path and the query string
   (the origin is dropped). `headers` are those of the request, including the `content-type`
   that `fetch` itself gives a body (`text/plain;charset=UTF-8` for a string without one), or
-  only the names listed in `headers`. `body` is parsed as JSON; a body that is not JSON
-  throws, without showing it. Pass the result to `verifyRequest`, with `secret` for the
+  only the names listed in `headers`. `method` is what `fetch` would send (it leaves `patch`
+  in lower case, which then fails the verify). `body` is parsed as JSON; a body that is not
+  JSON throws, without showing it. Pass the result to `verifyRequest`, with `secret` for the
   credentials in it.
 
 ### A provider tested through an HTTP test client
@@ -190,13 +192,14 @@ contract.verifyResponse({
 `exchangeFromTestResponse(res, options?)` returns `{ request, response }`. It reads `res` by
 shape: `status` or `statusCode`; `body` (no body when `text` is `""`, because such clients give
 `{}` for an empty response); `headers`; and under `request` or `req` the `method`, the `url` or
-`path`, and `headers` or `header`. With that it understands the response of supertest, and
-objects like it.
+`path`, and `headers` or `header`. That is the shape of the response of supertest, and of
+objects like it. When `text` is not JSON and `body` is `{}` (what such clients give for HTML or
+plain text), it throws and asks for `response: { body }`.
 
 | Option | |
 |---|---|
 | `requestHeaders`, `responseHeaders` | Names of the headers to record. Default: none. A response carries `date`, `connection` and `content-length`, which are not part of an agreement, so headers are recorded by name only. A named header that is absent is left out. |
-| `request`, `response` | Parts to add or to replace: `request: { body }` for the body that was sent (it is not read from the client), `response: { body: res.text }` or `{ body: null }` when the parsed body is not what should be recorded, `request: { method, path }` for an object without a request. What a test passes wins. |
+| `request`, `response` | Parts to add or to replace: `request: { body }` for the body that was sent (it is not read from the client), `response: { body: res.text }` or `{ body: null }` when the parsed body is not what should be recorded, `request: { method, path }` for an object without a request. What a test passes replaces what was read: `request: { headers }` replaces the headers picked by `requestHeaders`, it is not merged with them. |
 
 Without a method, a path or a status it throws `ContractUsageError` and says which is lacking.
 
