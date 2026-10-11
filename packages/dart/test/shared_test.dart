@@ -133,6 +133,7 @@ void main() {
 
         var outcome = 'ok';
         var message = '';
+        List<Map<String, String>>? issues;
         List<String>? lines;
         try {
           if (kind == 'provider') {
@@ -167,6 +168,9 @@ void main() {
           outcome = 'usage';
         } on ContractFixtureException catch (error) {
           message = '$error';
+          issues = [
+            for (final i in error.issues) {'code': i.code, 'path': i.path},
+          ];
           outcome =
               storedText == null && c['update'] == false && error.issues.isEmpty
                   ? 'missing'
@@ -179,6 +183,7 @@ void main() {
 
         expect(outcome, c['outcome']);
         if (c.containsKey('differences')) expect(lines, c['differences']);
+        if (c.containsKey('issues')) expect(issues, c['issues']);
         expect(after, c['written'] ?? storedText);
         final succeeded = c['outcome'] == 'ok' || c['outcome'] == 'written';
         expect(
@@ -189,7 +194,7 @@ void main() {
         );
         for (final text in c['absent'] as List<dynamic>? ?? const <dynamic>[]) {
           expect(message, isNot(contains(text)));
-          for (final found in filesUnder(dir)) {
+          for (final found in everyFileIn(dir)) {
             expect(found.readAsStringSync(), isNot(contains(text)),
                 reason: found.path);
           }

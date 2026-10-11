@@ -50,5 +50,5 @@ List<String> ledgerLines(String dir, String side) {
 }
 
 /// Every file below [dir], the ledger included.
-List<File> filesUnder(String dir) =>
+List<File> everyFileIn(String dir) =>
     Directory(dir).listSync(recursive: true).whereType<File>().toList();

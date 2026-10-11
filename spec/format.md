@@ -240,7 +240,9 @@ equal on every run, and `secret` itself is compared too.
 | `secret-volatile` | a node that a path matches is also covered by a volatile path (matched by it, or at or below a path that ends in `**`). A placeholder never changes, so it is compared exactly. |
 
 A volatile path on a parent and a secret path on one of its children are two different nodes
-and may be combined.
+and may be combined. The schema accepts upper-case letters in a path; a path that names a
+header in upper case simply matches nothing (`secret-unmatched`), because stored header names
+are lower case.
 
 The reading side ignores `secret`: it receives the placeholders as they are stored and replaces
 them with values of its own.
@@ -256,8 +258,8 @@ expression (ECMAScript syntax) finds a match:
 
 That is the shape of a JSON Web Token: three base64url parts separated by dots, the first one
 starting with `eyJ`, not preceded by a base64url character. Every string value of the fixture
-is searched, the token may be a part of a longer string (`Bearer eyJ...`), and it does not
-matter whether a volatile path covers the value.
+is searched (object keys and header names are not), the token may be a part of a longer string
+(`Bearer eyJ...`), and it does not matter whether a volatile path covers the value.
 
 - A verify that would write or compare such a fixture fails instead, in update mode too
   (issue code `jwt`). List the path in `secret`.

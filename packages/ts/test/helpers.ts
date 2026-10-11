@@ -36,7 +36,7 @@ export function ledgerLines(dir: string, side: string): string[] {
 }
 
 /** Every file below `dir`, the ledger included. */
-export function filesUnder(dir: string): string[] {
+export function everyFileIn(dir: string): string[] {
   return fs
     .readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())

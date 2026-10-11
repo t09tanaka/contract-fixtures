@@ -1,5 +1,5 @@
 {
-  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
+  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`. `issues` are the codes and paths of what an invalid-observed outcome reports, in order. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
   "cases": [
     {
       "case": "a response that equals the stored fixture",
@@ -1021,6 +1021,12 @@
       },
       "update": true,
       "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.access_token"
+        }
+      ],
       "written": null,
       "absent": [
         "opaque-session-value-0004"
@@ -1050,11 +1056,17 @@
         },
         "secret": {
           "response.body.access_token": "<token:session-1>",
-          "response.body.refresh_token": "<token:refresh-1>"
+          "response.body.refresh_token": "<token:renewal-1>"
         }
       },
       "update": true,
       "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.body.refresh_token"
+        }
+      ],
       "written": null
     },
     {
@@ -1134,6 +1146,12 @@
       },
       "update": true,
       "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.codes.0.code"
+        }
+      ],
       "written": null,
       "absent": [
         "K7Q2-real-0001",
@@ -1246,6 +1264,12 @@
       },
       "update": true,
       "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.response.body.access_token"
+        }
+      ],
       "written": null
     },
     {
@@ -1273,6 +1297,12 @@
       },
       "update": true,
       "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.body.access_token"
+        }
+      ],
       "written": null,
       "absent": [
         "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
@@ -1303,6 +1333,12 @@
       },
       "update": true,
       "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.body.access_token"
+        }
+      ],
       "written": null,
       "absent": [
         "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
@@ -1329,6 +1365,12 @@
       },
       "update": true,
       "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "request.headers.authorization"
+        }
+      ],
       "written": null,
       "absent": [
         "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
@@ -1399,6 +1441,173 @@
       "absent": [
         "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
         "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+      ]
+    },
+    {
+      "case": "secret: a header called __proto__ is replaced like any other",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "__proto__": "opaque-header-0001",
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "secret": {
+          "request.headers.__proto__": "<token:device-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"__proto__\": \"<token:device-1>\",\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"secret\": {\n    \"request.headers.__proto__\": \"<token:device-1>\"\n  }\n}\n",
+      "absent": [
+        "opaque-header-0001"
+      ]
+    },
+    {
+      "case": "secret: a body that is a secret as a whole",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "api-key.created",
+        "description": "A new key is returned as plain text",
+        "request": {
+          "method": "POST",
+          "path": "/api-keys",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": "opaque-api-key-0001"
+        },
+        "secret": {
+          "response.body": "<key:api-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"api-key.created\",\n  \"description\": \"A new key is returned as plain text\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/api-keys\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": \"<key:api-1>\"\n  },\n  \"secret\": {\n    \"response.body\": \"<key:api-1>\"\n  }\n}\n",
+      "absent": [
+        "opaque-api-key-0001"
+      ]
+    },
+    {
+      "case": "secret: the same node cannot be volatile in what this side produced either",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "expires_in": 3600
+          }
+        },
+        "volatile": [
+          "response.body.access_token"
+        ],
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.access_token"
+        }
+      ],
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "secret: in update mode, a test that no longer lists the path gets the fixture it describes",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "opaque-session-value-0007",
+            "expires_in": 3600
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"opaque-session-value-0007\",\n      \"expires_in\": 3600\n    }\n  }\n}\n"
+    },
+    {
+      "case": "token: a volatile path does not excuse a token",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "expires_in": 3600
+          }
+        },
+        "volatile": [
+          "response.body.access_token"
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.body.access_token"
+        }
+      ],
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
       ]
     }
   ]

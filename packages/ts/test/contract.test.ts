@@ -14,7 +14,7 @@ import {
   resolvePlaceholders,
 } from "../src/index.js";
 import { JWT_PATTERN } from "../src/secrets.js";
-import { copyOfContracts, filesUnder, ledgerLines, tempDir, writeFile } from "./helpers.js";
+import { copyOfContracts, everyFileIn, ledgerLines, tempDir, writeFile } from "./helpers.js";
 
 const observedResponse = {
   name: "order.out-of-stock",
@@ -282,7 +282,7 @@ describe("secret paths", () => {
   const issueToken = (): string =>
     [base64url({ alg: "HS256" }), base64url({ sub: "customer-1", n: ++issued }), "c2lnbmF0dXJl"].join(".");
 
-  const signedIn = (token: unknown, expiresIn = 3600) => ({
+  const signInExchange = (token: unknown, seconds = 3600) => ({
     name: "session.created",
     description: "Signing in returns an access token",
     request: {
@@ -290,12 +290,12 @@ describe("secret paths", () => {
       path: "/sessions",
       body: { email: "customer-1@example.test", password: "<password:customer-1>" },
     },
-    response: { status: 200, body: { access_token: token, expires_in: expiresIn } },
+    response: { status: 200, body: { access_token: token, expires_in: seconds } },
   });
   const secret = { "response.body.access_token": "<token:session-1>" };
 
   const everythingIn = (dir: string): string =>
-    filesUnder(dir)
+    everyFileIn(dir)
       .map((file) => fs.readFileSync(file, "utf8"))
       .join("\n");
   const thrownBy = (run: () => void): Error => {
@@ -312,7 +312,7 @@ describe("secret paths", () => {
     const provider = contractFixtures({ side: "provider", dir, update: true });
     const token = issueToken();
 
-    const error = thrownBy(() => provider.verifyResponse(signedIn(token)));
+    const error = thrownBy(() => provider.verifyResponse(signInExchange(token)));
 
     assert.ok(error instanceof ContractFixtureError);
     assert.deepEqual(
@@ -320,25 +320,25 @@ describe("secret paths", () => {
       ["jwt response.body.access_token"],
     );
     assert.ok(!String(error.stack).includes(token));
-    assert.deepEqual(filesUnder(dir), []);
+    assert.deepEqual(everyFileIn(dir), []);
   });
 
   it("with a secret path, the real value is nowhere: not in a file, the ledger or a message", () => {
     const dir = tempDir();
     const first = issueToken();
     contractFixtures({ side: "provider", dir, update: true }).verifyResponse({
-      ...signedIn(first),
+      ...signInExchange(first),
       secret,
     });
 
     // Another run issues another token; the stored placeholder still matches.
     const provider = contractFixtures({ side: "provider", dir, update: false });
     const second = issueToken();
-    provider.verifyResponse({ ...signedIn(second), secret });
+    provider.verifyResponse({ ...signInExchange(second), secret });
 
     // A difference elsewhere is reported without the token.
     const third = issueToken();
-    const error = thrownBy(() => provider.verifyResponse({ ...signedIn(third, 60), secret }));
+    const error = thrownBy(() => provider.verifyResponse({ ...signInExchange(third, 60), secret }));
     assert.ok(error instanceof ContractMismatchError);
     assert.deepEqual(
       error.differences.map((d) => d.text),
@@ -355,13 +355,13 @@ describe("secret paths", () => {
   it("a test that stops passing the secret path does not print the value either", () => {
     const dir = tempDir();
     contractFixtures({ side: "provider", dir, update: true }).verifyResponse({
-      ...signedIn("opaque-value-1"),
+      ...signInExchange("opaque-value-1"),
       secret,
     });
 
     const error = thrownBy(() =>
       contractFixtures({ side: "provider", dir, update: false }).verifyResponse(
-        signedIn("opaque-value-2"),
+        signInExchange("opaque-value-2"),
       ),
     );
 
@@ -377,7 +377,7 @@ describe("secret paths", () => {
     const provider = contractFixtures({ side: "provider", dir: tempDir(), update: true });
 
     const notString = thrownBy(() =>
-      provider.verifyResponse({ ...signedIn({ value: "opaque-value-3" }), secret }),
+      provider.verifyResponse({ ...signInExchange({ value: "opaque-value-3" }), secret }),
     );
     assert.ok(notString instanceof ContractFixtureError);
     assert.deepEqual(
@@ -388,8 +388,8 @@ describe("secret paths", () => {
 
     const unmatched = thrownBy(() =>
       provider.verifyResponse({
-        ...signedIn("opaque-value-4"),
-        secret: { "response.body.refresh_token": "<token:refresh-1>" },
+        ...signInExchange("opaque-value-4"),
+        secret: { "response.body.refresh_token": "<token:renewal-1>" },
       }),
     );
     assert.ok(unmatched instanceof ContractFixtureError);
@@ -397,13 +397,13 @@ describe("secret paths", () => {
       unmatched.issues.map((issue) => `${issue.code} ${issue.path}`),
       ["secret-unmatched secret.response.body.refresh_token"],
     );
-    assert.deepEqual(filesUnder(provider.dir), []);
+    assert.deepEqual(everyFileIn(provider.dir), []);
   });
 
   it("does not change what the test passed in", () => {
     const provider = contractFixtures({ side: "provider", dir: tempDir(), update: true });
     const token = issueToken();
-    const observed = { ...signedIn(token), secret };
+    const observed = { ...signInExchange(token), secret };
 
     provider.verifyResponse(observed);
 
@@ -413,7 +413,7 @@ describe("secret paths", () => {
   it("the reading side gets the placeholder and puts a value of its own in", () => {
     const dir = tempDir();
     contractFixtures({ side: "provider", dir, update: true }).verifyResponse({
-      ...signedIn(issueToken()),
+      ...signInExchange(issueToken()),
       secret,
     });
 

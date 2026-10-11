@@ -1831,7 +1831,7 @@
         },
         "secret": {
           "response.body.access_token": "<token:session-1>",
-          "response.body.refresh_token": "<token:refresh-1>",
+          "response.body.refresh_token": "<token:renewal-1>",
           "response.headers.set-cookie": "<cookie:session-1>"
         }
       },
@@ -2396,6 +2396,129 @@
       "absent": [
         "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
       ]
+    },
+    {
+      "case": "secret: a path may end below an array index",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "devices": [
+              {
+                "key": "<key:device>"
+              },
+              {
+                "key": "plain"
+              }
+            ]
+          }
+        },
+        "secret": {
+          "response.body.devices.0.key": "<key:device>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "token: a volatile path does not excuse a token",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+          }
+        },
+        "volatile": [
+          "response.body.**"
+        ]
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.body.access_token"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: found after any character that is not part of base64url",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "after_dot": "v1.eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "after_equals": "token=eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "after_quote": "\"eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ\""
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.body.after_dot"
+        },
+        {
+          "code": "jwt",
+          "path": "response.body.after_equals"
+        },
+        {
+          "code": "jwt",
+          "path": "response.body.after_quote"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: object keys are not searched",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ": true
+          }
+        }
+      },
+      "issues": []
     }
   ]
 }

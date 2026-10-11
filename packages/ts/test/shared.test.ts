@@ -26,7 +26,7 @@ import {
 } from "../src/index.js";
 import {
   copyOfContracts,
-  filesUnder,
+  everyFileIn,
   ledgerLines,
   loadCases,
   tempDir,
@@ -144,6 +144,7 @@ describe("spec/fixtures/verify.json", () => {
     update: boolean;
     outcome: string;
     differences?: string[];
+    issues?: { code: string; path: string }[];
     written: string | null;
     absent?: string[];
   }
@@ -158,6 +159,7 @@ describe("spec/fixtures/verify.json", () => {
       let outcome = "ok";
       let lines: string[] | undefined;
       let message = "";
+      let issues: { code: string; path: string }[] | undefined;
       try {
         if (c.kind === "provider") contract.verifyResponse(c.observed as ObservedResponse);
         else contract.verifyRequest(c.observed as ObservedRequest);
@@ -170,6 +172,7 @@ describe("spec/fixtures/verify.json", () => {
         } else if (error instanceof ContractUsageError) {
           outcome = "usage";
         } else if (error instanceof ContractFixtureError) {
+          issues = error.issues.map((i) => ({ code: i.code, path: i.path }));
           outcome =
             c.storedText === null && !c.update && error.issues.length === 0
               ? "missing"
@@ -185,6 +188,7 @@ describe("spec/fixtures/verify.json", () => {
 
       assert.equal(outcome, c.outcome);
       if (c.differences) assert.deepEqual(lines, c.differences);
+      if (c.issues) assert.deepEqual(issues, c.issues);
       assert.equal(after, c.written ?? c.storedText);
       const succeeded = c.outcome === "ok" || c.outcome === "written";
       assert.deepEqual(
@@ -193,7 +197,7 @@ describe("spec/fixtures/verify.json", () => {
       );
       for (const text of c.absent ?? []) {
         assert.ok(!message.includes(text), "the message of the error holds the real value");
-        for (const found of filesUnder(dir)) {
+        for (const found of everyFileIn(dir)) {
           assert.ok(!fs.readFileSync(found, "utf8").includes(text), `${found} holds the real value`);
         }
       }

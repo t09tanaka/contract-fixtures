@@ -499,10 +499,10 @@ void main() {
       },
     );
     const secret = {'response.body.access_token': '<token:session-1>'};
-    void signedIn(
+    void verifySession(
       ContractFixtures contract,
       Object? token, {
-      int expiresIn = 3600,
+      int seconds = 3600,
       Map<String, String> secret = const {},
     }) {
       contract.verifyResponse(
@@ -511,7 +511,7 @@ void main() {
         request: request,
         response: ExchangeResponse(
           status: 200,
-          body: {'access_token': token, 'expires_in': expiresIn},
+          body: {'access_token': token, 'expires_in': seconds},
         ),
         secret: secret,
       );
@@ -520,7 +520,7 @@ void main() {
     ContractFixtures provider(String dir, {required bool update}) =>
         ContractFixtures(side: ContractSide.provider, dir: dir, update: update);
     String everythingIn(String dir) =>
-        filesUnder(dir).map((file) => file.readAsStringSync()).join('\n');
+        everyFileIn(dir).map((file) => file.readAsStringSync()).join('\n');
     T thrownBy<T>(void Function() run) {
       try {
         run();
@@ -536,7 +536,7 @@ void main() {
       final token = issueToken();
 
       final error = thrownBy<ContractFixtureException>(
-        () => signedIn(provider(dir, update: true), token),
+        () => verifySession(provider(dir, update: true), token),
       );
 
       expect(
@@ -544,7 +544,7 @@ void main() {
         ['jwt response.body.access_token'],
       );
       expect('$error', isNot(contains(token)));
-      expect(filesUnder(dir), isEmpty);
+      expect(everyFileIn(dir), isEmpty);
     });
 
     test(
@@ -552,19 +552,19 @@ void main() {
         'ledger or a message', () {
       final dir = tempDir();
       final first = issueToken();
-      signedIn(provider(dir, update: true), first, secret: secret);
+      verifySession(provider(dir, update: true), first, secret: secret);
 
       // Another run issues another token; the stored placeholder still matches.
       final second = issueToken();
-      signedIn(provider(dir, update: false), second, secret: secret);
+      verifySession(provider(dir, update: false), second, secret: secret);
 
       // A difference elsewhere is reported without the token.
       final third = issueToken();
       final error = thrownBy<ContractMismatch>(
-        () => signedIn(
+        () => verifySession(
           provider(dir, update: false),
           third,
-          expiresIn: 60,
+          seconds: 60,
           secret: secret,
         ),
       );
@@ -586,10 +586,11 @@ void main() {
         'a test that stops passing the secret path does not print the value '
         'either', () {
       final dir = tempDir();
-      signedIn(provider(dir, update: true), 'opaque-value-1', secret: secret);
+      verifySession(provider(dir, update: true), 'opaque-value-1',
+          secret: secret);
 
       final error = thrownBy<ContractMismatch>(
-        () => signedIn(provider(dir, update: false), 'opaque-value-2'),
+        () => verifySession(provider(dir, update: false), 'opaque-value-2'),
       );
 
       expect([for (final d in error.differences) d.path], ['secret']);
@@ -602,7 +603,7 @@ void main() {
       final dir = tempDir();
 
       final notString = thrownBy<ContractFixtureException>(
-        () => signedIn(
+        () => verifySession(
           provider(dir, update: true),
           {'value': 'opaque-value-3'},
           secret: secret,
@@ -615,17 +616,17 @@ void main() {
       expect('$notString', isNot(contains('opaque-value-3')));
 
       final unmatched = thrownBy<ContractFixtureException>(
-        () => signedIn(
+        () => verifySession(
           provider(dir, update: true),
           'opaque-value-4',
-          secret: const {'response.body.refresh_token': '<token:refresh-1>'},
+          secret: const {'response.body.refresh_token': '<token:renewal-1>'},
         ),
       );
       expect(
         [for (final issue in unmatched.issues) '${issue.code} ${issue.path}'],
         ['secret-unmatched secret.response.body.refresh_token'],
       );
-      expect(filesUnder(dir), isEmpty);
+      expect(everyFileIn(dir), isEmpty);
     });
 
     test('does not change what the test passed in', () {
@@ -646,7 +647,7 @@ void main() {
     test('the reading side gets the placeholder and puts a value of its own in',
         () {
       final dir = tempDir();
-      signedIn(provider(dir, update: true), issueToken(), secret: secret);
+      verifySession(provider(dir, update: true), issueToken(), secret: secret);
 
       final fixture = ContractFixtures(side: ContractSide.consumer, dir: dir)
           .readResponse('session.created');
