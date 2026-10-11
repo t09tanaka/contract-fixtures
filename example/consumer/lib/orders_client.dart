@@ -142,6 +142,7 @@ ReceiptOutcome readReceiptResponse(
       _attachment.firstMatch(headers['content-disposition'] ?? '')?.group(1);
   if (status != 200 ||
       fileName == null ||
+      // Deliberately strict: the example API sends exactly this value.
       headers['content-type'] != 'application/json' ||
       body is! Map<String, dynamic>) {
     return const ReceiptFailed();

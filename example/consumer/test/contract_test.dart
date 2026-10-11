@@ -64,6 +64,8 @@ void main() {
     for (final entry in receiptExpectations.entries) {
       test(entry.key, () {
         final response = contract.readResponse(entry.key).response;
+        // One value per name, as this client's HTTP library would give them. (Joining is
+        // right for the headers of this response; it would not be for set-cookie.)
         final headers = {
           for (final name in response.headers?.keys ?? const <String>[])
             name: response.headerValues(name).join(', '),

@@ -10,7 +10,7 @@ enum FixtureKind { provider, consumer, tables }
 List<String> _headerValues(Map<String, dynamic>? headers, String name) {
   final value = headers?[name];
   if (value is String) return [value];
-  if (value is List) return [for (final item in value) item as String];
+  if (value is List) return value.whereType<String>().toList();
   return const [];
 }
 

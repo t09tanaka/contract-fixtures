@@ -145,8 +145,8 @@ contract.verifyResponse({
   response: {
     status: response.status,
     headers: {
-      "content-type": response.headers["content-type"],
-      "content-disposition": response.headers["content-disposition"],
+      "content-type": response.headers["content-type"]!,
+      "content-disposition": response.headers["content-disposition"]!,
     },
     body: response.body,
   },

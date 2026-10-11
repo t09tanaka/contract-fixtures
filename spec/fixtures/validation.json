@@ -3117,6 +3117,37 @@
           "path": "volatile.0"
         }
       ]
+    },
+    {
+      "case": "headers: * as a volatile path over the values of a repeated header",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "a=1",
+              "b=2"
+            ]
+          }
+        },
+        "volatile": [
+          "response.headers.set-cookie.*"
+        ]
+      },
+      "issues": []
     }
   ]
 }

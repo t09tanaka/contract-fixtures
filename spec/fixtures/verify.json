@@ -2522,6 +2522,163 @@
         }
       ],
       "written": null
+    },
+    {
+      "case": "headers: update mode does not drop the secret path of one cookie",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"<cookie:session-1>\",\n        \"<cookie:csrf-1>\"\n      ]\n    }\n  },\n  \"secret\": {\n    \"response.headers.set-cookie.0\": \"<cookie:session-1>\",\n    \"response.headers.set-cookie.1\": \"<cookie:csrf-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "csrf=opaque-cookie-0002; Path=/; Secure"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "refused",
+      "issues": [
+        {
+          "code": "secret-removed",
+          "path": "secret.response.headers.set-cookie.1"
+        }
+      ],
+      "written": null,
+      "absent": [
+        "opaque-cookie-0001",
+        "opaque-cookie-0002"
+      ]
+    },
+    {
+      "case": "headers: without update mode, the cookie whose path was dropped is not printed",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"<cookie:session-1>\",\n        \"<cookie:csrf-1>\"\n      ]\n    }\n  },\n  \"secret\": {\n    \"response.headers.set-cookie.0\": \"<cookie:session-1>\",\n    \"response.headers.set-cookie.1\": \"<cookie:csrf-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "csrf=opaque-cookie-0002; Path=/; Secure"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>"
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "secret.response.headers.set-cookie.1: \"<cookie:csrf-1>\" -> (absent)"
+      ],
+      "written": null,
+      "absent": [
+        "opaque-cookie-0001",
+        "opaque-cookie-0002"
+      ]
+    },
+    {
+      "case": "headers: one value of a repeated header is volatile, another one secret",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"<cookie:session-1>\",\n        \"nonce=n-0001; Path=/\"\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.headers.set-cookie.1\"\n  ],\n  \"secret\": {\n    \"response.headers.set-cookie.0\": \"<cookie:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "nonce=n-0002; Path=/"
+            ]
+          }
+        },
+        "volatile": [
+          "response.headers.set-cookie.1"
+        ],
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>"
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null,
+      "absent": [
+        "opaque-cookie-0001"
+      ]
+    },
+    {
+      "case": "headers: a secret path that names a response header in upper case matches nothing",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "Set-Cookie": "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax"
+          }
+        },
+        "secret": {
+          "response.headers.Set-Cookie": "<cookie:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.headers.Set-Cookie"
+        }
+      ],
+      "written": null,
+      "absent": [
+        "opaque-cookie-0001"
+      ]
     }
   ]
 }

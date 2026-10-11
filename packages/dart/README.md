@@ -158,7 +158,10 @@ fixture throws `ContractFixtureException`.
 - On the reading side, `fixture.response.headers` is the stored map, and
   `fixture.response.headerValues('set-cookie')` gives the values of one header as a
   `List<String>` (one element for a string, empty when the header is absent). The same on
-  `ExchangeRequest`.
+  `ExchangeRequest`. Code that needs a `Map<String, String>` builds it from that, joining or
+  picking the values the way its HTTP library would:
+  `{for (final name in headers.keys) name: request.headerValues(name).join(', ')}`. Do not
+  join `set-cookie`; its values contain commas.
 - Header names are lower-cased before comparing and writing. A `null` body means "no body".
 - Request and response bodies are whatever `jsonEncode` accepts. Numbers are compared by value,
   so `1` and `1.0` are equal.

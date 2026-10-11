@@ -115,8 +115,9 @@ throws `ContractFixtureError`.
   agreement. A value is a string, or an array of strings for a header that is sent more than
   once (`"set-cookie": [...]`, compared in order; `response.headers["set-cookie"]` of Node's
   `http` and `Headers.getSetCookie()` of `fetch` give such an array). Paths reach into the
-  array: `response.headers.set-cookie.0`. A body that is not JSON is not recorded; pass the
-  status and the headers only.
+  array: `response.headers.set-cookie.0`. A header whose value is `undefined` is left out, like
+  one that was not passed. A body that is not JSON is not recorded; pass the status and the
+  headers only.
 - Header names are lower-cased before comparing and writing. `body: null` and `body: undefined`
   both mean "no body". NaN and infinite numbers are refused.
 
