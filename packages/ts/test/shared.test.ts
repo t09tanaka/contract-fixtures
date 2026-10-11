@@ -24,7 +24,14 @@ import {
   type ObservedResponse,
   type Side,
 } from "../src/index.js";
-import { copyOfContracts, ledgerLines, loadCases, tempDir, writeFile } from "./helpers.js";
+import {
+  copyOfContracts,
+  filesUnder,
+  ledgerLines,
+  loadCases,
+  tempDir,
+  writeFile,
+} from "./helpers.js";
 
 describe("spec/fixtures/differences.json", () => {
   interface Case {
@@ -49,6 +56,7 @@ describe("spec/fixtures/validation.json", () => {
     text?: string;
     value?: unknown;
     issues: { code: string; path: string }[];
+    absent?: string[];
   }
   for (const c of loadCases<Case>("validation.json")) {
     it(c.case, () => {
@@ -60,7 +68,10 @@ describe("spec/fixtures/validation.json", () => {
         issues.map((i) => ({ code: i.code, path: i.path })),
         c.issues,
       );
-      for (const issue of issues) assert.notEqual(issue.message, "");
+      for (const issue of issues) {
+        assert.notEqual(issue.message, "");
+        for (const text of c.absent ?? []) assert.ok(!issue.message.includes(text));
+      }
     });
   }
 });
@@ -134,6 +145,7 @@ describe("spec/fixtures/verify.json", () => {
     outcome: string;
     differences?: string[];
     written: string | null;
+    absent?: string[];
   }
   for (const c of loadCases<Case>("verify.json")) {
     it(c.case, () => {
@@ -145,10 +157,12 @@ describe("spec/fixtures/verify.json", () => {
 
       let outcome = "ok";
       let lines: string[] | undefined;
+      let message = "";
       try {
         if (c.kind === "provider") contract.verifyResponse(c.observed as ObservedResponse);
         else contract.verifyRequest(c.observed as ObservedRequest);
       } catch (error) {
+        message = String(error instanceof Error ? error.stack : error);
         if (error instanceof ContractMismatchError) {
           outcome = "mismatch";
           lines = error.differences.map((d) => d.text);
@@ -177,6 +191,12 @@ describe("spec/fixtures/verify.json", () => {
         ledgerLines(dir, c.kind),
         succeeded ? [JSON.stringify({ side: c.kind, action: "verified", file: relative })] : [],
       );
+      for (const text of c.absent ?? []) {
+        assert.ok(!message.includes(text), "the message of the error holds the real value");
+        for (const found of filesUnder(dir)) {
+          assert.ok(!fs.readFileSync(found, "utf8").includes(text), `${found} holds the real value`);
+        }
+      }
     });
   }
 });

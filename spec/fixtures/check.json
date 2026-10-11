@@ -297,6 +297,63 @@
           "code": "unread"
         }
       ]
+    },
+    {
+      "case": "secret: a fixture with a secret path is an ordinary fixture",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/session.created.json\"}"
+      ],
+      "files": {
+        "provider/session.created.json": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n"
+      },
+      "fixtures": 5,
+      "problems": []
+    },
+    {
+      "case": "secret: a stored value that is not its placeholder is invalid",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "provider/session.created.json": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"opaque-session-value-0006\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "provider/session.created.json",
+          "code": "invalid"
+        }
+      ]
+    },
+    {
+      "case": "token: a stored token is invalid, for either side",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/session.created.json\"}"
+      ],
+      "files": {
+        "provider/session.created.json": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ\",\n      \"expires_in\": 3600\n    }\n  }\n}\n"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "provider/session.created.json",
+          "code": "invalid"
+        }
+      ]
     }
   ]
 }

@@ -88,6 +88,16 @@
         "type": "string",
         "pattern": "^(request|response)\\.[^.*]+(\\.(\\*|[^.*]+))*(\\.\\*\\*)?$"
       }
+    },
+    "secret": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(request|response)\\.(headers|body)(\\.(\\*|[^.*]+))*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^<[a-z][a-z0-9-]*:[A-Za-z0-9._-]+>$"
+      }
     }
   }
 }

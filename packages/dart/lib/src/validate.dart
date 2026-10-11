@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'differences.dart';
 import 'json.dart';
+import 'placeholders.dart';
+import 'secrets.dart';
 import 'types.dart';
 
 /// One way in which a file does not follow the fixture format.
@@ -11,7 +13,8 @@ class FormatIssue {
 
   /// A stable identifier, the same in every implementation: `json`, `root`, `format`,
   /// `name`, `description`, `unknown-key`, `request`, `method`, `path`, `headers`, `body`,
-  /// `response`, `status`, `volatile`, `volatile-unmatched`, `rows` or `number`.
+  /// `response`, `status`, `volatile`, `volatile-unmatched`, `secret`, `secret-unmatched`,
+  /// `secret-value`, `secret-volatile`, `jwt`, `rows` or `number`.
   final String code;
 
   /// Where in the file, as a dot separated path (`(root)` for the file itself).
@@ -43,13 +46,15 @@ const Map<FixtureKind, List<String>> _topLevel = {
     'request',
     'response',
     'volatile',
+    'secret',
   ],
   FixtureKind.consumer: [
     'format',
     'name',
     'description',
     'request',
-    'volatile'
+    'volatile',
+    'secret',
   ],
   FixtureKind.tables: ['format', 'name', 'description', 'rows'],
 };
@@ -286,6 +291,112 @@ void _validateNumbers(List<FormatIssue> issues, Object? root) {
   walk(root, '');
 }
 
+void _validateSecret(
+  List<FormatIssue> issues,
+  Map<String, dynamic> fixture,
+  List<String> roots,
+) {
+  final secret = fixture['secret'];
+  if (secret is! Map<String, dynamic>) {
+    issues.add(
+      const FormatIssue(
+        'secret',
+        'secret',
+        'must be an object of paths and placeholders',
+      ),
+    );
+    return;
+  }
+  final listed = fixture['volatile'];
+  final volatile = [
+    if (listed is List)
+      for (final entry in listed)
+        if (entry is String) entry.split('.'),
+  ];
+  for (final key in sortedKeys(secret)) {
+    final path = 'secret.$key';
+    final problem = secretPathProblem(key, roots);
+    if (problem != null) {
+      issues.add(FormatIssue('secret', path, problem));
+      continue;
+    }
+    final placeholder = secret[key];
+    if (placeholder is! String || parsePlaceholder(placeholder) == null) {
+      issues.add(
+        FormatIssue(
+          'secret',
+          path,
+          'must be a placeholder such as <token:customer-1>',
+        ),
+      );
+      continue;
+    }
+    final nodes = secretNodes(fixture, key.split('.'));
+    if (nodes.isEmpty) {
+      issues.add(
+        FormatIssue(
+          'secret-unmatched',
+          path,
+          '$key matches nothing in this fixture',
+        ),
+      );
+      continue;
+    }
+    for (final node in nodes) {
+      final value = node.value;
+      if (value == placeholder) continue;
+      // The value itself is never printed: it may be the secret.
+      final found = value is String ? 'another string' : jsonType(value);
+      issues.add(
+        FormatIssue(
+          'secret-value',
+          node.segments.join('.'),
+          'is listed in secret, so it must be a string that is stored as '
+              '$placeholder (found $found)',
+        ),
+      );
+    }
+    if (nodes.any((node) => volatileMode(volatile, node.segments) != null)) {
+      issues.add(
+        FormatIssue(
+          'secret-volatile',
+          path,
+          '$key is also covered by volatile (a placeholder does not change '
+              'between runs)',
+        ),
+      );
+    }
+  }
+}
+
+/// A token that was not replaced by a placeholder must not be written or stay stored.
+void _validateNoJwt(List<FormatIssue> issues, Object? root) {
+  void walk(Object? node, String path) {
+    if (node is String) {
+      if (jwtPattern.hasMatch(node)) {
+        issues.add(
+          FormatIssue(
+            'jwt',
+            path,
+            'contains what looks like a JSON Web Token (list this path in secret, '
+                'so that a placeholder is stored instead)',
+          ),
+        );
+      }
+    } else if (node is List) {
+      for (var i = 0; i < node.length; i++) {
+        walk(node[i], '$path.$i');
+      }
+    } else if (node is Map<String, dynamic>) {
+      for (final key in sortedKeys(node)) {
+        walk(node[key], path.isEmpty ? key : '$path.$key');
+      }
+    }
+  }
+
+  walk(root, '');
+}
+
 /// Checks a decoded fixture against format 1. [name] is the file name without `.json`.
 /// Returns an empty list when the fixture is valid.
 List<FormatIssue> validateFixtureValue(
@@ -361,16 +472,13 @@ List<FormatIssue> validateFixtureValue(
   if (kind == FixtureKind.provider) {
     _validateResponse(issues, value['response']);
   }
-  if (value.containsKey('volatile')) {
-    _validateVolatile(
-      issues,
-      value,
-      kind == FixtureKind.provider
-          ? const ['request', 'response']
-          : const ['request'],
-    );
-  }
+  final roots = kind == FixtureKind.provider
+      ? const ['request', 'response']
+      : const ['request'];
+  if (value.containsKey('volatile')) _validateVolatile(issues, value, roots);
+  if (value.containsKey('secret')) _validateSecret(issues, value, roots);
   _validateNumbers(issues, value);
+  _validateNoJwt(issues, value);
   return issues;
 }
 

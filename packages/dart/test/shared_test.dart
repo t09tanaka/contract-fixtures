@@ -43,6 +43,10 @@ void main() {
           c['issues'],
         );
         expect(issues.map((i) => i.message), everyElement(isNotEmpty));
+        for (final text in c['absent'] as List<dynamic>? ?? const <dynamic>[]) {
+          expect(issues.map((i) => i.message),
+              everyElement(isNot(contains(text))));
+        }
       });
     }
   });
@@ -123,8 +127,12 @@ void main() {
         final volatile =
             (observed['volatile'] as List<dynamic>? ?? const <dynamic>[])
                 .cast<String>();
+        final secret = (observed['secret'] as Map<String, dynamic>? ??
+                const <String, dynamic>{})
+            .cast<String, String>();
 
         var outcome = 'ok';
+        var message = '';
         List<String>? lines;
         try {
           if (kind == 'provider') {
@@ -136,6 +144,7 @@ void main() {
                 observed['response'] as Map<String, dynamic>,
               ),
               volatile: volatile,
+              secret: secret,
             );
           } else {
             contract.verifyRequest(
@@ -143,17 +152,21 @@ void main() {
               description: observed['description'] as String,
               request: request,
               volatile: volatile,
+              secret: secret,
             );
           }
         } on ContractMismatch catch (error) {
+          message = '$error';
           outcome = 'mismatch';
           lines = [for (final d in error.differences) d.text];
           for (final line in lines) {
             expect(error.message, contains(line));
           }
-        } on ContractUsageException {
+        } on ContractUsageException catch (error) {
+          message = '$error';
           outcome = 'usage';
         } on ContractFixtureException catch (error) {
+          message = '$error';
           outcome =
               storedText == null && c['update'] == false && error.issues.isEmpty
                   ? 'missing'
@@ -174,6 +187,13 @@ void main() {
               ? ['{"side":"$kind","action":"verified","file":"$relative"}']
               : isEmpty,
         );
+        for (final text in c['absent'] as List<dynamic>? ?? const <dynamic>[]) {
+          expect(message, isNot(contains(text)));
+          for (final found in filesUnder(dir)) {
+            expect(found.readAsStringSync(), isNot(contains(text)),
+                reason: found.path);
+          }
+        }
       });
     }
   });

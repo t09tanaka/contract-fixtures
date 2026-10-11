@@ -1,5 +1,5 @@
 {
-  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written.",
+  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
   "cases": [
     {
       "case": "a response that equals the stored fixture",
@@ -783,6 +783,623 @@
       "update": true,
       "outcome": "written",
       "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"x-cafÉ\": \"1\",\n      \"__proto__\": \"2\",\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n"
+    },
+    {
+      "case": "secret: the placeholder is written instead of the real value",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "secret: the fixture still matches when the real value is a different one",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+      ]
+    },
+    {
+      "case": "secret: a difference elsewhere is reported without the real value",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg",
+            "expires_in": 7200
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.expires_in: 3600 -> 7200"
+      ],
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+      ]
+    },
+    {
+      "case": "secret: a path that only the stored fixture lists is not printed in the difference",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "opaque-session-value-0002",
+            "expires_in": 3600
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "secret: {\"response.body.access_token\":\"<token:session-1>\"} -> (absent)"
+      ],
+      "written": null,
+      "absent": [
+        "opaque-session-value-0002"
+      ]
+    },
+    {
+      "case": "secret: a path that only the stored fixture lists hides a value of another type as well",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": {
+              "value": "opaque-session-value-0003"
+            },
+            "expires_in": 3600
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "secret: {\"response.body.access_token\":\"<token:session-1>\"} -> (absent)"
+      ],
+      "written": null,
+      "absent": [
+        "opaque-session-value-0003"
+      ]
+    },
+    {
+      "case": "secret: a different placeholder for the same path is a difference",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-2>"
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.access_token: \"<token:session-1>\" -> \"<token:session-2>\"",
+        "secret.response.body.access_token: \"<token:session-1>\" -> \"<token:session-2>\""
+      ],
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+      ]
+    },
+    {
+      "case": "secret: the value at a secret path is not a string",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": {
+              "value": "opaque-session-value-0004"
+            },
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null,
+      "absent": [
+        "opaque-session-value-0004"
+      ]
+    },
+    {
+      "case": "secret: a path that matches nothing in what this side produced",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>",
+          "response.body.refresh_token": "<token:refresh-1>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null
+    },
+    {
+      "case": "secret: * replaces every element it matches",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "recovery-codes.created",
+        "description": "New recovery codes are issued",
+        "request": {
+          "method": "POST",
+          "path": "/recovery-codes",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "codes": [
+              {
+                "code": "K7Q2-real-0001",
+                "used": false
+              },
+              {
+                "code": "M4X9-real-0002",
+                "used": false
+              }
+            ]
+          }
+        },
+        "secret": {
+          "response.body.codes.*.code": "<code:recovery>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"recovery-codes.created\",\n  \"description\": \"New recovery codes are issued\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/recovery-codes\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"codes\": [\n        {\n          \"code\": \"<code:recovery>\",\n          \"used\": false\n        },\n        {\n          \"code\": \"<code:recovery>\",\n          \"used\": false\n        }\n      ]\n    }\n  },\n  \"secret\": {\n    \"response.body.codes.*.code\": \"<code:recovery>\"\n  }\n}\n",
+      "absent": [
+        "K7Q2-real-0001",
+        "M4X9-real-0002"
+      ]
+    },
+    {
+      "case": "secret: two paths that give one node different placeholders",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "recovery-codes.created",
+        "description": "New recovery codes are issued",
+        "request": {
+          "method": "POST",
+          "path": "/recovery-codes",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "codes": [
+              {
+                "code": "K7Q2-real-0001",
+                "used": false
+              },
+              {
+                "code": "M4X9-real-0002",
+                "used": false
+              }
+            ]
+          }
+        },
+        "secret": {
+          "response.body.codes.*.code": "<code:recovery>",
+          "response.body.codes.0.code": "<code:first>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null,
+      "absent": [
+        "K7Q2-real-0001",
+        "M4X9-real-0002"
+      ]
+    },
+    {
+      "case": "secret: a header value is replaced as a whole, and the path names the header in lower case",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "Cookie": "session=opaque-cookie-0001; theme=dark"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "secret": {
+          "request.headers.authorization": "<token:customer-1>",
+          "request.headers.cookie": "<cookie:customer-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\",\n      \"cookie\": \"<cookie:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"secret\": {\n    \"request.headers.authorization\": \"<token:customer-1>\",\n    \"request.headers.cookie\": \"<cookie:customer-1>\"\n  }\n}\n",
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+        "opaque-cookie-0001"
+      ]
+    },
+    {
+      "case": "secret: the test may pass the placeholder itself",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "secret": {
+          "request.headers.authorization": "<token:customer-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"secret\": {\n    \"request.headers.authorization\": \"<token:customer-1>\"\n  }\n}\n"
+    },
+    {
+      "case": "secret: an empty secret is not written",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "secret": {}
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n"
+    },
+    {
+      "case": "secret: a consumer fixture has no response to name",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null
+    },
+    {
+      "case": "token: a response with a token and no secret path is not written",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "expires_in": 3600
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: nor does it replace a stored fixture",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "expires_in": 3600
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: a token inside a longer string is found too",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: a stored fixture that holds a token does not follow the format",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ\",\n      \"expires_in\": 3600\n    }\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": false,
+      "outcome": "invalid-stored",
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+      ]
+    },
+    {
+      "case": "token: in update mode such a stored fixture is replaced",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ\",\n      \"expires_in\": 3600\n    }\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n",
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+      ]
     }
   ]
 }

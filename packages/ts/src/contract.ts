@@ -11,6 +11,7 @@ import {
 } from "./errors.js";
 import { asciiLowerCase, canonicalJson, isObject, jsonRoundTrip, NotJsonError } from "./json.js";
 import { appendLedger } from "./ledger.js";
+import { replaceSecrets } from "./secrets.js";
 import {
   FORMAT_VERSION,
   type ConsumerFixture,
@@ -114,7 +115,7 @@ function exchangePart(file: string, value: unknown, keys: readonly string[]): un
   return out;
 }
 
-/** The fixture a side produced, as it would be written. */
+/** The fixture a side produced, as it would be written: placeholders in place of secrets. */
 function candidate(file: string, observed: object): Record<string, unknown> {
   let wire: Record<string, unknown>;
   try {
@@ -127,7 +128,7 @@ function candidate(file: string, observed: object): Record<string, unknown> {
       file,
     );
   }
-  const out = ordered(wire, ["format", "name", "description", "request", "response", "volatile"]);
+  const out = ordered(wire, ["format", "name", "description", "request", "response", "volatile", "secret"]);
   if (Object.hasOwn(out, "request")) {
     out.request = exchangePart(file, out.request, ["method", "path", "headers", "body"]);
   }
@@ -135,7 +136,26 @@ function candidate(file: string, observed: object): Record<string, unknown> {
     out.response = exchangePart(file, out.response, ["status", "body"]);
   }
   if (Array.isArray(out.volatile) && out.volatile.length === 0) delete out.volatile;
+  if (isObject(out.secret) && Object.keys(out.secret).length === 0) delete out.secret;
+  // From here on the real values are gone: nothing below can print or write them.
+  replaceSecrets(out, out.secret, "strings");
   return out;
+}
+
+/**
+ * `produced` as it is compared with the stored fixture. Paths that only the stored fixture
+ * lists as secret are covered as well, so that the difference names the path (and the change
+ * of `secret`) without printing a value that used to be kept out of the file.
+ */
+function comparable(produced: Record<string, unknown>, stored: unknown): unknown {
+  const storedSecret = isObject(stored) ? stored.secret : undefined;
+  const own = isObject(produced.secret) ? produced.secret : {};
+  if (!isObject(storedSecret) || Object.keys(storedSecret).every((p) => Object.hasOwn(own, p))) {
+    return produced;
+  }
+  const copy = jsonRoundTrip(produced);
+  replaceSecrets(copy, storedSecret, "everything", (p) => Object.hasOwn(own, p));
+  return copy;
 }
 
 /** Update mode as the environment asks for it. Refused in CI, where it would hide every change. */
@@ -222,7 +242,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
         write();
       } else {
         const volatile = (stored.value as { volatile?: string[] }).volatile ?? [];
-        const diffs = differences(stored.value, produced, volatile);
+        const diffs = differences(stored.value, comparable(produced, stored.value), volatile);
         if (diffs.length > 0) {
           if (!update) {
             throw new ContractMismatchError(

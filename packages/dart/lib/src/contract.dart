@@ -6,6 +6,7 @@ import 'differences.dart';
 import 'errors.dart';
 import 'json.dart';
 import 'ledger.dart';
+import 'secrets.dart';
 import 'types.dart';
 import 'validate.dart';
 
@@ -106,12 +107,16 @@ class ContractFixtures {
   /// Provider side: compares a real response with `provider/<name>.json`.
   ///
   /// Throws [ContractMismatch] on a difference; writes the fixture in update mode.
+  ///
+  /// [secret] maps paths to placeholders: the real value at such a path is replaced by its
+  /// placeholder before anything is compared, printed or written.
   void verifyResponse({
     required String name,
     required String description,
     required ExchangeRequest request,
     required ExchangeResponse response,
     List<String> volatile = const [],
+    Map<String, String> secret = const {},
   }) {
     _requireSide(ContractSide.provider, 'verifyResponse');
     _verify(FixtureKind.provider, name, {
@@ -121,6 +126,7 @@ class ContractFixtures {
       'request': _request(FixtureKind.provider, name, request),
       'response': response.toJson(),
       if (volatile.isNotEmpty) 'volatile': volatile,
+      if (secret.isNotEmpty) 'secret': secret,
     });
   }
 
@@ -128,11 +134,13 @@ class ContractFixtures {
   /// `consumer/<name>.json`.
   ///
   /// Throws [ContractMismatch] on a difference; writes the fixture in update mode.
+  /// [secret] works as in [verifyResponse].
   void verifyRequest({
     required String name,
     required String description,
     required ExchangeRequest request,
     List<String> volatile = const [],
+    Map<String, String> secret = const {},
   }) {
     _requireSide(ContractSide.consumer, 'verifyRequest');
     _verify(FixtureKind.consumer, name, {
@@ -141,6 +149,7 @@ class ContractFixtures {
       'description': description,
       'request': _request(FixtureKind.consumer, name, request),
       if (volatile.isNotEmpty) 'volatile': volatile,
+      if (secret.isNotEmpty) 'secret': secret,
     });
   }
 
@@ -217,6 +226,11 @@ class ContractFixtures {
         file,
       );
     }
+    // From here on the real values are gone: nothing below can print or write them.
+    replaceSecrets(
+      produced,
+      produced is Map<String, dynamic> ? produced['secret'] : null,
+    );
     final producedIssues = validateFixtureValue(kind, name, produced);
     if (producedIssues.isNotEmpty) {
       throw ContractFixtureException(
@@ -257,7 +271,8 @@ class ContractFixtures {
         final volatile =
             (value['volatile'] as List<dynamic>? ?? const <dynamic>[])
                 .cast<String>();
-        final diffs = differences(value, produced, volatile);
+        final diffs =
+            differences(value, _comparable(produced, value), volatile);
         if (diffs.isNotEmpty) {
           if (!update) {
             throw ContractMismatch(
@@ -274,6 +289,24 @@ class ContractFixtures {
       }
     }
     appendLedger(dir, side, LedgerAction.verified, kind, name);
+  }
+
+  /// [produced] as it is compared with the stored fixture. Paths that only the stored
+  /// fixture lists as secret are covered as well, so that the difference names the path
+  /// (and the change of `secret`) without printing a value that used to be kept out of the
+  /// file.
+  Object? _comparable(Object? produced, Map<String, dynamic> stored) {
+    final storedSecret = stored['secret'];
+    final own = produced is Map<String, dynamic> ? produced['secret'] : null;
+    bool listed(String path) =>
+        own is Map<String, dynamic> && own.containsKey(path);
+    if (storedSecret is! Map<String, dynamic> ||
+        storedSecret.keys.every(listed)) {
+      return produced;
+    }
+    final copy = jsonRoundTrip(produced);
+    replaceSecrets(copy, storedSecret, everything: true, skip: listed);
+    return copy;
   }
 
   Map<String, dynamic> _read(FixtureKind kind, String name) {

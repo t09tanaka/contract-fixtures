@@ -1,5 +1,5 @@
 {
-  "description": "Cases for format validation. `value` is the parsed file (or `text` its raw text); `name` is the file name without .json. Every implementation must report exactly these issues, in this order.",
+  "description": "Cases for format validation. `value` is the parsed file (or `text` its raw text); `name` is the file name without .json. Every implementation must report exactly these issues, in this order. When a case has `absent`, none of those strings may appear in the message of an issue.",
   "cases": [
     {
       "case": "valid provider fixture",
@@ -1336,6 +1336,1065 @@
           "code": "json",
           "path": "(root)"
         }
+      ]
+    },
+    {
+      "case": "secret: valid provider fixture",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "secret: valid consumer fixture, and * as a header name",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "x-api-key": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "secret": {
+          "request.headers.*": "<token:customer-1>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "secret: * matches every element of an array",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "session": {
+              "id": "ses_4f1c",
+              "access_token": "<token:session-1>"
+            },
+            "devices": [
+              {
+                "key": "<key:device>"
+              },
+              {
+                "key": "<key:device>"
+              }
+            ]
+          }
+        },
+        "secret": {
+          "response.body.devices.*.key": "<key:device>",
+          "response.body.session.access_token": "<token:session-1>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "secret: the body as a whole may be the secret",
+      "kind": "provider",
+      "name": "api-key.created",
+      "value": {
+        "format": 1,
+        "name": "api-key.created",
+        "description": "A new key is returned as plain text",
+        "request": {
+          "method": "POST",
+          "path": "/api-keys",
+          "body": "<password:customer-1>"
+        },
+        "response": {
+          "status": 201,
+          "body": "<key:api-1>"
+        },
+        "secret": {
+          "request.body": "<password:customer-1>",
+          "response.body": "<key:api-1>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "secret: volatile on the parent and secret on a child are two different nodes",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "session": {
+              "id": "ses_4f1c",
+              "access_token": "<token:session-1>"
+            },
+            "devices": [
+              {
+                "key": "<key:device>"
+              },
+              {
+                "key": "<key:device>"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.session"
+        ],
+        "secret": {
+          "response.body.session.access_token": "<token:session-1>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "secret: must be an object",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": [
+          "response.body.access_token"
+        ]
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret"
+        }
+      ]
+    },
+    {
+      "case": "secret: an empty object is allowed",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {}
+      },
+      "issues": []
+    },
+    {
+      "case": "secret: ** is not allowed",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.**": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.response.body.**"
+        }
+      ]
+    },
+    {
+      "case": "secret: * only as a whole segment",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_*": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.response.body.access_*"
+        }
+      ]
+    },
+    {
+      "case": "secret: no empty segments",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body..access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.response.body..access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: paths start with request or response",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "description": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.description"
+        }
+      ]
+    },
+    {
+      "case": "secret: paths continue with headers or body",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "request.path": "<token:session-1>",
+          "response": "<token:session-1>",
+          "response.*.access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.request.path"
+        },
+        {
+          "code": "secret",
+          "path": "secret.response"
+        },
+        {
+          "code": "secret",
+          "path": "secret.response.*.access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: a consumer fixture has no response",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.response.body.access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: the value must be a placeholder, and nothing but a placeholder",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "request.body.email": "customer-1",
+          "request.body.password": 7,
+          "response.body.access_token": "Bearer <token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.request.body.email"
+        },
+        {
+          "code": "secret",
+          "path": "secret.request.body.password"
+        },
+        {
+          "code": "secret",
+          "path": "secret.response.body.access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: a path that matches nothing",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>",
+          "response.body.refresh_token": "<token:refresh-1>",
+          "response.headers.set-cookie": "<cookie:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.body.refresh_token"
+        },
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.headers.set-cookie"
+        }
+      ]
+    },
+    {
+      "case": "secret: the stored value is not the placeholder",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "opaque-session-value-0005",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.access_token"
+        }
+      ],
+      "absent": [
+        "opaque-session-value-0005"
+      ]
+    },
+    {
+      "case": "secret: the stored value is another placeholder",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-2>",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: the stored value is not a string",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": {
+              "value": "<token:session-1>"
+            },
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: every node that * matches must hold the placeholder",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "devices": [
+              {
+                "key": "<key:device>"
+              },
+              {
+                "key": "<key:other>"
+              },
+              {
+                "name": "no key"
+              },
+              {
+                "key": null
+              }
+            ]
+          }
+        },
+        "secret": {
+          "response.body.devices.*.key": "<key:device>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.devices.1.key"
+        },
+        {
+          "code": "secret-value",
+          "path": "response.body.devices.3.key"
+        }
+      ]
+    },
+    {
+      "case": "secret: two paths, one node, different placeholders",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "session": {
+              "id": "ses_4f1c",
+              "access_token": "<token:session-1>"
+            },
+            "devices": [
+              {
+                "key": "<key:device>"
+              },
+              {
+                "key": "<key:device>"
+              }
+            ]
+          }
+        },
+        "secret": {
+          "response.body.devices.*.key": "<key:device>",
+          "response.body.devices.0.key": "<key:first>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.devices.0.key"
+        }
+      ]
+    },
+    {
+      "case": "secret: the same node must not be volatile",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 3600
+          }
+        },
+        "volatile": [
+          "response.body.access_token"
+        ],
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: nor at or below a volatile path that ends in **",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "session": {
+              "id": "ses_4f1c",
+              "access_token": "<token:session-1>"
+            },
+            "devices": [
+              {
+                "key": "<key:device>"
+              },
+              {
+                "key": "<key:device>"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.session.**",
+          "response.body.*.1.key"
+        ],
+        "secret": {
+          "response.body.session.access_token": "<token:session-1>",
+          "response.body.devices.*.key": "<key:device>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.devices.*.key"
+        },
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.session.access_token"
+        }
+      ]
+    },
+    {
+      "case": "secret: a table has no secret",
+      "kind": "tables",
+      "name": "t",
+      "value": {
+        "format": 1,
+        "name": "t",
+        "description": "x",
+        "rows": [
+          {
+            "n": 1
+          }
+        ],
+        "secret": {}
+      },
+      "issues": [
+        {
+          "code": "unknown-key",
+          "path": "secret"
+        }
+      ]
+    },
+    {
+      "case": "token: a token that was stored as it is",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "expires_in": 3600
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.body.access_token"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: listing the path does not help when the value was stored",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in returns an access token",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "expires_in": 3600
+          }
+        },
+        "secret": {
+          "response.body.access_token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.access_token"
+        },
+        {
+          "code": "jwt",
+          "path": "response.body.access_token"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: inside a longer string, in a header, an array and the description",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "Recorded with eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+            "cookie": "theme=dark; session=eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg; lang=en"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "tokens": [
+              "plain",
+              "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+            ]
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "description"
+        },
+        {
+          "code": "jwt",
+          "path": "request.headers.authorization"
+        },
+        {
+          "code": "jwt",
+          "path": "request.headers.cookie"
+        },
+        {
+          "code": "jwt",
+          "path": "response.body.tokens.1"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMiLCJuIjoyfQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMg"
+      ]
+    },
+    {
+      "case": "token: in a consumer fixture",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "request.headers.authorization"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "token: strings that only resemble a token are left alone",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "x",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "two_parts": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0",
+            "empty_signature": "eyJhbGciOiJub25lIn0.eyJzdWIiOiIxIn0.",
+            "inside_a_word": "monkeyJar.left.right",
+            "bare_prefix": "eyJ.left.right",
+            "padded": "eyJhbGciOiJub25lIn0=.eyJzdWIiOiIxIn0=.c2ln",
+            "spaced": "eyJhbGciOiJub25lIn0 . eyJzdWIiOiIxIn0 . c2ln"
+          }
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "token: a table is not searched",
+      "kind": "tables",
+      "name": "t",
+      "value": {
+        "format": 1,
+        "name": "t",
+        "description": "x",
+        "rows": [
+          {
+            "token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "secret and token: issues come in the order volatile, secret, number, token",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "n eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "access_token": "<token:session-1>",
+            "expires_in": 1e+300
+          }
+        },
+        "volatile": [
+          "response.body.nope"
+        ],
+        "secret": {
+          "response.body.access_token": "<token:session-1>",
+          "response.body.nope": "<token:x>"
+        }
+      },
+      "issues": [
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.0"
+        },
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.body.nope"
+        },
+        {
+          "code": "number",
+          "path": "response.body.expires_in"
+        },
+        {
+          "code": "jwt",
+          "path": "description"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
       ]
     }
   ]

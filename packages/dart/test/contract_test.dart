@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:contract_fixtures/contract_fixtures.dart';
+import 'package:contract_fixtures/src/secrets.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -474,6 +476,198 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('secret paths', () {
+    // A string of the shape of a token; a new one on every call, as a real API would issue.
+    var issued = 0;
+    String part(Object value) =>
+        base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+    String issueToken() => [
+          part({'alg': 'HS256'}),
+          part({'sub': 'customer-1', 'n': ++issued}),
+          'c2lnbmF0dXJl',
+        ].join('.');
+
+    const request = ExchangeRequest(
+      method: 'POST',
+      path: '/sessions',
+      body: {
+        'email': 'customer-1@example.test',
+        'password': '<password:customer-1>',
+      },
+    );
+    const secret = {'response.body.access_token': '<token:session-1>'};
+    void signedIn(
+      ContractFixtures contract,
+      Object? token, {
+      int expiresIn = 3600,
+      Map<String, String> secret = const {},
+    }) {
+      contract.verifyResponse(
+        name: 'session.created',
+        description: 'Signing in returns an access token',
+        request: request,
+        response: ExchangeResponse(
+          status: 200,
+          body: {'access_token': token, 'expires_in': expiresIn},
+        ),
+        secret: secret,
+      );
+    }
+
+    ContractFixtures provider(String dir, {required bool update}) =>
+        ContractFixtures(side: ContractSide.provider, dir: dir, update: update);
+    String everythingIn(String dir) =>
+        filesUnder(dir).map((file) => file.readAsStringSync()).join('\n');
+    T thrownBy<T>(void Function() run) {
+      try {
+        run();
+      } on Object catch (error) {
+        return error as T;
+      }
+      fail('nothing was thrown');
+    }
+
+    test('negative control: without a secret path, a token cannot be written',
+        () {
+      final dir = tempDir();
+      final token = issueToken();
+
+      final error = thrownBy<ContractFixtureException>(
+        () => signedIn(provider(dir, update: true), token),
+      );
+
+      expect(
+        [for (final issue in error.issues) '${issue.code} ${issue.path}'],
+        ['jwt response.body.access_token'],
+      );
+      expect('$error', isNot(contains(token)));
+      expect(filesUnder(dir), isEmpty);
+    });
+
+    test(
+        'with a secret path, the real value is nowhere: not in a file, the '
+        'ledger or a message', () {
+      final dir = tempDir();
+      final first = issueToken();
+      signedIn(provider(dir, update: true), first, secret: secret);
+
+      // Another run issues another token; the stored placeholder still matches.
+      final second = issueToken();
+      signedIn(provider(dir, update: false), second, secret: secret);
+
+      // A difference elsewhere is reported without the token.
+      final third = issueToken();
+      final error = thrownBy<ContractMismatch>(
+        () => signedIn(
+          provider(dir, update: false),
+          third,
+          expiresIn: 60,
+          secret: secret,
+        ),
+      );
+      expect(
+        [for (final d in error.differences) d.text],
+        ['response.body.expires_in: 3600 -> 60'],
+      );
+
+      final written = '${everythingIn(dir)}$error';
+      expect(written, contains('"access_token": "<token:session-1>"'));
+      expect(ledgerLines(dir, 'provider'), hasLength(2));
+      for (final token in [first, second, third]) {
+        expect(written, isNot(contains(token)));
+      }
+      expect(jwtPattern.hasMatch(written), isFalse);
+    });
+
+    test(
+        'a test that stops passing the secret path does not print the value '
+        'either', () {
+      final dir = tempDir();
+      signedIn(provider(dir, update: true), 'opaque-value-1', secret: secret);
+
+      final error = thrownBy<ContractMismatch>(
+        () => signedIn(provider(dir, update: false), 'opaque-value-2'),
+      );
+
+      expect([for (final d in error.differences) d.path], ['secret']);
+      expect('$error', isNot(contains('opaque-value-2')));
+    });
+
+    test(
+        'a value that is not a string, or a path that matches nothing, is an '
+        'error without the value', () {
+      final dir = tempDir();
+
+      final notString = thrownBy<ContractFixtureException>(
+        () => signedIn(
+          provider(dir, update: true),
+          {'value': 'opaque-value-3'},
+          secret: secret,
+        ),
+      );
+      expect(
+        [for (final issue in notString.issues) '${issue.code} ${issue.path}'],
+        ['secret-value response.body.access_token'],
+      );
+      expect('$notString', isNot(contains('opaque-value-3')));
+
+      final unmatched = thrownBy<ContractFixtureException>(
+        () => signedIn(
+          provider(dir, update: true),
+          'opaque-value-4',
+          secret: const {'response.body.refresh_token': '<token:refresh-1>'},
+        ),
+      );
+      expect(
+        [for (final issue in unmatched.issues) '${issue.code} ${issue.path}'],
+        ['secret-unmatched secret.response.body.refresh_token'],
+      );
+      expect(filesUnder(dir), isEmpty);
+    });
+
+    test('does not change what the test passed in', () {
+      final token = issueToken();
+      final body = {'access_token': token, 'expires_in': 3600};
+
+      provider(tempDir(), update: true).verifyResponse(
+        name: 'session.created',
+        description: 'Signing in returns an access token',
+        request: request,
+        response: ExchangeResponse(status: 200, body: body),
+        secret: secret,
+      );
+
+      expect(body['access_token'], token);
+    });
+
+    test('the reading side gets the placeholder and puts a value of its own in',
+        () {
+      final dir = tempDir();
+      signedIn(provider(dir, update: true), issueToken(), secret: secret);
+
+      final fixture = ContractFixtures(side: ContractSide.consumer, dir: dir)
+          .readResponse('session.created');
+
+      expect(fixture.secret, secret);
+      expect(
+        resolvePlaceholders(
+          fixture.response.body,
+          (kind, name) => '$kind of $name',
+        ),
+        {'access_token': 'token of session-1', 'expires_in': 3600},
+      );
+      expect(
+        checkContracts(dir: dir, side: ContractSide.consumer).problems,
+        isEmpty,
+      );
+    });
+
+    test('uses the expression that spec/format.md gives for a token', () {
+      final format = File('../../spec/format.md').readAsStringSync();
+      expect(format, contains('\n```\n${jwtPattern.pattern}\n```\n'));
     });
   });
 }
