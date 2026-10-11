@@ -94,7 +94,8 @@ contract.verifyRequest({
 | `readRequest(name)` | provider | Reads and validates `consumer/<name>.json`. |
 | `readTable<Row>(name)` | both | Reads and validates `tables/<name>.json`. |
 | `list(kind, { prefix? })` | both | Sorted fixture names of `"provider"`, `"consumer"` or `"tables"`. |
-| `assertCovers(kind, names, { prefix? })` | both | Throws `ContractCoverageError` unless `names` are exactly the fixtures on disk. |
+| `assertCovers(kind, names, { prefix? })` | both | Throws `ContractCoverageError` unless `names` are exactly the fixtures on disk (those that start with `prefix`). |
+| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageError` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. |
 
 Calling a method from the wrong side throws `ContractUsageError`. A missing or malformed fixture
 throws `ContractFixtureError`.
@@ -134,6 +135,71 @@ throws `ContractFixtureError`.
 - Header names are lower-cased before comparing and writing. `body: null` and `body: undefined`
   both mean "no body". NaN and infinite numbers are refused.
 
+## HTTP in tests
+
+Three functions connect the helpers to the HTTP objects tests already have. They use the
+standard `fetch` types of Node.js and read a test client by the shape of its objects; the
+package still has no dependencies.
+
+### A consumer that calls `fetch`
+
+```ts
+import { requestFromFetch, resolvePlaceholders, toFetchResponse, type ExchangeRequest } from "@t09tanaka/contract-fixtures";
+
+const sent: ExchangeRequest[] = [];
+/** Answers with a fixture and keeps what was sent. Give it to the client in the place of fetch. */
+const fetchFixture = (name: string): typeof fetch => async (input, init) => {
+  sent.push(await requestFromFetch(input, init));
+  const { response } = contract.readResponse(name);
+  return toFetchResponse(resolvePlaceholders(response, (kind, name) => `test ${kind} of ${name}`));
+};
+```
+
+- `toFetchResponse(response)` returns a `Response` with the status, the headers and the JSON
+  body of the fixture, and nothing else. It does not add a `content-type`: if the client looks
+  at that header, the provider's test should record it. An array of values becomes one header
+  per value (`set-cookie`). A status below 200, and a body with 204, 205 or 304, throw
+  `ContractUsageError`, because a `Response` cannot be built from them.
+- `await requestFromFetch(input, init?, { headers? })` returns `{ method, path, headers, body }`
+  for the arguments of `fetch` or for a `Request`. `path` is the path and the query string
+  (the origin is dropped). `headers` are those of the request, including the `content-type`
+  that `fetch` itself gives a body (`text/plain;charset=UTF-8` for a string without one), or
+  only the names listed in `headers`. `body` is parsed as JSON; a body that is not JSON
+  throws, without showing it. Pass the result to `verifyRequest`, with `secret` for the
+  credentials in it.
+
+### A provider tested through an HTTP test client
+
+```ts
+import { exchangeFromTestResponse } from "@t09tanaka/contract-fixtures";
+
+const res = await client.post("/orders").set("authorization", token).send(body);
+
+contract.verifyResponse({
+  name: "order.created",
+  description: "An order is accepted",
+  ...exchangeFromTestResponse(res, {
+    requestHeaders: ["authorization"],
+    responseHeaders: ["content-type"],
+    request: { body },
+  }),
+  secret: { "request.headers.authorization": "<token:customer-1>" },
+});
+```
+
+`exchangeFromTestResponse(res, options?)` returns `{ request, response }`. It reads `res` by
+shape: `status` or `statusCode`; `body` (no body when `text` is `""`, because such clients give
+`{}` for an empty response); `headers`; and under `request` or `req` the `method`, the `url` or
+`path`, and `headers` or `header`. With that it understands the response of supertest, and
+objects like it.
+
+| Option | |
+|---|---|
+| `requestHeaders`, `responseHeaders` | Names of the headers to record. Default: none. A response carries `date`, `connection` and `content-length`, which are not part of an agreement, so headers are recorded by name only. A named header that is absent is left out. |
+| `request`, `response` | Parts to add or to replace: `request: { body }` for the body that was sent (it is not read from the client), `response: { body: res.text }` or `{ body: null }` when the parsed body is not what should be recorded, `request: { method, path }` for an object without a request. What a test passes wins. |
+
+Without a method, a path or a status it throws `ContractUsageError` and says which is lacking.
+
 Also exported:
 
 | Function | What it does |
@@ -143,7 +209,8 @@ Also exported:
 | `differences(stored, observed, volatile?)` | The comparison itself; returns `{ path, kind, text }[]`. |
 | `formatDifferences(diffs)` | The lines of a mismatch message. |
 | `validateFixture(kind, name, text)` / `validateFixtureValue(kind, name, value)` | Format validation; returns `{ code, path, message }[]`. |
-| `checkContracts({ dir, side })` / `formatCheckResult(result)` | What the `check` command runs. |
+| `checkContracts({ dir, side })` / `formatCheckResult(result)` | What the `check` command runs. The result has `problems` and `hints`. |
+| `summarizeContracts({ dir })` / `formatSummary(rows)` | What the `summary` command runs. |
 | `resetLedger({ dir, side })` | What the `reset` command runs. |
 | `canonicalJson(value)` / `compactJson(value)` | The text a fixture is written as; the text of a value inside a difference. |
 | `runCli(argv, io)` | The command line as a function. |
@@ -153,11 +220,27 @@ Also exported:
 ```sh
 npx contract-fixtures reset --side provider --dir ../contracts   # before the tests
 npx contract-fixtures check --side provider --dir ../contracts   # after the tests
+npx contract-fixtures summary --dir ../contracts                 # any time
 ```
 
 `check` exits with `0` when every fixture follows the format and was verified or read by this
 side's tests since the reset, `1` otherwise, and `2` for wrong usage. `--dir` defaults to
-`CONTRACT_FIXTURES_DIR`.
+`CONTRACT_FIXTURES_DIR`. Run it after all tests of the side: it always looks at every fixture.
+When the ledger suggests why fixtures were not touched (it is missing or empty, only the other
+side has one, a part of the tests ran, it names files that are gone), the report ends with a
+line that starts with `Hint:`.
+
+`summary` prints one line per fixture, to compare them side by side: the request, the status,
+and the keys of the response body with their types. It takes no `--side` and does not touch
+the ledger.
+
+```
+FIXTURE                        REQUEST       STATUS  RESPONSE BODY
+provider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}
+provider/order.out-of-stock    POST /orders  409     {error: string}
+consumer/create-order.request  POST /orders  -       -
+tables/order-total             -             -       2 row(s)
+```
 
 With Jest or Vitest, the helpers append to the ledger from every worker; no reporter or plugin is
 needed.
