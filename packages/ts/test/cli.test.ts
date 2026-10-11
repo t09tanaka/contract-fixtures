@@ -49,6 +49,7 @@ describe("command line", () => {
       "  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)",
       "  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
+      "Hint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has entries. Is consumer the side whose tests ran?",
       "Run `contract-fixtures reset` and the consumer side's tests before this check.",
     ]);
   });
@@ -65,6 +66,39 @@ describe("command line", () => {
     assert.equal(run(["reset", "--side", "provider", "--dir", dir]).code, 0);
     assert.deepEqual(ledgerLines(dir, "provider"), []);
     assert.equal(run(["check", "--side", "provider", "--dir", dir]).code, 1);
+  });
+
+  it("check prints no hint when it passes, and none for problems the ledger does not explain", () => {
+    const dir = copyOfContracts();
+    exerciseProviderSide(dir);
+    assert.doesNotMatch(run(["check", "--side", "provider", "--dir", dir]).out, /Hint/);
+    fs.writeFileSync(path.join(dir, "provider", "order.created.json"), "{");
+    const result = run(["check", "--side", "provider", "--dir", dir]);
+    assert.equal(result.code, 1);
+    assert.doesNotMatch(result.err, /Hint/);
+  });
+
+  it("summary prints one line per fixture and leaves the ledger alone", () => {
+    const dir = copyOfContracts();
+    const result = run(["summary", "--dir", dir]);
+    assert.equal(result.code, 0);
+    assert.equal(result.err, "");
+    assert.deepEqual(result.out.split("\n"), [
+      "FIXTURE                        REQUEST       STATUS  RESPONSE BODY",
+      "provider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}",
+      "provider/order.out-of-stock    POST /orders  409     {error: string}",
+      "consumer/create-order.request  POST /orders  -       -",
+      "tables/order-total             -             -       2 row(s)",
+    ]);
+    assert.equal(fs.existsSync(path.join(dir, ".ledger")), false);
+    assert.equal(run(["summary"], { CONTRACT_FIXTURES_DIR: dir }).out, result.out);
+  });
+
+  it("summary exits 1 for a directory without fixtures", () => {
+    const result = run(["summary", "--dir", tempDir()]);
+    assert.equal(result.code, 1);
+    assert.equal(result.out, "");
+    assert.match(result.err, /no fixtures found/);
   });
 
   it("takes the directory from the environment", () => {
@@ -86,6 +120,9 @@ describe("command line", () => {
       ["check", "--side", "provider", "--dir", dir, "--strict"],
       ["check", "extra", "--side", "provider", "--dir", dir],
       ["check", "--side"],
+      ["summary", "--side", "provider", "--dir", dir],
+      ["summary"],
+      ["list", "--dir", dir],
     ];
     for (const argv of wrong) {
       const result = run(argv);
@@ -97,7 +134,7 @@ describe("command line", () => {
   it("prints the usage for --help", () => {
     const result = run(["--help"]);
     assert.equal(result.code, 0);
-    assert.match(result.out, /^Usage: contract-fixtures <command>/);
+    assert.match(result.out, /^Usage: contract-fixtures <reset\|check> --side/);
   });
 
   it("the built executable sets the exit code", () => {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { readLedger, type LedgerAction } from "./ledger.js";
-import { KINDS, type Kind, type Side } from "./types.js";
+import { KINDS, SIDES, type Kind, type Side } from "./types.js";
 import { validateFixtureFile } from "./validate.js";
 
 export interface CheckProblem {
@@ -17,6 +17,11 @@ export interface CheckResult {
   /** Number of fixture files found. */
   fixtures: number;
   problems: CheckProblem[];
+  /**
+   * What the state of the ledger suggests about the cause of `unverified` and `unread`
+   * problems. Guesses, worded as such; they never change `problems`.
+   */
+  hints: string[];
 }
 
 /** What one side has to do with each kind of fixture. */
@@ -49,12 +54,16 @@ export function checkContracts(options: { dir: string; side: Side }): CheckResul
   const problems: CheckProblem[] = [];
   const ledger = readLedger(dir, side);
   const done = new Set(ledger.entries.map((e) => `${e.action}:${e.file}`));
+  const onDisk = new Set<string>();
   let fixtures = 0;
+  let asked = 0;
+  let missing = 0;
 
   for (const kind of KINDS) {
     for (const name of listFixtureNames(dir, kind)) {
       fixtures++;
       const file = `${kind}/${name}.json`;
+      onDisk.add(file);
       const { issues } = validateFixtureFile(kind, name, path.join(dir, kind, `${name}.json`));
       if (issues.length > 0) {
         for (const issue of issues) {
@@ -67,7 +76,9 @@ export function checkContracts(options: { dir: string; side: Side }): CheckResul
         continue;
       }
       const action = requiredAction(side, kind);
+      asked++;
       if (!done.has(`${action}:${file}`)) {
+        missing++;
         problems.push(
           action === "verified"
             ? {
@@ -102,7 +113,68 @@ export function checkContracts(options: { dir: string; side: Side }): CheckResul
       message: "no fixtures found under provider/, consumer/ or tables/ (wrong directory?)",
     });
   }
-  return { side, fixtures, problems };
+  const other = SIDES.find((s) => s !== side)!;
+  const hints = checkHints({
+    side,
+    other,
+    asked,
+    missing,
+    ledgerExists: ledger.exists,
+    lines: ledger.entries.length,
+    otherLines: missing > 0 ? readLedger(dir, other).entries.length : 0,
+    gone: new Set(ledger.entries.map((e) => e.file).filter((file) => !onDisk.has(file))).size,
+  });
+  return { side, fixtures, problems, hints };
+}
+
+/**
+ * Hints for a check with `unverified` or `unread` problems, from what the ledger looks like.
+ * At most two. The wording is pinned by spec/fixtures/check.json for every implementation.
+ */
+function checkHints(state: {
+  side: Side;
+  other: Side;
+  /** Fixtures that follow the format: each needs one verify or read of this side. */
+  asked: number;
+  /** How many of those have none. */
+  missing: number;
+  ledgerExists: boolean;
+  /** Entries in this side's ledger, and in the other side's. */
+  lines: number;
+  otherLines: number;
+  /** Files this side's ledger names that are not in the directory. */
+  gone: number;
+}): string[] {
+  const { side, other, asked, missing, lines, gone } = state;
+  if (missing === 0) return [];
+  const hints: string[] = [];
+  const ledger = `.ledger/${side}.jsonl`;
+  if (lines === 0) {
+    const what = state.ledgerExists ? `${ledger} is empty` : `${ledger} does not exist`;
+    hints.push(
+      state.otherLines > 0
+        ? `${what}, but .ledger/${other}.jsonl has entries. Is ${side} the side whose tests ran?`
+        : `${what}. Did the ${side} side's tests run, and do they use this contracts directory?`,
+    );
+  } else if (missing === asked) {
+    hints.push(
+      `${ledger} has ${lines} entr${lines === 1 ? "y" : "ies"}, but none that this check asks for. ` +
+        `Do the ${side} side's tests use another contracts directory?`,
+    );
+  } else if (missing * 2 > asked) {
+    hints.push(
+      `Only ${asked - missing} of ${asked} fixtures were verified or read. If a part of the tests ran ` +
+        "(a filter, one shard of several), run all of them, or join the ledgers of all shards, " +
+        "before this check.",
+    );
+  }
+  if (gone > 0) {
+    hints.push(
+      `${ledger} names ${gone} file(s) that are not in this directory. ` +
+        "It may be left from an earlier run: run the reset before the tests.",
+    );
+  }
+  return hints;
 }
 
 /** The report the `check` command prints. */
@@ -115,6 +187,7 @@ export function formatCheckResult(result: CheckResult): string {
   return [
     `${head}: ${result.problems.length} problem(s) in ${result.fixtures} fixture(s)`,
     ...lines,
+    ...result.hints.map((hint) => `Hint: ${hint}`),
     `Run \`contract-fixtures reset\` and the ${result.side} side's tests before this check.`,
   ].join("\n");
 }

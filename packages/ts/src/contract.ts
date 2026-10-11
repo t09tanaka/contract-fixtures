@@ -69,6 +69,13 @@ export interface ContractFixtures {
   assertCovers(kind: Kind, expected: Iterable<string>, options?: { prefix?: string }): void;
 
   /**
+   * Fails unless every fixture of `kind` starts with one of `prefixes`, and every prefix has
+   * a fixture. Tests that call `assertCovers` with a prefix each cover a part of the
+   * fixtures; this is the one test that shows the parts leave nothing out.
+   */
+  assertPrefixesCover(kind: Kind, prefixes: Iterable<string>): void;
+
+  /**
    * Provider side: compares a real response with `provider/<name>.json`.
    * Throws `ContractMismatchError` on a difference; writes the fixture in update mode.
    */
@@ -348,9 +355,26 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       const lines = [
         `the expectations of this test do not cover the fixtures in ${scope}:`,
         ...withoutExpectation.map((name) => `  ${kind}/${name}.json: no expectation in this test`),
-        ...withoutFixture.map((name) => `  ${name}: expected here, but ${kind}/${name}.json does not exist`),
+        ...withoutFixture.map((name) =>
+          name.startsWith(coverOptions.prefix ?? "")
+            ? `  ${name}: expected here, but ${kind}/${name}.json does not exist`
+            : `  ${name}: expected here, but it does not start with ${coverOptions.prefix}`,
+        ),
       ];
       throw new ContractCoverageError(lines.join("\n"), withoutExpectation, withoutFixture);
+    },
+    assertPrefixesCover(kind, prefixes) {
+      const onDisk = list(kind);
+      const wanted = [...new Set(prefixes)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      const outside = onDisk.filter((name) => !wanted.some((prefix) => name.startsWith(prefix)));
+      const unused = wanted.filter((prefix) => !onDisk.some((name) => name.startsWith(prefix)));
+      if (outside.length === 0 && unused.length === 0) return;
+      const lines = [
+        `the prefixes of this test do not cover the fixtures in ${kind}/:`,
+        ...outside.map((name) => `  ${kind}/${name}.json: starts with none of the prefixes`),
+        ...unused.map((prefix) => `  ${prefix}*: listed here, but no fixture in ${kind}/ starts with it`),
+      ];
+      throw new ContractCoverageError(lines.join("\n"), outside, unused);
     },
     verifyResponse(observed) {
       requireSide("provider", "verifyResponse");

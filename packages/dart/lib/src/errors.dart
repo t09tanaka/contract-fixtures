@@ -40,10 +40,10 @@ class ContractCoverageException implements Exception {
 
   final String message;
 
-  /// Fixtures on disk that the test has no expectation for.
+  /// Fixtures on disk that the test has no expectation for, or that no prefix covers.
   final List<String> withoutExpectation;
 
-  /// Expectations in the test that have no fixture on disk.
+  /// Expectations (or prefixes) in the test that have no fixture on disk.
   final List<String> withoutFixture;
 
   @override

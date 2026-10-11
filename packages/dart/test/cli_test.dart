@@ -70,6 +70,7 @@ void main() {
       "  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)",
       "  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
+      'Hint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has entries. Is consumer the side whose tests ran?',
       "Run `contract_fixtures reset` and the consumer side's tests before this check.",
     ]);
   });
@@ -86,6 +87,44 @@ void main() {
     expect(run(['reset', '--side', 'provider', '--dir', dir]).code, 0);
     expect(ledgerLines(dir, 'provider'), isEmpty);
     expect(run(['check', '--side', 'provider', '--dir', dir]).code, 1);
+  });
+
+  test(
+      'check prints no hint when it passes, and none for problems the ledger does not explain',
+      () {
+    final dir = copyOfContracts();
+    exerciseProviderSide(dir);
+    expect(
+      run(['check', '--side', 'provider', '--dir', dir]).out,
+      isNot(contains('Hint')),
+    );
+    File('$dir/provider/order.created.json').writeAsStringSync('{');
+    final result = run(['check', '--side', 'provider', '--dir', dir]);
+    expect(result.code, 1);
+    expect(result.err, isNot(contains('Hint')));
+  });
+
+  test('summary prints one line per fixture and leaves the ledger alone', () {
+    final dir = copyOfContracts();
+    final result = run(['summary', '--dir', dir]);
+    expect(result.code, 0);
+    expect(result.err, isEmpty);
+    expect(result.out.split('\n'), [
+      'FIXTURE                        REQUEST       STATUS  RESPONSE BODY',
+      'provider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}',
+      'provider/order.out-of-stock    POST /orders  409     {error: string}',
+      'consumer/create-order.request  POST /orders  -       -',
+      'tables/order-total             -             -       2 row(s)',
+    ]);
+    expect(Directory('$dir/.ledger').existsSync(), isFalse);
+    expect(run(['summary'], {'CONTRACT_FIXTURES_DIR': dir}).out, result.out);
+  });
+
+  test('summary exits 1 for a directory without fixtures', () {
+    final result = run(['summary', '--dir', tempDir()]);
+    expect(result.code, 1);
+    expect(result.out, isEmpty);
+    expect(result.err, contains('no fixtures found'));
   });
 
   test('takes the directory from the environment', () {
@@ -116,6 +155,9 @@ void main() {
       ['check', '--side', 'provider', '--dir', dir, '--strict'],
       ['check', 'extra', '--side', 'provider', '--dir', dir],
       ['check', '--side'],
+      ['summary', '--side', 'provider', '--dir', dir],
+      ['summary'],
+      ['list', '--dir', dir],
     ];
     for (final arguments in wrong) {
       final result = run(arguments);
@@ -131,7 +173,8 @@ void main() {
   test('prints the usage for --help', () {
     final result = run(['--help']);
     expect(result.code, 0);
-    expect(result.out, startsWith('Usage: contract_fixtures <command>'));
+    expect(result.out,
+        startsWith('Usage: contract_fixtures <reset|check> --side'));
   });
 
   test('the executable sets the exit code', () {

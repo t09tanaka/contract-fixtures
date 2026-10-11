@@ -4,20 +4,24 @@ import path from "node:path";
 import { checkContracts, formatCheckResult } from "./check.js";
 import { DIR_ENV } from "./contract.js";
 import { resetLedger } from "./ledger.js";
+import { formatSummary, summarizeContracts } from "./summary.js";
 import type { Side } from "./types.js";
 
-export const USAGE = `Usage: contract-fixtures <command> --side <provider|consumer> [--dir <contracts>]
+export const USAGE = `Usage: contract-fixtures <reset|check> --side <provider|consumer> [--dir <contracts>]
+       contract-fixtures summary [--dir <contracts>]
 
 Commands:
-  reset   Forget what earlier test runs of this side did. Run it before the tests.
-  check   Fail unless this side's tests verified or read every fixture since the reset,
-          and every fixture follows the format.
+  reset    Forget what earlier test runs of this side did. Run it before the tests.
+  check    Fail unless this side's tests verified or read every fixture since the reset,
+           and every fixture follows the format. Run it after all tests of this side.
+  summary  Print one line per fixture: request, status, and the keys of the response body
+           with their types. Does not touch the ledger.
 
 Options:
-  --side  The side whose tests ran: provider or consumer.
+  --side  The side whose tests ran: provider or consumer. Not for summary.
   --dir   The contracts directory. Defaults to the environment variable ${DIR_ENV}.
 
-Exit codes: 0 no problems, 1 problems found, 2 wrong usage.`;
+Exit codes: 0 no problems, 1 problems found (summary: no fixtures), 2 wrong usage.`;
 
 export interface CliIo {
   out: (text: string) => void;
@@ -53,9 +57,13 @@ export function runCli(argv: readonly string[], io: CliIo): number {
     }
   }
   if (command === undefined) return usage("missing command");
-  if (command !== "check" && command !== "reset") return usage(`unknown command ${command}`);
+  if (command !== "check" && command !== "reset" && command !== "summary") {
+    return usage(`unknown command ${command}`);
+  }
   const side = values.side;
-  if (side !== "provider" && side !== "consumer") {
+  if (command === "summary") {
+    if (side !== undefined) return usage("summary takes no --side");
+  } else if (side !== "provider" && side !== "consumer") {
     return usage("--side must be provider or consumer");
   }
   const given = values.dir ?? io.env[DIR_ENV];
@@ -65,6 +73,15 @@ export function runCli(argv: readonly string[], io: CliIo): number {
     return usage(`${given} is not a directory`);
   }
 
+  if (command === "summary") {
+    const rows = summarizeContracts({ dir });
+    if (rows.length === 0) {
+      io.err("contract-fixtures summary: no fixtures found under provider/, consumer/ or tables/ (wrong directory?)");
+      return 1;
+    }
+    io.out(formatSummary(rows));
+    return 0;
+  }
   if (command === "reset") {
     resetLedger({ dir, side: side as Side });
     return 0;

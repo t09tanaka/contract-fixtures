@@ -28,12 +28,18 @@ export function resetLedger(options: { dir: string; side: Side }): void {
   fs.rmSync(ledgerPath(options.dir, options.side), { force: true });
 }
 
-/** The entries of one side's ledger, and the line numbers that could not be parsed. */
-export function readLedger(dir: string, side: Side): { entries: LedgerEntry[]; badLines: number[] } {
+/**
+ * The entries of one side's ledger, the line numbers that could not be parsed, and whether
+ * the file exists at all.
+ */
+export function readLedger(
+  dir: string,
+  side: Side,
+): { entries: LedgerEntry[]; badLines: number[]; exists: boolean } {
   const file = ledgerPath(dir, side);
   const entries: LedgerEntry[] = [];
   const badLines: number[] = [];
-  if (!fs.existsSync(file)) return { entries, badLines };
+  if (!fs.existsSync(file)) return { entries, badLines, exists: false };
   fs.readFileSync(file, "utf8")
     .split("\n")
     .forEach((line, i) => {
@@ -55,5 +61,5 @@ export function readLedger(dir: string, side: Side): { entries: LedgerEntry[]; b
       }
       badLines.push(i + 1);
     });
-  return { entries, badLines };
+  return { entries, badLines, exists: true };
 }

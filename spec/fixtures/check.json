@@ -1,5 +1,5 @@
 {
-  "description": "Cases for the check. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, write `ledger` to .ledger/<side>.jsonl and `otherLedger` to the other side's ledger, then check `side`. Every implementation must report exactly these problems, in this order.",
+  "description": "Cases for the check. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, write `ledger` to .ledger/<side>.jsonl (write no such file when `noLedger` is true) and `otherLedger` to the other side's ledger, then check `side`. Every implementation must report exactly these problems, in this order, and exactly these hints, word for word.",
   "cases": [
     {
       "case": "provider side: everything verified or read",
@@ -11,7 +11,8 @@
         "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
       ],
       "fixtures": 4,
-      "problems": []
+      "problems": [],
+      "hints": []
     },
     {
       "case": "consumer side: everything verified or read",
@@ -23,7 +24,8 @@
         "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
       ],
       "fixtures": 4,
-      "problems": []
+      "problems": [],
+      "hints": []
     },
     {
       "case": "repeated and reordered lines are fine",
@@ -39,7 +41,8 @@
         "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
       ],
       "fixtures": 4,
-      "problems": []
+      "problems": [],
+      "hints": []
     },
     {
       "case": "provider side: nothing ran",
@@ -63,6 +66,9 @@
           "file": "tables/order-total.json",
           "code": "unread"
         }
+      ],
+      "hints": [
+        ".ledger/provider.jsonl is empty. Did the provider side's tests run, and do they use this contracts directory?"
       ]
     },
     {
@@ -87,6 +93,9 @@
           "file": "tables/order-total.json",
           "code": "unread"
         }
+      ],
+      "hints": [
+        ".ledger/consumer.jsonl is empty. Did the consumer side's tests run, and do they use this contracts directory?"
       ]
     },
     {
@@ -117,6 +126,9 @@
           "file": "tables/order-total.json",
           "code": "unread"
         }
+      ],
+      "hints": [
+        ".ledger/consumer.jsonl is empty, but .ledger/provider.jsonl has entries. Is consumer the side whose tests ran?"
       ]
     },
     {
@@ -138,7 +150,8 @@
           "file": "consumer/create-order.request.json",
           "code": "unverified"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "a stale fixture: its test is gone",
@@ -154,7 +167,8 @@
           "file": "provider/order.out-of-stock.json",
           "code": "unverified"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "a new fixture nobody reads yet",
@@ -174,7 +188,8 @@
           "file": "provider/order.cancelled.json",
           "code": "unread"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "an invalid fixture is reported once per issue, and not as unread",
@@ -203,7 +218,8 @@
           "file": "tables/not-json.json",
           "code": "invalid"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "files that are not fixtures are ignored",
@@ -221,7 +237,8 @@
         ".gitignore": ".ledger/\n"
       },
       "fixtures": 4,
-      "problems": []
+      "problems": [],
+      "hints": []
     },
     {
       "case": "ledger entries for files that no longer exist are ignored",
@@ -234,7 +251,8 @@
         "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.removed.json\"}"
       ],
       "fixtures": 4,
-      "problems": []
+      "problems": [],
+      "hints": []
     },
     {
       "case": "ledger lines that are not entries of this side",
@@ -263,7 +281,8 @@
           "file": ".ledger/provider.jsonl",
           "code": "ledger"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "no fixtures at all",
@@ -276,7 +295,8 @@
           "file": "",
           "code": "empty"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "a fixture that starts with a byte order mark is a fixture",
@@ -296,7 +316,8 @@
           "file": "tables/with-bom.json",
           "code": "unread"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "secret: a fixture with a secret path is an ordinary fixture",
@@ -312,7 +333,8 @@
         "provider/session.created.json": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in returns an access token\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"access_token\": \"<token:session-1>\",\n      \"expires_in\": 3600\n    }\n  },\n  \"secret\": {\n    \"response.body.access_token\": \"<token:session-1>\"\n  }\n}\n"
       },
       "fixtures": 5,
-      "problems": []
+      "problems": [],
+      "hints": []
     },
     {
       "case": "secret: a stored value that is not its placeholder is invalid",
@@ -332,7 +354,8 @@
           "file": "provider/session.created.json",
           "code": "invalid"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "token: a stored token is invalid, for either side",
@@ -353,7 +376,8 @@
           "file": "provider/session.created.json",
           "code": "invalid"
         }
-      ]
+      ],
+      "hints": []
     },
     {
       "case": "headers: a fixture with response headers is read by the consumer side",
@@ -369,7 +393,8 @@
         "provider/receipt.downloaded.json": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"content-disposition\": \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\n      \"cache-control\": \"private, no-store\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  }\n}\n"
       },
       "fixtures": 5,
-      "problems": []
+      "problems": [],
+      "hints": []
     },
     {
       "case": "headers: a stored response header with an upper-case name is invalid",
@@ -389,6 +414,220 @@
           "file": "provider/receipt.downloaded.json",
           "code": "invalid"
         }
+      ],
+      "hints": []
+    },
+    {
+      "case": "hint: there is no ledger file",
+      "side": "provider",
+      "ledger": [],
+      "noLedger": true,
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unverified"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unread"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        ".ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?"
+      ]
+    },
+    {
+      "case": "hint: no ledger file, and the other side has one",
+      "side": "provider",
+      "ledger": [],
+      "noLedger": true,
+      "otherLedger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unverified"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unread"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        ".ledger/provider.jsonl does not exist, but .ledger/consumer.jsonl has entries. Is provider the side whose tests ran?"
+      ]
+    },
+    {
+      "case": "hint: the ledger names only files of another directory",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/invoice.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/invoice-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unverified"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unread"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        ".ledger/provider.jsonl has 2 entries, but none that this check asks for. Do the provider side's tests use another contracts directory?",
+        ".ledger/provider.jsonl names 2 file(s) that are not in this directory. It may be left from an earlier run: run the reset before the tests."
+      ]
+    },
+    {
+      "case": "hint: one entry, and not one this check asks for",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unread"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unread"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unverified"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        ".ledger/consumer.jsonl has 1 entry, but none that this check asks for. Do the consumer side's tests use another contracts directory?"
+      ]
+    },
+    {
+      "case": "hint: most fixtures were not touched",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unread"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unverified"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        "Only 1 of 4 fixtures were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
+      ]
+    },
+    {
+      "case": "hint: half of the fixtures were not touched, which is not most",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unverified"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": []
+    },
+    {
+      "case": "hint: the ledger also names a file that is gone",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.removed.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.removed.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        }
+      ],
+      "hints": [
+        ".ledger/provider.jsonl names 1 file(s) that are not in this directory. It may be left from an earlier run: run the reset before the tests."
+      ]
+    },
+    {
+      "case": "hint: an invalid fixture is not counted among those the check asks for",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "files": {
+        "consumer/create-order.request.json": "{"
+      },
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unread"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "invalid"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        "Only 1 of 3 fixtures were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
       ]
     }
   ]
