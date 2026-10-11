@@ -51,8 +51,10 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: ${{ matrix.sdk }}
-      - run: dart pub get
-        working-directory: packages/dart
+      - name: Get dependencies
+        run: |
+          dart pub get --directory packages/dart
+          dart pub get --directory example/consumer
       - name: Format
         # The formatter's output differs between SDK versions; the newest one decides.
         if: matrix.sdk == 'stable'
@@ -64,7 +66,6 @@ jobs:
       - name: "Example: consumer side (reset, analyze, test, check)"
         working-directory: example/consumer
         run: |
-          dart pub get
           dart analyze --fatal-infos
           dart run contract_fixtures reset --side consumer --dir ../contracts
           dart test

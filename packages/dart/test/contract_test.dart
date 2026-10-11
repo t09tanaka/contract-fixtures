@@ -140,6 +140,21 @@ void main() {
       expect(ledgerLines(dir, 'consumer'), isEmpty);
     });
 
+    test('does not read outside the contracts directory', () {
+      final consumer = ContractFixtures(
+        side: ContractSide.consumer,
+        dir: copyOfContracts(),
+      );
+      expect(
+        () => consumer.readResponse('../consumer/create-order.request'),
+        throwsA(isA<ContractUsageException>()),
+      );
+      expect(
+        () => consumer.readTable(''),
+        throwsA(isA<ContractUsageException>()),
+      );
+    });
+
     test('reading never writes, also in update mode', () {
       final dir = copyOfContracts();
       final consumer = ContractFixtures(

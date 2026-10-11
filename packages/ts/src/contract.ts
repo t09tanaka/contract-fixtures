@@ -21,7 +21,7 @@ import {
   type Side,
   type TableFixture,
 } from "./types.js";
-import { formatIssues, validateFixture, validateFixtureValue } from "./validate.js";
+import { formatIssues, NAME_PATTERN, validateFixture, validateFixtureValue } from "./validate.js";
 
 /** Environment variable that names the contracts directory when no `dir` option is given. */
 export const DIR_ENV = "CONTRACT_FIXTURES_DIR";
@@ -216,6 +216,9 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
 
   const read = (kind: Kind, rawName: string): unknown => {
     const name = requireName(rawName);
+    if (!NAME_PATTERN.test(name)) {
+      throw new ContractUsageError(`contract-fixtures: ${JSON.stringify(name)} is not a fixture name`);
+    }
     const file = `${kind}/${name}.json`;
     const filePath = path.join(dir, kind, `${name}.json`);
     if (!fs.existsSync(filePath)) {

@@ -119,6 +119,12 @@ describe("contractFixtures", () => {
     assert.deepEqual(ledgerLines(dir, "consumer"), []);
   });
 
+  it("does not read outside the contracts directory", () => {
+    const consumer = contractFixtures({ side: "consumer", dir: copyOfContracts() });
+    assert.throws(() => consumer.readResponse("../consumer/create-order.request"), ContractUsageError);
+    assert.throws(() => consumer.readTable(""), ContractUsageError);
+  });
+
   it("reading never writes, also in update mode", () => {
     const dir = copyOfContracts();
     const consumer = contractFixtures({ side: "consumer", dir, update: true });

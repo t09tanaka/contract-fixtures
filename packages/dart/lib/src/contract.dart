@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'check.dart';
@@ -260,6 +261,11 @@ class ContractFixtures {
 
   Map<String, dynamic> _read(FixtureKind kind, String name) {
     _requireName(name);
+    if (!namePattern.hasMatch(name)) {
+      throw ContractUsageException(
+        'contract_fixtures: ${jsonEncode(name)} is not a fixture name',
+      );
+    }
     final file = '${kind.name}/$name.json';
     final source = File('$dir/$file');
     if (!source.existsSync()) {
