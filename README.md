@@ -368,7 +368,7 @@ hint is a guess; the problems and the exit code do not depend on it. The
 
 `check` exits with `0` when there are no problems, `1` when a fixture is unverified, unread or
 malformed, and `2` for wrong usage. `CONTRACT_FIXTURES_UPDATE=1` is refused when the environment
-variable `CI` is set, because it would turn every difference into a pass. A CI job for one side
+variable `CI` is `true` or `1`, because it would turn every difference into a pass. A CI job for one side
 should also be triggered by changes to the contracts directory. The
 [adoption guide](./docs/adoption.md#ci) has workflow examples for separate jobs, `paths`,
 shards and containers.

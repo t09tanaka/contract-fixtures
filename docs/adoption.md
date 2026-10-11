@@ -115,8 +115,7 @@ the app, the CORS headers follow `origin`. A fixture recorded without that heade
 request gets this response", which is true only for the header the test happened to send, and
 the reader cannot tell.
 
-**What to do.** Name every such header in `requestHeaders` (or pass it in `request.headers`),
-so that it is in the fixture. Record one fixture per value that a consumer depends on
+**What to do.** Name every such header in `requestHeaders`, so that it is in the fixture. Record one fixture per value that a consumer depends on
 (`order.out-of-stock.en`, `order.out-of-stock.ja`). If the response says which request
 headers it depends on (`vary`), record that header too.
 
@@ -184,6 +183,10 @@ contract.verifyRequest({
   secret,
 });
 ```
+
+The `fetch` of the test answers with the fixture whatever the client sent; it does not compare
+the request with the one in the fixture. What the client sends is checked by `verifyRequest`,
+and that the API accepts it is checked by the provider's tests.
 
 If the client cannot be given a `fetch`, replace `globalThis.fetch` for the duration of the
 test. A client built on another library has that library's test transport; the
@@ -325,6 +328,7 @@ To see whether routes answer alike, print the fixtures side by side:
 ```
 $ npx contract-fixtures summary --dir example/contracts-web
 FIXTURE                            REQUEST                            STATUS  RESPONSE BODY
+provider/order.body-not-json       POST /orders                       400     {error: string}
 provider/order.created             POST /orders                       201     {created_at: string, customer: string, id: string, status: string, total_minor: number}
 provider/order.out-of-stock        POST /orders                       409     {available: number, error: string}
 provider/order.token-invalid       POST /orders                       401     {error: string}
@@ -388,17 +392,22 @@ on:
       - "example/provider/**"
       - "example/consumer/**"
       - "example/consumer-web/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/example.yml"
 ```
 
 With one workflow per side, each lists its own project and its contracts directory or
-directories. If the jobs are required checks, remember that a workflow that is not started
-reports nothing.
+directories (in this repository the list also has the packages the example is built on). If
+the jobs are required checks, remember that a workflow that is not started reports nothing: a
+pull request outside these paths then waits for a check that never arrives.
 
 ### Shards and workers
 
 **What happens.** The tests of one side run in several shards on different machines. Each
-shard writes its own ledger, with a part of the fixtures. A check on any one of them fails,
-and its hint says so.
+shard writes its own ledger, with a part of the fixtures. A check on any one of them fails;
+when a shard covers fewer than half of the fixtures, the report has a hint that says so.
 
 **What to do.** Do not check in the shards. Keep each shard's ledger, join them in a job that
 runs after all shards, and check there. A ledger is a list of lines; joining is `cat`, and
@@ -414,10 +423,10 @@ the end of a shard:
           node --test --test-shard=${{ matrix.shard }}/2 .test-build/test/*.test.js
       - name: Collect the ledgers of this shard
         run: |
-          mkdir ledgers
           for dir in contracts contracts-web; do
+            mkdir -p "ledgers/$dir"
             ledger="example/$dir/.ledger/provider.jsonl"
-            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir-${{ matrix.shard }}.jsonl"; fi
+            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir/${{ matrix.shard }}.jsonl"; fi
           done
       - uses: actions/upload-artifact@v4
         with:
@@ -437,13 +446,16 @@ and the job after them:
         run: |
           for dir in contracts contracts-web; do
             mkdir -p "example/$dir/.ledger"
-            cat ledgers/"$dir"-*.jsonl > "example/$dir/.ledger/provider.jsonl"
+            cat "ledgers/$dir"/*.jsonl > "example/$dir/.ledger/provider.jsonl"
           done
           npm run check -w example/provider
 ```
 
 The ledger is copied out of `.ledger/` under another name, so that the upload does not depend
-on how the action treats hidden directories.
+on how the action treats hidden directories. Each contracts directory gets a directory of its
+own among the copies: a ledger names fixtures as `provider/order.created.json`, without the
+contracts directory, so the lines of one directory must never be joined into the ledger of
+another.
 
 Several workers on **one** machine need nothing: every verify and read appends one line to
 the same file, from whichever process it runs in. Reset once before the run, not in a setup
@@ -461,21 +473,21 @@ container). To record, pass `CONTRACT_FIXTURES_UPDATE=1` into the container expl
 environment variable set on the host does not reach the tests by itself. The ledger is
 written into the mounted directory, so `reset` and `check` can run inside or outside the
 container, as long as both see the same directory. Do not pass `CI` into a container in which
-you want to record: update mode is refused when `CI` is set.
+you want to record: update mode is refused when `CI` is `true` or `1`.
 
 ## When the check fails
 
 `check` lists every fixture this side did not verify or read. For one or two fixtures the
 list is the answer: a fixture is new and has no reading test yet, or its verifying test was
-deleted. When the list is long, the cause is usually not the fixtures, and the report ends
-with a hint taken from the state of the ledger:
+deleted. When the list is long, the cause is usually not the fixtures, and the report has a
+hint, taken from the state of the ledger, before its last line:
 
 | Hint | Usual cause |
 |---|---|
 | the ledger does not exist, or has no entries | The tests did not run before the check, or they open another directory than the one given to `check` (compare `dir` in the tests with `--dir`). |
 | ..., but the other side's ledger has some | The same, or `--side` names the wrong side. |
 | has entries, but none that this check asks for | The ledger is from an earlier state of the directory and the tests did not run since. |
-| only N of M fixtures were verified or read | A part of the tests ran: a name filter, one file, one shard. `check` belongs after a full run. |
+| only N of M fixtures were verified or read (given when more than half are untouched) | A part of the tests ran: a name filter, one file, one shard. `check` belongs after a full run. |
 | names files that are not in this directory | No `reset` before the tests. |
 
 A missing `reset` matters for another reason: the ledger of an old run still lists fixtures

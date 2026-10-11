@@ -5,7 +5,8 @@
  * makes a fixture a record of what the deployed API answers: a test that built its own server
  * around the handler, or called the handler directly, would record the answers of something
  * that is never deployed. What only this layer does (the answer to a body that is not JSON,
- * the `content-type` of every JSON answer) is in the fixtures because the tests come through it.
+ * the `content-type` of every JSON answer) can be in a fixture because the tests come through
+ * it: see `order.body-not-json` in the contracts of the web client.
  */
 import http from "node:http";
 

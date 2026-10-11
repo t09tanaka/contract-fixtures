@@ -41,6 +41,7 @@ function clientAnsweredBy(name: string) {
 
 /** Fixture name -> what the client must make of that response to "place an order". */
 const orderExpectations: Record<string, string> = {
+  "order.body-not-json": "failed",
   "order.created": "placed, total 1200",
   "order.out-of-stock": "out of stock, 0 left",
   "order.token-invalid": "sign in again",

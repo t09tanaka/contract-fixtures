@@ -52,10 +52,10 @@ jobs:
           node --test --test-shard=${{ matrix.shard }}/2 .test-build/test/*.test.js
       - name: Collect the ledgers of this shard
         run: |
-          mkdir ledgers
           for dir in contracts contracts-web; do
+            mkdir -p "ledgers/$dir"
             ledger="example/$dir/.ledger/provider.jsonl"
-            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir-${{ matrix.shard }}.jsonl"; fi
+            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir/${{ matrix.shard }}.jsonl"; fi
           done
       - uses: actions/upload-artifact@v4
         with:
@@ -84,7 +84,7 @@ jobs:
         run: |
           for dir in contracts contracts-web; do
             mkdir -p "example/$dir/.ledger"
-            cat ledgers/"$dir"-*.jsonl > "example/$dir/.ledger/provider.jsonl"
+            cat "ledgers/$dir"/*.jsonl > "example/$dir/.ledger/provider.jsonl"
           done
           npm run check -w example/provider
 

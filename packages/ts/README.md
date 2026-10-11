@@ -107,7 +107,7 @@ throws `ContractFixtureError`.
 - `dir` defaults to the environment variable `CONTRACT_FIXTURES_DIR`.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
-  is refused when `CI` is set.
+  is refused when `CI` is `true` or `1`.
 - `observed.volatile` lists the values that change between runs. An entry is a path
   (`"response.body.note"`: only the JSON type is compared) or `{ path, pattern }` (a string
   that must match the pattern as a whole; type `VolatileEntry`). In a path, `*` is one key or

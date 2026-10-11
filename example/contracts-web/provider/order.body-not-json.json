@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "order.body-not-json",
+  "description": "The body of the request is not JSON",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    }
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "error": "body_not_json"
+    }
+  },
+  "secret": {
+    "request.headers.authorization": "<token:customer-1>"
+  }
+}

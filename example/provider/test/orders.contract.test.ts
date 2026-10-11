@@ -74,6 +74,27 @@ describe("provider fixtures: real responses to placing an order", () => {
     });
   }
 
+  it("order.body-not-json", async () => {
+    // Answered by the server before the handler is reached, so only a test that comes in
+    // over HTTP can record it. The body that was sent is not JSON and is left out.
+    const res = await api()
+      .post("/orders")
+      .set("authorization", TOKEN)
+      .set("content-type", "application/json")
+      .send('{"sku": "tea-100", "quantity": ');
+
+    verify(
+      {
+        name: "order.body-not-json",
+        description: "The body of the request is not JSON",
+        readers: ["web"],
+        call: { method: "POST", path: "/orders", authorization: TOKEN },
+        responseHeaders: ["content-type"],
+      },
+      res,
+    );
+  });
+
   it("scenario names are unique", () => {
     const names = scenarios.map((s) => s.name);
     assert.equal(new Set(names).size, names.length);

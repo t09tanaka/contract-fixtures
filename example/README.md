@@ -24,6 +24,7 @@ exchanges that reader depends on:
 |---|---|---|
 | `order.created`, `order.out-of-stock`, `order.token-invalid`, `receipt.downloaded` | yes | yes |
 | `order.created-with-coupon`, `order.coupon-unknown`, `order.invalid-quantity`, `payment.started` | yes | |
+| `order.body-not-json` (answered by the HTTP layer, before the handler) | | yes |
 | requests the reader builds (`consumer/`) | 2 | 2 |
 | `tables/order-total` | yes | |
 
