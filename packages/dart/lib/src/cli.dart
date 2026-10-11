@@ -7,9 +7,6 @@ import 'summary.dart';
 import 'types.dart';
 import 'version.dart';
 
-/// The name users type. The TypeScript package prints `contract-fixtures`.
-const String executable = 'contract_fixtures';
-
 /// The text printed for `--help` and after a usage error.
 const String usage = '''
 $executable — shared request/response fixtures that keep an API and its clients in step

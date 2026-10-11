@@ -225,5 +225,7 @@ void main() {
     expect(ok.stdout, contains('4 fixture(s)'));
     expect(bin(['check', '--side', 'consumer', '--dir', dir]).exitCode, 1);
     expect(bin(['check']).exitCode, 2);
+    final version = bin(['--version']);
+    expect((version.exitCode, version.stdout), (0, '$packageVersion\n'));
   });
 }

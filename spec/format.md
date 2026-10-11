@@ -525,8 +525,8 @@ The check fails when, for the given side:
 | `empty` | There are no fixtures at all (most likely a wrong directory). |
 
 Exit codes of the check command: `0` no problems, `1` at least one problem, `2` wrong usage
-(unknown option, missing or wrong side, missing or non-existent directory). The reset command
-exits with `0`, or with `2` for wrong usage. See [Command line](#command-line).
+(see [Command line](#command-line)). The reset command exits with `0`, or with `2` for wrong
+usage.
 
 The check always looks at every fixture. It is meant to run after all tests of a side; when
 the tests run in several shards, concatenate the ledger files of the shards into
@@ -595,8 +595,8 @@ print. Everything else is the same text in every package.
 - `reset --side <provider|consumer>` and `check --side <provider|consumer>` act on one side;
   `summary` takes no `--side`.
 - `--dir <contracts>` is the contracts directory. Without it, the environment variable
-  `CONTRACT_FIXTURES_DIR` is used; without both, the command is used wrongly. An option is
-  written `--dir <value>` or `--dir=<value>`.
+  `CONTRACT_FIXTURES_DIR` is used, and an empty value there counts as not set. An option is
+  written `--dir <value>` or `--dir=<value>`; when it is given twice, the last one counts.
 - `-h`, `--help` prints the help and `-v`, `--version` the version of the package, both to
   standard output with the exit code `0`.
 - A reset, and a check without problems, print one line to standard output:
@@ -606,12 +606,15 @@ print. Everything else is the same text in every package.
   `<tool> check (<side> side): <n> problem(s) in <m> fixture(s)`; then one line per problem,
   the hints, and a last line that names the reset.
 - Wrong usage prints `<tool>: <what is wrong>`, an empty line and the help to standard error.
+  Wrong usage is: an unknown command, option or argument, an option without its value, a
+  missing or wrong `--side` (or a `--side` for `summary`), no contracts directory, and a
+  `--dir` that is not a directory.
 
 | Exit code | `reset` | `check` | `summary` |
 |---|---|---|---|
-| `0` | done | no problems | printed |
-| `1` | not used | at least one problem | the directory holds no fixtures |
-| `2` | wrong usage | wrong usage | wrong usage |
+| 0 | done | no problems | printed |
+| 1 | not used | at least one problem | the directory holds no fixtures |
+| 2 | wrong usage | wrong usage | wrong usage |
 
 The cases in `fixtures/cli.json` pin the help, the messages and the exit codes; in them
 `{tool}` stands for the name of the executable.

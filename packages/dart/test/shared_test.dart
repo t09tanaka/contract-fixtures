@@ -188,6 +188,14 @@ void main() {
         expect(out.join('\n'), printed(c['stdout']));
         expect(err.join('\n'), printed(c['stderr']));
         expect(code, c['exit']);
+        final after = c['ledgerAfter'] as Map<String, dynamic>? ?? const {};
+        for (final entry in after.entries) {
+          final file = File('$dir/.ledger/${entry.key}.jsonl');
+          expect(file.existsSync(), entry.value != null, reason: file.path);
+          if (entry.value != null) {
+            expect(ledgerLines(dir, entry.key), entry.value);
+          }
+        }
       });
     }
   });

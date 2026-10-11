@@ -25,7 +25,8 @@ npm install --save-dev @t09tanaka/contract-fixtures
 ```
 
 To install a version that is not on npm, from the repository, see
-[Install](https://github.com/t09tanaka/contract-fixtures#install) in the repository README.
+[Install](https://github.com/t09tanaka/contract-fixtures#install)
+in the repository README.
 
 ## Use
 
@@ -244,7 +245,7 @@ npx contract-fixtures --version                                  # also -v; --he
 |---|---|---|---|
 | 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
 | 1 | Not used | At least one problem: a fixture is `invalid`, `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures | The directory holds no fixtures |
-| 2 | Wrong usage: an unknown command or option, a missing or wrong `--side`, no contracts directory, or one that does not exist | The same | The same, or a `--side` |
+| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, no contracts directory, or a `--dir` that is not a directory | The same | The same, or a `--side` |
 
 A `reset`, and a `check` without problems, print one line to standard output:
 
@@ -281,8 +282,8 @@ one table in the
 
 The gates for the code that must not be wrong (`test-gates`, `test_gates`) and the mutation
 testing behind them (`dart_mutant`) are listed in the
-[repository README](https://github.com/t09tanaka/contract-fixtures#related-tools), with what they guard and
-what this package guards.
+[repository README](https://github.com/t09tanaka/contract-fixtures#related-tools),
+with what they guard and what this package guards.
 
 ## License
 

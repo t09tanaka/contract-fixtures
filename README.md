@@ -48,14 +48,7 @@ npm install --save-dev ../t09tanaka-contract-fixtures-0.1.0.tgz
 npx contract-fixtures --version
 ```
 
-Dart: name the repository and the directory of the package in it.
-
-```sh
-dart pub add --dev contract_fixtures --git-url=https://github.com/t09tanaka/contract-fixtures.git --git-path=packages/dart
-dart run contract_fixtures --version
-```
-
-which writes this to `pubspec.yaml`:
+Dart: name the repository and the directory of the package in `pubspec.yaml`,
 
 ```yaml
 dev_dependencies:
@@ -63,6 +56,13 @@ dev_dependencies:
     git:
       url: https://github.com/t09tanaka/contract-fixtures.git
       path: packages/dart
+```
+
+then:
+
+```sh
+dart pub get
+dart run contract_fixtures --version
 ```
 
 ## The problem
@@ -459,19 +459,19 @@ messages, the two print the same text.
 | Command | What it does |
 |---|---|
 | `reset --side <provider\|consumer> [--dir <contracts>]` | Forgets what earlier test runs of this side did. Run it before the tests. |
-| `check --side <provider\|consumer> [--dir <contracts>]` | Fails unless this side's tests verified or read every fixture since the reset, and every fixture follows the format. Run it after all tests of the side. |
+| `check --side <provider\|consumer> [--dir <contracts>]` | Fails unless this side's tests verified or read every fixture since the reset, and every fixture follows the format. Run it after all tests of this side. |
 | `summary [--dir <contracts>]` | Prints one line per fixture. Takes no `--side` and does not touch the ledger. |
 
 `--dir` is the **contracts directory**: the one that holds `provider/`, `consumer/` and
 `tables/`. It is not the directory of a package, and it does not default to the current
-directory: without `--dir` the commands use `CONTRACT_FIXTURES_DIR`, and without both they
+directory: without `--dir` the commands use `CONTRACT_FIXTURES_DIR`, and without either they
 exit with 2. `-h, --help` prints the help, `-v, --version` the version of the package.
 
 | Exit code | `reset` | `check` | `summary` |
 |---|---|---|---|
 | 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
 | 1 | Not used | At least one problem: a fixture is `invalid`, `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures | The directory holds no fixtures |
-| 2 | Wrong usage: an unknown command or option, a missing or wrong `--side`, no contracts directory, or one that does not exist | The same | The same, or a `--side` |
+| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, no contracts directory, or a `--dir` that is not a directory | The same | The same, or a `--side` |
 
 A `reset`, and a `check` without problems, print one line to standard output. From
 `example/provider`:
@@ -485,13 +485,13 @@ contract-fixtures check (provider side): OK (11 fixture(s), all verified or read
 
 A `check` with problems prints its report to standard error, starting with
 `contract-fixtures check (provider side): 1 problem(s) in 12 fixture(s)`. Wrong usage prints
-one line that says what is wrong, then the help, to standard error.
+one line that says what is wrong, an empty line and the help, to standard error.
 
 ### Environment variables
 
 | Variable | Read by | Meaning |
 |---|---|---|
-| `CONTRACT_FIXTURES_DIR` | the helpers, the commands | The contracts directory, for a test that passes no `dir` and for a command without `--dir`. |
+| `CONTRACT_FIXTURES_DIR` | the helpers, the commands | The contracts directory, for a test that passes no `dir` and for a command without `--dir`. An empty value counts as not set. |
 | `CONTRACT_FIXTURES_UPDATE` | the helpers | `1` turns update mode on for a test that passes no `update`: a verify writes a missing or differing fixture instead of failing. Every other value leaves it off. |
 | `CI` | the helpers | With `true` or `1`, `CONTRACT_FIXTURES_UPDATE=1` is refused: the helpers throw a usage error before any test verifies. Update mode is for a developer's machine. |
 
@@ -550,12 +550,6 @@ instead.
   broker, no multi-step scenario and no OpenAPI integration, and no dependency on an HTTP
   client or a test framework. Comparison is exact, with `volatile` as the one exception.
 
-## Measured in practice
-
-The approach was extracted from a prototype on a payment flow of a mobile app: 27 provider
-fixtures, 4 consumer fixtures and 1 table of 10 rows. The client-side contract tests took 4 to 8
-seconds. The application-independent helper code was 399 lines in 3 files.
-
 ## Repository layout
 
 ```
@@ -581,6 +575,21 @@ npm run example                                 # the example: provider side and
 cd packages/dart && dart pub get
 dart format --output=none --set-exit-if-changed . && dart analyze --fatal-infos && dart test
 ```
+
+### Releasing
+
+Both packages have the same version. For a release:
+
+1. Set the version in `packages/ts/package.json`, `packages/ts/src/version.ts`,
+   `packages/dart/pubspec.yaml` and `packages/dart/lib/src/version.dart`. A test in each
+   package fails when the constant and the manifest differ.
+2. In `CHANGELOG.md`, replace `(unreleased)` in the heading of the version with the date, and
+   copy the file to `packages/ts/CHANGELOG.md` and `packages/dart/CHANGELOG.md`. A test in each
+   package fails when a copy differs.
+3. For the first release only: delete the note that starts with "Not published yet" under
+   [Install](#install).
+4. `npm pack --dry-run` in `packages/ts` and `dart pub publish --dry-run` in `packages/dart`
+   must list the README, the licence and the changelog, and give no warning.
 
 ## Related tools
 

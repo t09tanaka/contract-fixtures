@@ -185,6 +185,7 @@ describe("spec/fixtures/cli.json", () => {
     env?: Record<string, string>;
     empty?: boolean;
     ledger?: Record<string, string[]>;
+    ledgerAfter?: Record<string, string[] | null>;
     exit: number;
     stdout: string;
     stderr: string;
@@ -217,6 +218,11 @@ describe("spec/fixtures/cli.json", () => {
       assert.equal(out.join("\n"), printed(c.stdout));
       assert.equal(err.join("\n"), printed(c.stderr));
       assert.equal(code, c.exit);
+      for (const [side, lines] of Object.entries(c.ledgerAfter ?? {})) {
+        const file = path.join(dir, ".ledger", `${side}.jsonl`);
+        assert.equal(fs.existsSync(file), lines !== null, file);
+        if (lines !== null) assert.deepEqual(ledgerLines(dir, side), lines);
+      }
     });
   }
 });

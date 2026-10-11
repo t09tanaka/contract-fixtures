@@ -1,14 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { checkContracts, formatCheckResult } from "./check.js";
+import { checkContracts, formatCheckResult, TOOL } from "./check.js";
 import { DIR_ENV } from "./contract.js";
 import { resetLedger } from "./ledger.js";
 import { formatSummary, summarizeContracts } from "./summary.js";
 import type { Side } from "./types.js";
 import { VERSION } from "./version.js";
-
-const TOOL = "contract-fixtures";
 
 /** The text printed for `--help` and after a usage error. */
 export const USAGE = `${TOOL} — shared request/response fixtures that keep an API and its clients in step
