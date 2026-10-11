@@ -73,6 +73,28 @@ step of adopting this tool, and usually the only change to production code.
 A project often has both kinds of tests. Verify in the few that go through the whole
 application, and keep one such test per exchange a consumer depends on.
 
+Calling the same function from both places is necessary, and it is not always enough. Two
+ways in which the two applications still differ:
+
+- **The function branches on the environment.** The entry point and the tests both call
+  `assemble()`, but inside it a variable that names the mode of the run (set to `test` by the
+  test runner) decides which error handler is registered, or whether one is registered at
+  all. The same request then gets one error body from the deployed application and another
+  one from the test's, and the fixture holds the second. Look for such branches in the
+  assembly, and run the contract tests in the mode the deployed application runs in, or make
+  the difference an explicit argument that both callers pass.
+- **A check of responses that only runs in tests.** Some applications validate every response
+  against a schema while the tests run, and replace a response that does not fit with an
+  error. In production the response goes out as it is. A response that the schema does not
+  describe is then recorded as a validation error with a status of 500, although the
+  deployed API answers 200 with the real body. Switch the check off for the contract tests,
+  or let it report without replacing the response.
+
+How to tell: **a fixture with a 5xx status, or with a body that carries the wording of a
+validator, was most likely produced by a difference in assembly, not by the API.** Before
+committing such a fixture, send the same request to an application started the way it is
+deployed, and compare.
+
 ## The provider side
 
 ### From the response of a test client to `verifyResponse`
@@ -371,6 +393,10 @@ other's results, only the committed fixtures. The workflow of the example in thi
 ```
 
 where `contract` is `contract-fixtures reset ... && npm test && contract-fixtures check ...`.
+When the tests of a side are split into several suites (unit, integration, end-to-end; each
+a command or a container run of its own), the order is `reset`, then **every** suite of that
+side, then `check`: the tables may be read in the integration tests and the responses
+verified in the end-to-end tests, and a `reset` between two suites forgets the first.
 The job fails when a test fails or when the check exits with 1; the exit codes are listed in
 the [README](../README.md#command-line).
 (`npm run build` builds the package of this repository; a project that installs it from the
@@ -483,7 +509,9 @@ you want to record: update mode is refused when `CI` is `true` or `1`.
 `check` lists every fixture this side did not verify or read. For one or two fixtures the
 list is the answer: a fixture is new and has no reading test yet, or its verifying test was
 deleted. When the list is long, the cause is usually not the fixtures, and the report has a
-hint, taken from the state of the ledger, before its last line:
+hint, taken from the state of the ledger, before its last line. When the ledger has no
+entries at all, the list is left out: one line gives the number of fixtures, and the hint
+follows it.
 
 | Hint | Usual cause |
 |---|---|
