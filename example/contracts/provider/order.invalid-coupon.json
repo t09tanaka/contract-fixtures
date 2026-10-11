@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "order.invalid-coupon",
+  "description": "The coupon code does not exist",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    },
+    "body": {
+      "sku": "tea-100",
+      "quantity": 1,
+      "coupon": "NOPE"
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "error": "invalid_coupon"
+    }
+  }
+}

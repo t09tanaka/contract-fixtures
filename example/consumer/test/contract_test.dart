@@ -1,0 +1,120 @@
+// The consumer side of the contract.
+//
+// - provider fixtures: feed the responses the API really gave (../contracts/provider/,
+//   verified by the provider's tests) to the client's real response handling.
+// - consumer fixtures: verify the requests the client really builds against
+//   ../contracts/consumer/ (the provider's tests pass those to the real handler).
+// - tables: run the shared rows through this side's calculation.
+import 'package:contract_fixtures/contract_fixtures.dart';
+import 'package:contract_fixtures_example_consumer/orders_client.dart';
+import 'package:test/test.dart';
+
+final contract = ContractFixtures(
+  side: ContractSide.consumer,
+  dir: '../contracts',
+);
+
+/// What the app does, as a string, so the expectations below read as a table.
+String outcome(ProviderFixture fixture) {
+  final result = readCreateOrderResponse(
+    fixture.response.status,
+    fixture.response.body,
+  );
+  return switch (result) {
+    OrderPlaced(:final totalMinor) => 'placed, total $totalMinor',
+    OutOfStock(:final available) => 'out of stock, $available left',
+    CouponRejected() => 'coupon rejected',
+    SignInAgain() => 'sign in again',
+    OrderFailed() => 'failed',
+  };
+}
+
+/// Fixture name -> what the app must do when it receives that response.
+const expectations = <String, String>{
+  'order.created': 'placed, total 1200',
+  'order.created-with-coupon': 'placed, total 899',
+  'order.out-of-stock': 'out of stock, 0 left',
+  'order.invalid-coupon': 'coupon rejected',
+  'order.invalid-quantity': 'failed',
+  'order.token-invalid': 'sign in again',
+};
+
+void main() {
+  group('provider fixtures: what the app makes of real responses', () {
+    test('every provider fixture has an expectation here', () {
+      contract.assertCovers(
+        FixtureKind.provider,
+        expectations.keys,
+        prefix: 'order.',
+      );
+    });
+
+    for (final entry in expectations.entries) {
+      test(entry.key, () {
+        expect(outcome(contract.readResponse(entry.key)), entry.value);
+      });
+    }
+
+    test('order.created: the id of a real response can be read', () {
+      final fixture = contract.readResponse('order.created');
+      final result = readCreateOrderResponse(
+          fixture.response.status, fixture.response.body);
+      expect((result as OrderPlaced).id, startsWith('ord_'));
+    });
+  });
+
+  group('consumer fixtures: the requests the client really builds', () {
+    void verify(String name, String description, ApiRequest request) {
+      contract.verifyRequest(
+        name: name,
+        description: description,
+        request: ExchangeRequest(
+          method: request.method,
+          path: request.path,
+          headers: request.headers,
+          body: request.body,
+        ),
+      );
+    }
+
+    test('create-order.request', () {
+      verify(
+        'create-order.request',
+        'The request the client sends to place an order',
+        buildCreateOrderRequest(
+          authorization: '<token:customer-1>',
+          sku: 'tea-100',
+          quantity: 2,
+        ),
+      );
+    });
+
+    test('create-order.with-coupon.request', () {
+      verify(
+        'create-order.with-coupon.request',
+        'The request the client sends to place an order with a coupon',
+        buildCreateOrderRequest(
+          authorization: '<token:customer-1>',
+          sku: 'tin-300',
+          quantity: 1,
+          coupon: 'SAVE10',
+        ),
+      );
+    });
+  });
+
+  group('table: order-total', () {
+    for (final row in contract.readTable('order-total').rows) {
+      test(row['case'], () {
+        expect(
+          orderTotalMinor(
+            unitPriceMinor: row['unit_price_minor'] as int,
+            quantity: row['quantity'] as int,
+            discountPercent: row['discount_percent'] as int,
+          ),
+          row['expected_minor'],
+        );
+      });
+    }
+  });
+}

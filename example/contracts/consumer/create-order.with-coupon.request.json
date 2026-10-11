@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "create-order.with-coupon.request",
+  "description": "The request the client sends to place an order with a coupon",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>",
+      "content-type": "application/json"
+    },
+    "body": {
+      "sku": "tin-300",
+      "quantity": 1,
+      "coupon": "SAVE10"
+    }
+  }
+}

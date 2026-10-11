@@ -1,0 +1,12 @@
+name: contract_fixtures_example_consumer
+description: The consumer side of the contract_fixtures example.
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dev_dependencies:
+  contract_fixtures:
+    path: ../../packages/dart
+  lints: ^5.0.0
+  test: ^1.25.0
