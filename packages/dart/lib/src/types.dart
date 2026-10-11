@@ -7,6 +7,13 @@ enum ContractSide { provider, consumer }
 /// The three directories of a contracts directory.
 enum FixtureKind { provider, consumer, tables }
 
+List<String> _headerValues(Map<String, dynamic>? headers, String name) {
+  final value = headers?[name];
+  if (value is String) return [value];
+  if (value is List) return value.whereType<String>().toList();
+  return const [];
+}
+
 /// The request part of a fixture.
 class ExchangeRequest {
   const ExchangeRequest({
@@ -20,8 +27,7 @@ class ExchangeRequest {
       ExchangeRequest(
         method: json['method'] as String,
         path: json['path'] as String,
-        headers:
-            (json['headers'] as Map<String, dynamic>?)?.cast<String, String>(),
+        headers: json['headers'] as Map<String, dynamic>?,
         body: json['body'],
       );
 
@@ -31,8 +37,14 @@ class ExchangeRequest {
   /// Starts with `/`; includes the query string, if any.
   final String path;
 
-  /// Header names are lower-cased before comparing and writing.
-  final Map<String, String>? headers;
+  /// Header names are lower-cased before comparing and writing. A value is a `String`, or
+  /// a non-empty `List` of strings for a header that is sent more than once. The type is
+  /// wide on purpose, so that the header map of an HTTP library can be passed as it is
+  /// (`Map<String, String>`, `Map<String, List<String>>`, `Map<String, dynamic>`).
+  final Map<String, dynamic>? headers;
+
+  /// The values of the header [name] (lower case), in order; empty when it is absent.
+  List<String> headerValues(String name) => _headerValues(headers, name);
 
   /// Anything `jsonEncode` accepts. `null` means "no body".
   final Object? body;
@@ -47,19 +59,30 @@ class ExchangeRequest {
 
 /// The response part of a provider fixture.
 class ExchangeResponse {
-  const ExchangeResponse({required this.status, this.body});
+  const ExchangeResponse({required this.status, this.headers, this.body});
 
   factory ExchangeResponse.fromJson(Map<String, dynamic> json) =>
       ExchangeResponse(
-          status: (json['status'] as num).toInt(), body: json['body']);
+        status: (json['status'] as num).toInt(),
+        headers: json['headers'] as Map<String, dynamic>?,
+        body: json['body'],
+      );
 
   final int status;
+
+  /// As in a request: lower-cased names; a `String`, or a `List` of strings for a header
+  /// that is sent more than once (`set-cookie`).
+  final Map<String, dynamic>? headers;
+
+  /// The values of the header [name] (lower case), in order; empty when it is absent.
+  List<String> headerValues(String name) => _headerValues(headers, name);
 
   /// The decoded body. `null` means "no body".
   final Object? body;
 
   Map<String, dynamic> toJson() => {
         'status': status,
+        if (headers != null) 'headers': headers,
         if (body != null) 'body': body,
       };
 }

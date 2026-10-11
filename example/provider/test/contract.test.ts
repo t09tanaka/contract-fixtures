@@ -1,8 +1,8 @@
 /**
  * The provider side of the contract.
  *
- * - provider fixtures: call the real handler and verify the real response against
- *   ../contracts/provider/<name>.json (the consumer's tests read those files).
+ * - provider fixtures: call the real handler and verify the real response (status, headers
+ *   and body) against ../contracts/provider/<name>.json (the consumer's tests read those files).
  * - consumer fixtures: pass the requests the consumer really builds to the real handler.
  * - tables: run the shared rows through this side's calculation.
  */
@@ -83,6 +83,11 @@ const scenarios: Scenario[] = [
     request: order({ sku: "tea-100", quantity: 1 }, { authorization: "Bearer expired" }),
   },
   startPayment,
+  {
+    name: "receipt.downloaded",
+    description: "The receipt of an order is a download with a file name",
+    request: { method: "GET", path: "/orders/ord_demo1/receipt", headers: authorized },
+  },
 ];
 
 describe("provider fixtures: real responses", () => {
@@ -140,7 +145,10 @@ describe("consumer fixtures: requests the client really builds", () => {
         withSecrets({
           method: request.method,
           path: request.path,
-          headers: request.headers ?? {},
+          // A header the client sends more than once reaches the handler as one joined value.
+          headers: Object.fromEntries(
+            Object.entries(request.headers ?? {}).map(([name, value]) => [name, [value].flat().join(", ")]),
+          ),
           body: request.body,
         }),
       );

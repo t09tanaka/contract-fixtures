@@ -68,6 +68,36 @@ function unknownKeys(
   }
 }
 
+/** A header value: a string, or a non-empty array of strings (a header sent more than once). */
+function isHeaderValue(value: unknown): boolean {
+  if (typeof value === "string") return true;
+  return Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string");
+}
+
+function validateHeaders(issues: FormatIssue[], part: Record<string, unknown>, prefix: string): void {
+  if (!Object.hasOwn(part, "headers")) return;
+  const headers = part.headers;
+  if (!isObject(headers)) {
+    issues.push({ code: "headers", path: `${prefix}.headers`, message: "must be an object" });
+    return;
+  }
+  for (const key of sortedKeys(headers)) {
+    if (key === "" || /[A-Z]/.test(key)) {
+      issues.push({
+        code: "headers",
+        path: `${prefix}.headers.${key}`,
+        message: "header names must be non-empty and lower case",
+      });
+    } else if (!isHeaderValue(headers[key])) {
+      issues.push({
+        code: "headers",
+        path: `${prefix}.headers.${key}`,
+        message: "header values must be strings or non-empty arrays of strings",
+      });
+    }
+  }
+}
+
 function validateRequest(issues: FormatIssue[], request: unknown): void {
   if (!isObject(request)) {
     issues.push({ code: "request", path: "request", message: "must be an object" });
@@ -88,28 +118,7 @@ function validateRequest(issues: FormatIssue[], request: unknown): void {
       message: "must be a string that starts with /",
     });
   }
-  if (Object.hasOwn(request, "headers")) {
-    const headers = request.headers;
-    if (!isObject(headers)) {
-      issues.push({ code: "headers", path: "request.headers", message: "must be an object" });
-    } else {
-      for (const key of sortedKeys(headers)) {
-        if (key === "" || /[A-Z]/.test(key)) {
-          issues.push({
-            code: "headers",
-            path: `request.headers.${key}`,
-            message: "header names must be non-empty and lower case",
-          });
-        } else if (typeof headers[key] !== "string") {
-          issues.push({
-            code: "headers",
-            path: `request.headers.${key}`,
-            message: "header values must be strings",
-          });
-        }
-      }
-    }
-  }
+  validateHeaders(issues, request, "request");
   if (Object.hasOwn(request, "body") && request.body === null) {
     issues.push({
       code: "body",
@@ -124,7 +133,7 @@ function validateResponse(issues: FormatIssue[], response: unknown): void {
     issues.push({ code: "response", path: "response", message: "must be an object" });
     return;
   }
-  unknownKeys(issues, response, ["status", "body"], "response");
+  unknownKeys(issues, response, ["status", "headers", "body"], "response");
   const status = response.status;
   if (!isInteger(status) || status < 100 || status > 599) {
     issues.push({
@@ -133,6 +142,7 @@ function validateResponse(issues: FormatIssue[], response: unknown): void {
       message: "must be an integer from 100 to 599",
     });
   }
+  validateHeaders(issues, response, "response");
   if (Object.hasOwn(response, "body") && response.body === null) {
     issues.push({
       code: "body",

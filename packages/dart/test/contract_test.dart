@@ -719,4 +719,91 @@ void main() {
       expect(format, contains('\n```\n${jwtPattern.pattern}\n```\n'));
     });
   });
+
+  group('response headers', () {
+    void signIn(ContractFixtures contract, Map<String, dynamic> headers) {
+      contract.verifyResponse(
+        name: 'session.created',
+        description: 'Signing in sets the session cookies',
+        request: const ExchangeRequest(
+          method: 'POST',
+          path: '/sessions',
+          headers: {
+            'Accept': ['application/json', 'text/plain'],
+          },
+        ),
+        response: ExchangeResponse(status: 204, headers: headers),
+        secret: const {'response.headers.set-cookie.0': '<cookie:session-1>'},
+      );
+    }
+
+    ContractFixtures provider(String dir, {required bool update}) =>
+        ContractFixtures(side: ContractSide.provider, dir: dir, update: update);
+
+    test('records them with lower-case names, and the reading side gets them',
+        () {
+      final dir = tempDir();
+      signIn(provider(dir, update: true), {
+        'Set-Cookie': ['session=opaque-1; HttpOnly', 'theme=dark'],
+        'Cache-Control': 'no-store',
+      });
+
+      final fixture = ContractFixtures(side: ContractSide.consumer, dir: dir)
+          .readResponse('session.created');
+
+      expect(fixture.request.headerValues('accept'),
+          ['application/json', 'text/plain']);
+      expect(fixture.response.headers, {
+        'set-cookie': ['<cookie:session-1>', 'theme=dark'],
+        'cache-control': 'no-store',
+      });
+      expect(fixture.response.headerValues('set-cookie'),
+          ['<cookie:session-1>', 'theme=dark']);
+      expect(fixture.response.headerValues('cache-control'), ['no-store']);
+      expect(fixture.response.headerValues('etag'), isEmpty);
+      expect(fixture.response.body, isNull);
+      for (final file in everyFileIn(dir)) {
+        expect(file.readAsStringSync(), isNot(contains('opaque-1')));
+      }
+    });
+
+    test('takes the header map of an HTTP library as it is', () {
+      final dir = tempDir();
+      // One value per name, a list per name, and a decoded JSON map.
+      const single = <String, String>{'set-cookie': 'session=opaque-2'};
+      const lists = <String, List<String>>{
+        'set-cookie': ['session=opaque-2'],
+      };
+      final decoded = <String, dynamic>{
+        'set-cookie': <dynamic>['session=opaque-2'],
+      };
+
+      signIn(provider(dir, update: true), lists);
+      signIn(provider(dir, update: false), decoded);
+      // A single string is another shape: the path of the secret, which names the first
+      // element of a list, matches nothing in it.
+      expect(
+        () => signIn(provider(dir, update: false), single),
+        throwsA(isA<ContractFixtureException>()),
+      );
+    });
+
+    test('refuses a header value that is neither a string nor a list of them',
+        () {
+      final update = provider(tempDir(), update: true);
+
+      for (final value in <Object?>[1, null, <String>[], true]) {
+        expect(
+          () => signIn(update, {'set-cookie': 'a=1', 'retry-after': value}),
+          throwsA(
+            isA<ContractFixtureException>().having(
+              (e) => [for (final issue in e.issues) issue.path],
+              'issues',
+              contains('response.headers.retry-after'),
+            ),
+          ),
+        );
+      }
+    });
+  });
 }

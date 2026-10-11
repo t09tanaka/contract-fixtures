@@ -19,6 +19,9 @@ First release.
     responses;
   - a refusal to write, and an `invalid` from the check for, a fixture that contains a string
     of the shape of a JSON Web Token;
+  - response headers next to request headers, with the same rules for both: lower-case
+    names, and a string or an array of strings (a header that is sent more than once, such as
+    `set-cookie`) as the value;
   - `resolvePlaceholders` to put real values back on the reading side;
   - a `check` command that fails for unverified, unread and malformed fixtures, per side, and a
     `reset` command.

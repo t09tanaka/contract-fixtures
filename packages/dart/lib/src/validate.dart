@@ -83,6 +83,44 @@ void _unknownKeys(
   }
 }
 
+/// A header value: a string, or a non-empty array of strings (a header sent more than once).
+bool _isHeaderValue(Object? value) {
+  if (value is String) return true;
+  return value is List && value.isNotEmpty && value.every((v) => v is String);
+}
+
+void _validateHeaders(
+  List<FormatIssue> issues,
+  Map<String, dynamic> part,
+  String prefix,
+) {
+  if (!part.containsKey('headers')) return;
+  final headers = part['headers'];
+  if (headers is! Map<String, dynamic>) {
+    issues.add(FormatIssue('headers', '$prefix.headers', 'must be an object'));
+    return;
+  }
+  for (final key in sortedKeys(headers)) {
+    if (key.isEmpty || key.contains(_upperCase)) {
+      issues.add(
+        FormatIssue(
+          'headers',
+          '$prefix.headers.$key',
+          'header names must be non-empty and lower case',
+        ),
+      );
+    } else if (!_isHeaderValue(headers[key])) {
+      issues.add(
+        FormatIssue(
+          'headers',
+          '$prefix.headers.$key',
+          'header values must be strings or non-empty arrays of strings',
+        ),
+      );
+    }
+  }
+}
+
 void _validateRequest(List<FormatIssue> issues, Object? request) {
   if (request is! Map<String, dynamic>) {
     issues.add(const FormatIssue('request', 'request', 'must be an object'));
@@ -110,34 +148,7 @@ void _validateRequest(List<FormatIssue> issues, Object? request) {
       ),
     );
   }
-  if (request.containsKey('headers')) {
-    final headers = request['headers'];
-    if (headers is! Map<String, dynamic>) {
-      issues.add(
-        const FormatIssue('headers', 'request.headers', 'must be an object'),
-      );
-    } else {
-      for (final key in sortedKeys(headers)) {
-        if (key.isEmpty || key.contains(_upperCase)) {
-          issues.add(
-            FormatIssue(
-              'headers',
-              'request.headers.$key',
-              'header names must be non-empty and lower case',
-            ),
-          );
-        } else if (headers[key] is! String) {
-          issues.add(
-            FormatIssue(
-              'headers',
-              'request.headers.$key',
-              'header values must be strings',
-            ),
-          );
-        }
-      }
-    }
-  }
+  _validateHeaders(issues, request, 'request');
   if (request.containsKey('body') && request['body'] == null) {
     issues.add(
       const FormatIssue(
@@ -154,7 +165,8 @@ void _validateResponse(List<FormatIssue> issues, Object? response) {
     issues.add(const FormatIssue('response', 'response', 'must be an object'));
     return;
   }
-  _unknownKeys(issues, response, const ['status', 'body'], 'response');
+  _unknownKeys(
+      issues, response, const ['status', 'headers', 'body'], 'response');
   final status = response['status'];
   if (!_isInteger(status) || (status as num) < 100 || status > 599) {
     issues.add(
@@ -165,6 +177,7 @@ void _validateResponse(List<FormatIssue> issues, Object? response) {
       ),
     );
   }
+  _validateHeaders(issues, response, 'response');
   if (response.containsKey('body') && response['body'] == null) {
     issues.add(
       const FormatIssue(

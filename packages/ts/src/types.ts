@@ -15,14 +15,19 @@ export interface ExchangeRequest {
   method: string;
   /** Starts with `/`; includes the query string, if any. */
   path: string;
-  /** Header names are lower-cased before comparing and writing. */
-  headers?: Record<string, string>;
+  /**
+   * Header names are lower-cased before comparing and writing. A value is a string, or a
+   * non-empty array of strings for a header that is sent more than once.
+   */
+  headers?: Record<string, string | string[]>;
   /** Any JSON value. `null` and `undefined` both mean "no body". */
   body?: unknown;
 }
 
 export interface ExchangeResponse {
   status: number;
+  /** As in a request: lower-cased names; a string, or an array for a repeated header. */
+  headers?: Record<string, string | string[]>;
   /** The parsed body. `null` and `undefined` both mean "no body". */
   body?: unknown;
 }

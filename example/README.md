@@ -16,6 +16,12 @@ returns a new `confirm_key` every time, the provider's test lists
 the placeholder `<key:payment-1>` instead. The consumer's test replaces the placeholder with a
 value of its own before the client reads the response.
 
+Downloading the receipt of an order (`GET /orders/<id>/receipt`) shows **response headers**
+that are part of the agreement: the client saves the receipt under the file name of
+`content-disposition`, so
+[`contracts/provider/receipt.downloaded.json`](./contracts/provider/receipt.downloaded.json)
+records the headers as well as the body.
+
 ## Run it
 
 From the repository root:
@@ -62,10 +68,10 @@ provider fixtures: what the app makes of real responses order.out-of-stock [E]
 place. The check fails on both sides, and so does the consumer's coverage test:
 
 ```
-contract-fixtures check (provider side): 1 problem(s) in 11 fixture(s)
+contract-fixtures check (provider side): 1 problem(s) in 12 fixture(s)
   - provider/order.cancelled.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)
 
-contract-fixtures check (consumer side): 1 problem(s) in 11 fixture(s)
+contract-fixtures check (consumer side): 1 problem(s) in 12 fixture(s)
   - provider/order.cancelled.json: not read by the consumer side's tests (add a test that feeds it to the real code)
 
 provider fixtures: what the app makes of real responses every provider fixture has an expectation here [E]
@@ -110,4 +116,23 @@ leaves the fixture as it is, because rewriting it would put the real key into th
   Error [ContractFixtureError]: contract fixture provider/payment.started.json is not updated, because that would drop a secret path:
     secret.response.body.confirm_key: is a secret path of the stored fixture, but this test does not pass it
   Pass the path as `secret` in this test, or remove it from the stored file by hand.
+```
+
+**(f) Change a response header.** In `provider/src/orders.ts`, send the receipt as `inline`
+instead of `attachment`. The provider's test fails:
+
+```
+✖ receipt.downloaded
+  Error [ContractMismatchError]: contract fixture provider/receipt.downloaded.json no longer matches what the provider side produces (stored -> observed):
+    response.headers.content-disposition: "attachment; filename=\"receipt-ord_demo1.json\"" -> "inline; filename=\"receipt-ord_demo1.json\""
+  If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
+```
+
+After updating the fixture, the consumer's test fails, because the client only saves what the
+API offers as an attachment:
+
+```
+provider fixtures: a response whose headers matter receipt.downloaded [E]
+  Expected: 'save receipt-ord_demo1.json, total 1200'
+    Actual: 'failed'
 ```
