@@ -361,7 +361,9 @@ int _size(_Node node) {
       }
       return sum;
     case _RepeatNode(node: final inner, :final min, :final max):
-      final size = _size(inner);
+      // At least 1, so that repeating something empty is not free: the limit also bounds
+      // the work of building the states.
+      final size = _size(inner) < 1 ? 1 : _size(inner);
       return max == -1
           ? _capped(size * (min + 1) + 1)
           : _capped(size * max + (max - min));

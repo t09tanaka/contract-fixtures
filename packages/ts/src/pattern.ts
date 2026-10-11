@@ -240,7 +240,9 @@ function size(node: Node): number {
     case "choice":
       return node.nodes.reduce((sum, child) => capped(sum + size(child)), node.nodes.length - 1);
     case "repeat": {
-      const inner = size(node.node);
+      // At least 1, so that repeating something empty is not free: the limit also bounds
+      // the work of building the states.
+      const inner = Math.max(1, size(node.node));
       return node.max === -1
         ? capped(inner * (node.min + 1) + 1)
         : capped(inner * node.max + (node.max - node.min));

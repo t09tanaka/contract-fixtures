@@ -1105,6 +1105,73 @@
       "case": "not supported: half of a character beyond U+FFFF",
       "pattern": "\ud83d",
       "valid": false
+    },
+    {
+      "case": "repeating something empty counts as size 1 each time: 10000 times",
+      "pattern": "(){10000}",
+      "valid": true,
+      "matches": [
+        ""
+      ],
+      "rejects": [
+        "a"
+      ]
+    },
+    {
+      "case": "not supported: something empty repeated 10001 times",
+      "pattern": "(){10001}",
+      "valid": false
+    },
+    {
+      "case": "not supported: nested repetitions of something empty",
+      "pattern": "((){99999}){99999}",
+      "valid": false
+    },
+    {
+      "case": "not supported: nested repetitions of zero times",
+      "pattern": "((a{0}){99999}){99999}",
+      "valid": false
+    },
+    {
+      "case": "not supported: nested open repetitions of something empty",
+      "pattern": "((){99999,}){99999,}",
+      "valid": false
+    },
+    {
+      "case": "not supported: an escaped underscore",
+      "pattern": "a\\_b",
+      "valid": false
+    },
+    {
+      "case": "not supported: an escaped at sign",
+      "pattern": "a\\@b",
+      "valid": false
+    },
+    {
+      "case": "not supported: an escaped colon",
+      "pattern": "a\\:b",
+      "valid": false
+    },
+    {
+      "case": "not supported: an escaped quote",
+      "pattern": "\\\"",
+      "valid": false
+    },
+    {
+      "case": "not supported: a count of six digits, although its value is small",
+      "pattern": "a{000001}",
+      "valid": false
+    },
+    {
+      "case": "a count with leading zeros of at most five digits",
+      "pattern": "a{00002}",
+      "valid": true,
+      "matches": [
+        "aa"
+      ],
+      "rejects": [
+        "a"
+      ]
     }
   ]
 }

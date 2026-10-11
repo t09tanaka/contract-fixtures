@@ -267,8 +267,8 @@ anchors of its own.
 
 Everything else is not a pattern of this format and makes the fixture invalid (issue code
 `pattern`): lazy repetitions (`*?`), a repetition of a repetition (`a{2}{3}`), `^*`, look-ahead
-and look-behind, named groups, back references, `\b`, `\u`, `\x`, `\p{...}`, any other escaped
-letter or digit, an unescaped `{`, `}` or `]` that is not part of a construct above, and
+and look-behind, named groups, back references, `\b`, `\u`, `\x`, `\p{...}`, every other escape that is not in the
+table (`\_`, `\1`, `\a`), `\d`, `\w` or `\s` as one end of a range in a class, an unescaped `{`, `}` or `]` that is not part of a construct above, and
 characters beyond U+FFFF (a value may contain them; each counts as two code units).
 
 Limits, so that a fixture cannot make a test run away: a pattern is at most 1000 code units
@@ -276,7 +276,7 @@ long, a repetition count has at most 5 digits, and the *size* of a pattern is at
 where the size of a character, class or anchor is 1, of a sequence the sum of its parts, of a
 choice the sum of its branches plus one less than their number, of `x{n,m}` (also `?`) `m` times
 the size of `x` plus `m − n`, and of `x{n,}` (also `*`, `+`) `n + 1` times the size of `x`
-plus 1.
+plus 1. In a repetition the size of `x` counts as at least 1, also when `x` is empty.
 
 The packages do not hand a pattern to the regular expression engine of their language. They
 match it themselves, in time proportional to the length of the value times the size of the
@@ -299,8 +299,10 @@ cannot be volatile, with or without a pattern.
 What a verifying side produced is held to the same rules, with one difference: a value that
 does not match the pattern of its entry is reported as a **difference** from the stored fixture
 (`response.body.id: "ord_81f3" -> "81f3" (volatile: does not match ^ord_[a-z0-9]+$)`), like any
-other change of a response. Such a fixture is never written: in update mode, and when there is
-no stored fixture to compare with, the verify fails with `volatile-pattern` instead.
+other change of a response. Such a fixture is never written: in update mode the verify fails
+with `volatile-pattern` instead, whether or not there is a stored fixture. The same error is
+given, outside update mode too, when such a value lies below another volatile node and is for
+that reason not compared (`response.body.order` and a pattern for `response.body.order.id`).
 
 ## Secrets
 

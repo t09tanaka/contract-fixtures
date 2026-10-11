@@ -3431,6 +3431,76 @@
       "update": true,
       "outcome": "written",
       "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"idempotency-key\": \"k-4f1c9a\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"request.headers.idempotency-key\",\n      \"pattern\": \"^k-[a-f0-9]{6}$\"\n    }\n  ]\n}\n"
+    },
+    {
+      "case": "volatile: below a plain volatile path nothing is compared, values with a pattern that match included",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"order\": {\n        \"id\": \"ord_81f3\",\n        \"n\": 1\n      }\n    }\n  },\n  \"volatile\": [\n    \"response.body.order\",\n    {\n      \"path\": \"response.body.order.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "order": {
+              "id": "ord_zz9",
+              "n": 2
+            }
+          }
+        },
+        "volatile": [
+          "response.body.order",
+          {
+            "path": "response.body.order.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "volatile: but a value down there that does not match its pattern is still not accepted",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"order\": {\n        \"id\": \"ord_81f3\",\n        \"n\": 1\n      }\n    }\n  },\n  \"volatile\": [\n    \"response.body.order\",\n    {\n      \"path\": \"response.body.order.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "order": {
+              "id": "zz9",
+              "n": 2
+            }
+          }
+        },
+        "volatile": [
+          "response.body.order",
+          {
+            "path": "response.body.order.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.order.id"
+        }
+      ],
+      "written": null
     }
   ]
 }
