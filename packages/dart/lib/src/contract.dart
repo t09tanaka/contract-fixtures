@@ -115,7 +115,7 @@ class ContractFixtures {
     required String description,
     required ExchangeRequest request,
     required ExchangeResponse response,
-    List<String> volatile = const [],
+    List<Object> volatile = const [],
     Map<String, String> secret = const {},
   }) {
     _requireSide(ContractSide.provider, 'verifyResponse');
@@ -139,7 +139,7 @@ class ContractFixtures {
     required String name,
     required String description,
     required ExchangeRequest request,
-    List<String> volatile = const [],
+    List<Object> volatile = const [],
     Map<String, String> secret = const {},
   }) {
     _requireSide(ContractSide.consumer, 'verifyRequest');
@@ -231,16 +231,30 @@ class ContractFixtures {
       produced,
       produced is Map<String, dynamic> ? produced['secret'] : null,
     );
-    final producedIssues = validateFixtureValue(kind, name, produced);
-    if (producedIssues.isNotEmpty) {
+    _orderVolatile(produced);
+    void refuse(List<FormatIssue> issues) {
+      if (issues.isEmpty) return;
       throw ContractFixtureException(
         'contract fixture $file: what this side produced is not a valid fixture:\n'
-        '${formatIssues(producedIssues)}',
+        '${formatIssues(issues)}',
         file,
-        producedIssues,
+        issues,
       );
     }
+
+    // A value that does not match the pattern of its own volatile entry is a difference
+    // from the stored fixture, if there is one to compare with. It is never written.
+    final producedIssues = validateFixtureValue(kind, name, produced);
+    final unmatchedPatterns = [
+      for (final issue in producedIssues)
+        if (issue.code == 'volatile-pattern') issue,
+    ];
+    refuse([
+      for (final issue in producedIssues)
+        if (issue.code != 'volatile-pattern') issue,
+    ]);
     void write() {
+      refuse(unmatchedPatterns);
       target.parent.createSync(recursive: true);
       target.writeAsStringSync(canonicalJson(produced));
     }
@@ -270,8 +284,7 @@ class ContractFixtures {
       } else {
         final value = stored.value as Map<String, dynamic>;
         final volatile =
-            (value['volatile'] as List<dynamic>? ?? const <dynamic>[])
-                .cast<String>();
+            value['volatile'] as List<dynamic>? ?? const <dynamic>[];
         final diffs =
             differences(value, _comparable(produced, value), volatile);
         if (diffs.isNotEmpty) {
@@ -287,9 +300,26 @@ class ContractFixtures {
           }
           write();
         }
+        refuse(unmatchedPatterns);
       }
     }
     appendLedger(dir, side, LedgerAction.verified, kind, name);
+  }
+
+  /// Writes the keys of volatile entries with a pattern as `path`, `pattern`.
+  void _orderVolatile(Object? produced) {
+    if (produced is! Map<String, dynamic>) return;
+    final volatile = produced['volatile'];
+    if (volatile is! List) return;
+    for (var i = 0; i < volatile.length; i++) {
+      final entry = volatile[i];
+      if (entry is! Map<String, dynamic>) continue;
+      volatile[i] = <String, dynamic>{
+        for (final key in const ['path', 'pattern'])
+          if (entry.containsKey(key)) key: entry[key],
+        ...entry,
+      };
+    }
   }
 
   /// [produced] as it is compared with the stored fixture. Paths that only the stored

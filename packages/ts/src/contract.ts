@@ -19,6 +19,7 @@ import {
 } from "./json.js";
 import { appendLedger } from "./ledger.js";
 import { replaceSecrets } from "./secrets.js";
+import type { VolatileEntry } from "./volatile.js";
 import {
   FORMAT_VERSION,
   type ConsumerFixture,
@@ -143,7 +144,10 @@ function candidate(file: string, observed: object): Record<string, unknown> {
   if (Object.hasOwn(out, "response")) {
     out.response = exchangePart(file, out.response, ["status", "headers", "body"]);
   }
-  if (Array.isArray(out.volatile) && out.volatile.length === 0) delete out.volatile;
+  if (Array.isArray(out.volatile)) {
+    if (out.volatile.length === 0) delete out.volatile;
+    else out.volatile = out.volatile.map((e: unknown) => (isObject(e) ? ordered(e, ["path", "pattern"]) : e));
+  }
   if (isObject(out.secret) && Object.keys(out.secret).length === 0) delete out.secret;
   // From here on the real values are gone: nothing below can print or write them.
   replaceSecrets(out, out.secret, "strings");
@@ -239,16 +243,22 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     const file = `${kind}/${name}.json`;
     const filePath = path.join(dir, kind, `${name}.json`);
     const produced = candidate(file, observed);
-    const producedIssues = validateFixtureValue(kind, name, produced);
-    if (producedIssues.length > 0) {
+    const refuse = (issues: FormatIssue[]): void => {
+      if (issues.length === 0) return;
       throw new ContractFixtureError(
         `contract fixture ${file}: what this side produced is not a valid fixture:\n` +
-          formatIssues(producedIssues),
+          formatIssues(issues),
         file,
-        producedIssues,
+        issues,
       );
-    }
+    };
+    // A value that does not match the pattern of its own volatile entry is a difference from
+    // the stored fixture, if there is one to compare with. It is never written.
+    const producedIssues = validateFixtureValue(kind, name, produced);
+    const unmatchedPatterns = producedIssues.filter((issue) => issue.code === "volatile-pattern");
+    refuse(producedIssues.filter((issue) => issue.code !== "volatile-pattern"));
     const write = (): void => {
+      refuse(unmatchedPatterns);
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, canonicalJson(produced));
     };
@@ -275,7 +285,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
         }
         write();
       } else {
-        const volatile = (stored.value as { volatile?: string[] }).volatile ?? [];
+        const volatile = (stored.value as { volatile?: VolatileEntry[] }).volatile ?? [];
         const diffs = differences(stored.value, comparable(produced, stored.value), volatile);
         if (diffs.length > 0) {
           if (!update) {
@@ -290,6 +300,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
           }
           write();
         }
+        refuse(unmatchedPatterns);
       }
     }
     appendLedger(dir, side, "verified", kind, name);

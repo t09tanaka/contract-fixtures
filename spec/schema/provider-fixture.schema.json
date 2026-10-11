@@ -82,8 +82,28 @@
     "volatile": {
       "type": "array",
       "items": {
-        "type": "string",
-        "pattern": "^(request|response)\\.[^.*]+(\\.(\\*|[^.*]+))*(\\.\\*\\*)?$"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/volatilePath"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "pattern"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/volatilePath"
+              },
+              "pattern": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            }
+          }
+        ]
       }
     },
     "secret": {
@@ -117,6 +137,10 @@
           }
         ]
       }
+    },
+    "volatilePath": {
+      "type": "string",
+      "pattern": "^(request|response)\\.[^.*]+(\\.(\\*|[^.*]+))*(\\.\\*\\*)?(\\.(\\*|[^.*]+))*$"
     }
   }
 }

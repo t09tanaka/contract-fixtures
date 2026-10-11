@@ -102,8 +102,10 @@ class ProviderFixture {
 
   String get name => json['name'] as String;
   String get description => json['description'] as String;
-  List<String> get volatile =>
-      (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<String>();
+
+  /// The entries as they are stored: a path (`String`), or a map with `path` and `pattern`.
+  List<Object> get volatile =>
+      (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<Object>();
 
   /// Path -> placeholder: what is stored in place of the real value at that path.
   Map<String, String> get secret =>
@@ -123,8 +125,10 @@ class ConsumerFixture {
 
   String get name => json['name'] as String;
   String get description => json['description'] as String;
-  List<String> get volatile =>
-      (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<String>();
+
+  /// The entries as they are stored: a path (`String`), or a map with `path` and `pattern`.
+  List<Object> get volatile =>
+      (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<Object>();
 
   /// Path -> placeholder: what is stored in place of the real value at that path.
   Map<String, String> get secret =>

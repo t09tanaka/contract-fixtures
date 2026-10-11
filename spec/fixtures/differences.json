@@ -869,6 +869,583 @@
           "text": "s: \"a\\tb\" -> \"a\\nb\\u0001\""
         }
       ]
+    },
+    {
+      "case": "** in the middle: zero, one or several segments",
+      "expected": {
+        "order": {
+          "created_at": "t1",
+          "lines": [
+            {
+              "sku": "tea-100",
+              "created_at": "t2"
+            }
+          ],
+          "customer": {
+            "profile": {
+              "created_at": "t3"
+            }
+          }
+        }
+      },
+      "actual": {
+        "order": {
+          "created_at": "u1",
+          "lines": [
+            {
+              "sku": "tea-100",
+              "created_at": "u2"
+            }
+          ],
+          "customer": {
+            "profile": {
+              "created_at": "u3"
+            }
+          }
+        }
+      },
+      "volatile": [
+        "order.**.created_at"
+      ],
+      "differences": []
+    },
+    {
+      "case": "** in the middle: everything else is still compared",
+      "expected": {
+        "order": {
+          "created_at": "t1",
+          "lines": [
+            {
+              "sku": "tea-100",
+              "created_at": "t2"
+            }
+          ],
+          "customer": {
+            "profile": {
+              "created_at": "t3"
+            }
+          },
+          "status": "confirmed"
+        }
+      },
+      "actual": {
+        "order": {
+          "created_at": "u1",
+          "lines": [
+            {
+              "sku": "tea-100",
+              "created_at": "u2"
+            }
+          ],
+          "customer": {
+            "profile": {
+              "created_at": "u3"
+            }
+          },
+          "status": "cancelled"
+        }
+      },
+      "volatile": [
+        "order.**.created_at"
+      ],
+      "differences": [
+        {
+          "path": "order.status",
+          "kind": "value",
+          "text": "order.status: \"confirmed\" -> \"cancelled\""
+        }
+      ]
+    },
+    {
+      "case": "** in the middle: the type of the node is compared, nothing below it",
+      "expected": {
+        "a": {
+          "x": {
+            "meta": {
+              "k": 1
+            }
+          },
+          "meta": "s"
+        }
+      },
+      "actual": {
+        "a": {
+          "x": {
+            "meta": {
+              "k": 2,
+              "more": true
+            }
+          },
+          "meta": 7
+        }
+      },
+      "volatile": [
+        "a.**.meta"
+      ],
+      "differences": [
+        {
+          "path": "a.meta",
+          "kind": "type",
+          "text": "a.meta: type string -> number (volatile: only the type is compared)"
+        }
+      ]
+    },
+    {
+      "case": "** in the middle: an absent key is still a difference",
+      "expected": {
+        "a": {
+          "b": {
+            "id": "x"
+          },
+          "c": {}
+        }
+      },
+      "actual": {
+        "a": {
+          "b": {},
+          "c": {
+            "id": "y"
+          }
+        }
+      },
+      "volatile": [
+        "a.**.id"
+      ],
+      "differences": [
+        {
+          "path": "a.b.id",
+          "kind": "missing",
+          "text": "a.b.id: \"x\" -> (absent)"
+        },
+        {
+          "path": "a.c.id",
+          "kind": "unexpected",
+          "text": "a.c.id: (absent) -> \"y\""
+        }
+      ]
+    },
+    {
+      "case": "** in the middle does not reach above the segments before it",
+      "expected": {
+        "id": "1",
+        "a": {
+          "id": "2"
+        },
+        "b": {
+          "a": {
+            "id": "3"
+          }
+        }
+      },
+      "actual": {
+        "id": "x",
+        "a": {
+          "id": "y"
+        },
+        "b": {
+          "a": {
+            "id": "z"
+          }
+        }
+      },
+      "volatile": [
+        "a.**.id"
+      ],
+      "differences": [
+        {
+          "path": "b.a.id",
+          "kind": "value",
+          "text": "b.a.id: \"3\" -> \"z\""
+        },
+        {
+          "path": "id",
+          "kind": "value",
+          "text": "id: \"1\" -> \"x\""
+        }
+      ]
+    },
+    {
+      "case": "** in the middle with several segments after it, and a star",
+      "expected": {
+        "a": {
+          "lines": [
+            {
+              "id": "1",
+              "n": 1
+            }
+          ],
+          "deep": {
+            "lines": [
+              {
+                "id": "2",
+                "n": 2
+              }
+            ]
+          },
+          "lines_id": "3"
+        }
+      },
+      "actual": {
+        "a": {
+          "lines": [
+            {
+              "id": "x",
+              "n": 1
+            }
+          ],
+          "deep": {
+            "lines": [
+              {
+                "id": "y",
+                "n": 3
+              }
+            ]
+          },
+          "lines_id": "z"
+        }
+      },
+      "volatile": [
+        "a.**.lines.*.id"
+      ],
+      "differences": [
+        {
+          "path": "a.deep.lines.0.n",
+          "kind": "value",
+          "text": "a.deep.lines.0.n: 2 -> 3"
+        },
+        {
+          "path": "a.lines_id",
+          "kind": "value",
+          "text": "a.lines_id: \"3\" -> \"z\""
+        }
+      ]
+    },
+    {
+      "case": "** at the start",
+      "expected": {
+        "id": "1",
+        "a": [
+          {
+            "id": "2",
+            "n": 1
+          }
+        ]
+      },
+      "actual": {
+        "id": "x",
+        "a": [
+          {
+            "id": "y",
+            "n": 2
+          }
+        ]
+      },
+      "volatile": [
+        "**.id"
+      ],
+      "differences": [
+        {
+          "path": "a.0.n",
+          "kind": "value",
+          "text": "a.0.n: 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "pattern: a value that matches may change",
+      "expected": {
+        "id": "ord_81f3",
+        "n": 1
+      },
+      "actual": {
+        "id": "ord_zz9",
+        "n": 1
+      },
+      "volatile": [
+        {
+          "path": "id",
+          "pattern": "^ord_[a-z0-9]+$"
+        }
+      ],
+      "differences": []
+    },
+    {
+      "case": "pattern: a value that does not match",
+      "expected": {
+        "id": "ord_81f3"
+      },
+      "actual": {
+        "id": "81f3"
+      },
+      "volatile": [
+        {
+          "path": "id",
+          "pattern": "^ord_[a-z0-9]+$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "pattern",
+          "text": "id: \"ord_81f3\" -> \"81f3\" (volatile: does not match ^ord_[a-z0-9]+$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: an equal value that does not match is reported too",
+      "expected": {
+        "id": "81f3"
+      },
+      "actual": {
+        "id": "81f3"
+      },
+      "volatile": [
+        {
+          "path": "id",
+          "pattern": "^ord_[a-z0-9]+$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "pattern",
+          "text": "id: \"81f3\" -> \"81f3\" (volatile: does not match ^ord_[a-z0-9]+$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: a value that is not a string",
+      "expected": {
+        "id": "ord_81f3"
+      },
+      "actual": {
+        "id": 813
+      },
+      "volatile": [
+        {
+          "path": "id",
+          "pattern": "^ord_[a-z0-9]+$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "type",
+          "text": "id: type string -> number (volatile: must be a string that matches ^ord_[a-z0-9]+$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: the whole value must match, also without anchors and with a choice",
+      "expected": {
+        "s": "confirmed"
+      },
+      "actual": {
+        "s": "confirmed late"
+      },
+      "volatile": [
+        {
+          "path": "s",
+          "pattern": "confirmed|cancelled"
+        }
+      ],
+      "differences": [
+        {
+          "path": "s",
+          "kind": "pattern",
+          "text": "s: \"confirmed\" -> \"confirmed late\" (volatile: does not match confirmed|cancelled)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: the empty string, a line feed and a character beyond U+FFFF",
+      "expected": {
+        "a": "x",
+        "b": "x",
+        "c": "xy"
+      },
+      "actual": {
+        "a": "",
+        "b": "x\n",
+        "c": "😀"
+      },
+      "volatile": [
+        {
+          "path": "a",
+          "pattern": "^.+$"
+        },
+        {
+          "path": "b",
+          "pattern": "^x$"
+        },
+        {
+          "path": "c",
+          "pattern": "^..$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "a",
+          "kind": "pattern",
+          "text": "a: \"x\" -> \"\" (volatile: does not match ^.+$)"
+        },
+        {
+          "path": "b",
+          "kind": "pattern",
+          "text": "b: \"x\" -> \"x\\n\" (volatile: does not match ^x$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: with ** in the middle",
+      "expected": {
+        "order": {
+          "created_at": "2026-01-15T09:30:00Z",
+          "lines": [
+            {
+              "sku": "tea-100",
+              "created_at": "2026-01-15T09:30:01Z"
+            }
+          ],
+          "customer": {
+            "profile": {
+              "created_at": "2026-01-15T09:30:02Z"
+            }
+          }
+        }
+      },
+      "actual": {
+        "order": {
+          "created_at": "2026-02-01T00:00:00Z",
+          "lines": [
+            {
+              "sku": "tea-100",
+              "created_at": "yesterday"
+            }
+          ],
+          "customer": {
+            "profile": {
+              "created_at": "2026-02-01T00:00:02Z"
+            }
+          }
+        }
+      },
+      "volatile": [
+        {
+          "path": "order.**.created_at",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "order.lines.0.created_at",
+          "kind": "pattern",
+          "text": "order.lines.0.created_at: \"2026-01-15T09:30:01Z\" -> \"yesterday\" (volatile: does not match ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: every pattern that names the node applies, in the order of the entries",
+      "expected": {
+        "id": "ord_81f3"
+      },
+      "actual": {
+        "id": "ord_zz"
+      },
+      "volatile": [
+        {
+          "path": "id",
+          "pattern": "^ord_.*$"
+        },
+        "id",
+        {
+          "path": "*",
+          "pattern": "^.{8}$"
+        },
+        {
+          "path": "id",
+          "pattern": "^.{9}$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "pattern",
+          "text": "id: \"ord_81f3\" -> \"ord_zz\" (volatile: does not match ^.{8}$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: a plain path for the same node does not switch the pattern off",
+      "expected": {
+        "id": "ord_81f3"
+      },
+      "actual": {
+        "id": "x"
+      },
+      "volatile": [
+        "id",
+        {
+          "path": "id",
+          "pattern": "^ord_[a-z0-9]+$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "pattern",
+          "text": "id: \"ord_81f3\" -> \"x\" (volatile: does not match ^ord_[a-z0-9]+$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: applies inside a subtree path as well",
+      "expected": {
+        "sub": {
+          "id": "ord_81f3",
+          "n": 1
+        }
+      },
+      "actual": {
+        "sub": {
+          "id": "x",
+          "n": 2
+        }
+      },
+      "volatile": [
+        "sub.**",
+        {
+          "path": "sub.id",
+          "pattern": "^ord_[a-z0-9]+$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "sub.id",
+          "kind": "pattern",
+          "text": "sub.id: \"ord_81f3\" -> \"x\" (volatile: does not match ^ord_[a-z0-9]+$)"
+        }
+      ]
+    },
+    {
+      "case": "pattern: an absent key is still a difference",
+      "expected": {
+        "id": "ord_81f3"
+      },
+      "actual": {},
+      "volatile": [
+        {
+          "path": "id",
+          "pattern": "^ord_[a-z0-9]+$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "missing",
+          "text": "id: \"ord_81f3\" -> (absent)"
+        }
+      ]
     }
   ]
 }

@@ -1,6 +1,14 @@
 import fs from "node:fs";
 
-import { volatileMode } from "./differences.js";
+import { PatternError } from "./pattern.js";
+import {
+  entryParts,
+  lenientRules,
+  ruleMatch,
+  volatileMode,
+  volatileRule,
+  type VolatileRule,
+} from "./volatile.js";
 import { isObject, isUnsafeNumber, jsonType, sortedKeys } from "./json.js";
 import { parsePlaceholder } from "./placeholders.js";
 import { JWT_PATTERN, secretNodes, secretPathProblem } from "./secrets.js";
@@ -25,6 +33,8 @@ export interface FormatIssue {
     | "status"
     | "volatile"
     | "volatile-unmatched"
+    | "volatile-pattern"
+    | "pattern"
     | "secret"
     | "secret-unmatched"
     | "secret-value"
@@ -152,19 +162,31 @@ function validateResponse(issues: FormatIssue[], response: unknown): void {
   }
 }
 
-/** Whether a volatile path matches at least one node of the fixture. */
-function matchesSomething(root: unknown, pattern: string[]): boolean {
-  const walk = (node: unknown, segments: string[]): boolean => {
-    if (volatileMode([pattern], segments) !== null) return true;
-    if (Array.isArray(node)) {
-      return node.some((item, i) => walk(item, [...segments, String(i)]));
-    }
-    if (isObject(node)) {
-      return sortedKeys(node).some((key) => walk(node[key], [...segments, key]));
-    }
-    return false;
+/** The nodes of the fixture that a rule names (not those below a path that ends in `**`). */
+function matchedNodes(root: unknown, rule: VolatileRule): { path: string; value: unknown }[] {
+  const out: { path: string; value: unknown }[] = [];
+  const walk = (node: unknown, segments: string[]): void => {
+    if (ruleMatch(rule, segments) !== null) out.push({ path: segments.join("."), value: node });
+    if (Array.isArray(node)) node.forEach((item, i) => walk(item, [...segments, String(i)]));
+    else if (isObject(node)) for (const key of sortedKeys(node)) walk(node[key], [...segments, key]);
   };
-  return walk(root, []);
+  walk(root, []);
+  return out;
+}
+
+/** Why `path` cannot be a volatile path, or `null` when it can. */
+function volatilePathProblem(path: string, roots: readonly string[]): string | null {
+  const segments = path.split(".");
+  if (segments.some((s) => s === "")) return "must not contain empty segments";
+  if (segments.some((s) => s.includes("*") && s !== "*" && s !== "**")) {
+    return "* is allowed only as a whole segment (* or **)";
+  }
+  if (segments.filter((s) => s === "**").length > 1) return "** is allowed only once in a path";
+  if (!roots.includes(segments[0]!)) return `must start with ${roots.join(" or ")}`;
+  if (segments.length < 2 || segments[1] === "*" || segments[1] === "**") {
+    return `must name a key of ${segments[0]} (a path that covers the whole ${segments[0]} would switch the comparison off)`;
+  }
+  return null;
 }
 
 function validateVolatile(
@@ -174,53 +196,65 @@ function validateVolatile(
 ): void {
   const volatile = fixture.volatile;
   if (!Array.isArray(volatile)) {
-    issues.push({ code: "volatile", path: "volatile", message: "must be an array of strings" });
+    issues.push({ code: "volatile", path: "volatile", message: "must be an array" });
     return;
   }
   volatile.forEach((entry: unknown, i: number) => {
     const path = `volatile.${i}`;
-    if (typeof entry !== "string") {
-      issues.push({ code: "volatile", path, message: "must be a string" });
-      return;
-    }
-    const segments = entry.split(".");
-    if (segments.some((s) => s === "")) {
-      issues.push({ code: "volatile", path, message: "must not contain empty segments" });
-      return;
-    }
-    if (segments.slice(0, -1).includes("**")) {
-      issues.push({ code: "volatile", path, message: "** is allowed only as the last segment" });
-      return;
-    }
-    if (segments.some((s) => s.includes("*") && s !== "*" && s !== "**")) {
+    const parts = entryParts(entry);
+    if (parts === null) {
       issues.push({
         code: "volatile",
         path,
-        message: "* is allowed only as a whole segment (* or **)",
+        message: "must be a path, or an object with exactly the keys path and pattern (both strings)",
       });
       return;
     }
-    if (!roots.includes(segments[0]!)) {
+    const problem = volatilePathProblem(parts.path, roots);
+    if (problem !== null) {
+      issues.push({ code: "volatile", path, message: problem });
+      return;
+    }
+    if (parts.pattern !== null && parts.path.endsWith(".**")) {
       issues.push({
         code: "volatile",
         path,
-        message: `must start with ${roots.join(" or ")}`,
+        message: "a path that ends in ** cannot have a pattern (a pattern is for one string)",
       });
       return;
     }
-    if (segments.length < 2 || segments[1] === "*" || segments[1] === "**") {
+    let rule: VolatileRule;
+    try {
+      rule = volatileRule(parts.path, parts.pattern);
+    } catch (error) {
+      if (!(error instanceof PatternError)) throw error;
       issues.push({
-        code: "volatile",
-        path,
-        message: `must name a key of ${segments[0]} (a path that covers the whole ${segments[0]} would switch the comparison off)`,
+        code: "pattern",
+        path: `${path}.pattern`,
+        message: `is not a pattern this format supports: ${error.message}`,
       });
       return;
     }
-    if (!matchesSomething(fixture, segments)) {
+    const nodes = matchedNodes(fixture, rule);
+    if (nodes.length === 0) {
       issues.push({
         code: "volatile-unmatched",
         path,
-        message: `${entry} matches nothing in this fixture`,
+        message: `${parts.path} matches nothing in this fixture`,
+      });
+      return;
+    }
+    if (rule.matcher === null) return;
+    for (const node of nodes) {
+      if (ruleMatch(rule, node.path.split(".")) !== "exact") continue;
+      if (typeof node.value === "string" && rule.matcher.test(node.value)) continue;
+      issues.push({
+        code: "volatile-pattern",
+        path: node.path,
+        message:
+          typeof node.value === "string"
+            ? `does not match the pattern ${rule.source} of ${path}`
+            : `must be a string that matches the pattern ${rule.source} of ${path} (found ${jsonType(node.value)})`,
       });
     }
   });
@@ -259,11 +293,7 @@ function validateSecret(
     });
     return;
   }
-  const volatile = Array.isArray(fixture.volatile)
-    ? fixture.volatile
-        .filter((entry: unknown): entry is string => typeof entry === "string")
-        .map((entry) => entry.split("."))
-    : [];
+  const volatile = lenientRules(fixture.volatile);
   for (const key of sortedKeys(secret)) {
     const path = `secret.${key}`;
     const problem = secretPathProblem(key, roots);
@@ -299,7 +329,7 @@ function validateSecret(
         message: `is listed in secret, so it must be a string that is stored as ${placeholder} (found ${found})`,
       });
     }
-    if (nodes.some((node) => volatileMode(volatile, node.segments) !== null)) {
+    if (nodes.some((node) => volatileMode(volatile, node.segments).mode !== null)) {
       issues.push({
         code: "secret-volatile",
         path,

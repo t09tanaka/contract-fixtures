@@ -3148,6 +3148,1026 @@
         ]
       },
       "issues": []
+    },
+    {
+      "case": "volatile: ** in the middle, with and without a pattern",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          "response.body.**.line_id",
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          },
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "volatile: ** may be anywhere after the key of the request or response",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "headers": {
+            "etag": "\"r1\""
+          },
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          "response.body.**.profile.created_at",
+          "response.body.lines.**.created_at",
+          "response.body.customer.**",
+          "response.headers.**"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "volatile: ** only once, and not in place of the key of the response",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          "response.body.**.lines.**.created_at",
+          "response.**.created_at",
+          "response.**",
+          "response.body.**.**"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.1"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.2"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.3"
+        }
+      ]
+    },
+    {
+      "case": "volatile: a path with ** in the middle that matches nothing",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          "response.body.**.updated_at",
+          {
+            "path": "response.body.**.updated_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          },
+          "response.body.**.id"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.1"
+        }
+      ]
+    },
+    {
+      "case": "volatile: an entry is a path or an object with path and pattern, nothing else",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.id"
+          },
+          {
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$",
+            "flags": "i"
+          },
+          {
+            "path": "response.body.id",
+            "pattern": 7
+          },
+          {
+            "path": 7,
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          [
+            "response.body.id"
+          ],
+          null,
+          {
+            "path": "response.body.id",
+            "regex": "^ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.1"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.2"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.3"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.4"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.5"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.6"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.7"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.8"
+        }
+      ]
+    },
+    {
+      "case": "volatile: the path of an entry with a pattern follows the same rules",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response..id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.*",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.i*",
+            "pattern": "^ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.1"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.2"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.3"
+        }
+      ]
+    },
+    {
+      "case": "volatile: no pattern for a path that ends in **",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.customer.**",
+            "pattern": ".*"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ]
+    },
+    {
+      "case": "volatile: a pattern that is not one",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_(?=[a-z])"
+          },
+          {
+            "path": "response.body.status",
+            "pattern": "[a-z"
+          },
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "pattern",
+          "path": "volatile.0.pattern"
+        },
+        {
+          "code": "pattern",
+          "path": "volatile.1.pattern"
+        }
+      ]
+    },
+    {
+      "case": "volatile: a stored value that does not match its pattern",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "created_at": "2026-01-15 09:30"
+              },
+              {
+                "created_at": "2026-01-15T09:30:05Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^order-\\d+$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.lines.0.created_at"
+        }
+      ]
+    },
+    {
+      "case": "volatile: a stored value under a pattern that is not a string",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "created_at": 1768469400,
+            "a": {
+              "created_at": null
+            },
+            "b": {
+              "created_at": {
+                "at": "2026-01-15T09:30:00Z"
+              }
+            },
+            "c": {
+              "created_at": "2026-01-15T09:30:00Z"
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a.created_at"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.b.created_at"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.created_at"
+        }
+      ]
+    },
+    {
+      "case": "volatile: every pattern that names a node must match",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.*",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          {
+            "path": "response.body.id",
+            "pattern": "^cus_"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        }
+      ]
+    },
+    {
+      "case": "volatile: the whole value must match the pattern",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "ord"
+          },
+          {
+            "path": "response.body.status",
+            "pattern": "confirmed|cancelled"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        }
+      ]
+    },
+    {
+      "case": "volatile: the path of the request with a pattern",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.path",
+            "pattern": "^/orders/ord_[a-z0-9]+/receipt$"
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "volatile: the path of the request does not match its pattern",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders/81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "line_id": "ln_1",
+                "created_at": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "customer": {
+              "id": "cus_7",
+              "profile": {
+                "created_at": "2025-12-01T08:00:00Z"
+              }
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.path",
+            "pattern": "^/orders/ord_[a-z0-9]+/receipt$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "request.path"
+        }
+      ]
+    },
+    {
+      "case": "volatile: a consumer fixture with a pattern",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.body.**.sku",
+            "pattern": "^[a-z]+-\\d+$"
+          },
+          {
+            "path": "request.headers.authorization",
+            "pattern": "^<token:[a-z0-9-]+>$"
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "volatile: a response header with a pattern, and one value of a repeated header",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "headers": {
+            "etag": "\"r1\"",
+            "set-cookie": [
+              "theme=dark; Path=/",
+              "nonce=n-0001; Path=/"
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.headers.etag",
+            "pattern": "^\"[a-z0-9]+\"$"
+          },
+          {
+            "path": "response.headers.set-cookie.1",
+            "pattern": "^nonce=[a-z0-9-]+; Path=/$"
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "volatile: a secret node cannot have a pattern either, nor be reached through **",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "<key:order-1>",
+            "session": {
+              "token": "<token:session-1>"
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^<key:[a-z0-9-]+>$"
+          },
+          "response.body.**.token"
+        ],
+        "secret": {
+          "response.body.id": "<key:order-1>",
+          "response.body.session.token": "<token:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.id"
+        },
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.body.session.token"
+        }
+      ]
+    },
+    {
+      "case": "volatile: issues of one entry come before those of the next",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.status",
+            "pattern": "^x$"
+          },
+          "response.body.nope",
+          {
+            "path": "response.body.id",
+            "pattern": "("
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.status"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.1"
+        },
+        {
+          "code": "pattern",
+          "path": "volatile.2.pattern"
+        }
+      ]
     }
   ]
 }

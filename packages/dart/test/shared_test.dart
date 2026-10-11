@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:contract_fixtures/contract_fixtures.dart';
+import 'package:contract_fixtures/src/pattern.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -15,7 +16,7 @@ void main() {
         final diffs = differences(
           c['expected'],
           c['actual'],
-          (c['volatile'] as List<dynamic>).cast<String>(),
+          c['volatile'] as List<dynamic>,
         );
         expect(
           [
@@ -75,6 +76,38 @@ void main() {
     }
   });
 
+  group('spec/fixtures/patterns.json', () {
+    for (final c in loadCases('patterns.json')) {
+      test(c['case'], () {
+        final source = c['pattern'] as String;
+        if (c['valid'] == false) {
+          expect(
+              () => compilePattern(source), throwsA(isA<PatternException>()));
+          return;
+        }
+        final matches = (c['matches'] as List<dynamic>).cast<String>();
+        final rejects = (c['rejects'] as List<dynamic>).cast<String>();
+        final pattern = compilePattern(source);
+        for (final value in matches) {
+          expect(pattern.test(value), isTrue, reason: jsonEncode(value));
+        }
+        for (final value in rejects) {
+          expect(pattern.test(value), isFalse, reason: jsonEncode(value));
+        }
+        if (c['native'] == false) return;
+        final native = RegExp('^(?:$source)\$');
+        for (final value in matches) {
+          expect(native.hasMatch(value), isTrue,
+              reason: 'RegExp: ${jsonEncode(value)}');
+        }
+        for (final value in rejects) {
+          expect(native.hasMatch(value), isFalse,
+              reason: 'RegExp: ${jsonEncode(value)}');
+        }
+      });
+    }
+  });
+
   group('spec/fixtures/check.json', () {
     for (final c in loadCases('check.json')) {
       test(c['case'], () {
@@ -126,7 +159,7 @@ void main() {
         );
         final volatile =
             (observed['volatile'] as List<dynamic>? ?? const <dynamic>[])
-                .cast<String>();
+                .cast<Object>();
         final secret = (observed['secret'] as Map<String, dynamic>? ??
                 const <String, dynamic>{})
             .cast<String, String>();

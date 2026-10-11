@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:contract_fixtures/contract_fixtures.dart';
+import 'package:contract_fixtures/src/pattern.dart';
 import 'package:contract_fixtures/src/secrets.dart';
 import 'package:test/test.dart';
 
@@ -804,6 +805,118 @@ void main() {
           ),
         );
       }
+    });
+  });
+
+  group('volatile entries with a pattern', () {
+    const volatile = <Object>[
+      VolatilePattern('response.body.id', r'^ord_[a-z0-9]+$'),
+      'response.body.**.created_at',
+    ];
+    void created(
+      ContractFixtures contract,
+      Object? id, {
+      List<Object> volatile = volatile,
+    }) {
+      contract.verifyResponse(
+        name: 'order.created',
+        description: 'An order is accepted',
+        request: const ExchangeRequest(
+          method: 'POST',
+          path: '/orders',
+          body: {'sku': 'tea-100', 'quantity': 2},
+        ),
+        response: ExchangeResponse(
+          status: 201,
+          body: {
+            'id': id,
+            'lines': [
+              {'created_at': '2026-01-15T09:30:00Z'},
+            ],
+          },
+        ),
+        volatile: volatile,
+      );
+    }
+
+    ContractFixtures provider(String dir, {required bool update}) =>
+        ContractFixtures(side: ContractSide.provider, dir: dir, update: update);
+
+    test('are stored as given and come back to the reading side', () {
+      final dir = tempDir();
+      created(provider(dir, update: true), 'ord_81f3');
+
+      final fixture = ContractFixtures(side: ContractSide.consumer, dir: dir)
+          .readResponse('order.created');
+
+      expect(fixture.volatile, [
+        {'path': 'response.body.id', 'pattern': r'^ord_[a-z0-9]+$'},
+        'response.body.**.created_at',
+      ]);
+    });
+
+    test('may be given as a map, in any key order', () {
+      final dir = tempDir();
+      created(provider(dir, update: true), 'ord_81f3');
+
+      created(provider(dir, update: false), 'ord_zz9', volatile: const [
+        {'pattern': r'^ord_[a-z0-9]+$', 'path': 'response.body.id'},
+        'response.body.**.created_at',
+      ]);
+    });
+
+    test('let the value change, but not its shape', () {
+      final dir = tempDir();
+      created(provider(dir, update: true), 'ord_81f3');
+
+      created(provider(dir, update: false), 'ord_zz9');
+      expect(
+        () => created(provider(dir, update: false), 'zz9'),
+        throwsA(isA<ContractMismatch>()),
+      );
+      expect(
+        () => created(provider(dir, update: false), 9),
+        throwsA(isA<ContractMismatch>()),
+      );
+    });
+
+    test('are never written with a value that does not match', () {
+      final dir = tempDir();
+
+      expect(
+        () => created(provider(dir, update: true), 'zz9'),
+        throwsA(isA<ContractFixtureException>()),
+      );
+      expect(everyFileIn(dir), isEmpty);
+    });
+
+    test('the comparison takes them too, and refuses an entry that is not one',
+        () {
+      const entry = VolatilePattern('id', r'^ord_[a-z0-9]+$');
+      expect(differences({'id': 'ord_1'}, {'id': 'ord_2'}, [entry]), isEmpty);
+      expect(differences({'id': 'ord_1'}, {'id': '2'}, [entry]), hasLength(1));
+      expect(
+        () => differences({}, {}, [
+          {'path': 'a'},
+        ]),
+        throwsArgumentError,
+      );
+      expect(
+        () => differences({}, {}, [const VolatilePattern('a', '(')]),
+        throwsA(isA<PatternException>()),
+      );
+    });
+
+    test(
+        'a pattern that would stall a backtracking engine is answered at '
+        'once', () {
+      final pattern = compilePattern('(a+)+b|(a|aa)*c|(a?){200}a{200}');
+      final long = 'a' * 20000;
+
+      expect(pattern.test(long), isFalse);
+      expect(pattern.test('${long}b'), isTrue);
+      expect(pattern.test('${long}c'), isTrue);
+      expect(pattern.test('a' * 300), isTrue);
     });
   });
 }

@@ -1,5 +1,5 @@
 {
-  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed, refused (update mode would drop a secret path) or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`. `issues` are the codes and paths of what an invalid-observed or refused outcome reports, in order. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
+  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed, refused (update mode would drop a secret path) or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`, and `volatile` entries with a pattern. `issues` are the codes and paths of what an invalid-observed or refused outcome reports, in order. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
   "cases": [
     {
       "case": "a response that equals the stored fixture",
@@ -2679,6 +2679,758 @@
       "absent": [
         "opaque-cookie-0001"
       ]
+    },
+    {
+      "case": "volatile: entries are written in the order given, an entry with a pattern as path, pattern",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-01-15T09:30:01Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.status",
+          {
+            "pattern": "^ord_[a-z0-9]+$",
+            "path": "response.body.id"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.status\",\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n"
+    },
+    {
+      "case": "volatile: other values of the same shape still match",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_zz9",
+            "status": "confirmed",
+            "created_at": "2026-03-02T10:00:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-03-02T10:00:07Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "volatile: in update mode, a fixture that matches is left untouched",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_zz9",
+            "status": "confirmed",
+            "created_at": "2026-03-02T10:00:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-03-02T10:00:07Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "volatile: a value that lost its shape is a difference that names the pattern",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "zz9",
+            "status": "confirmed",
+            "created_at": "2026-03-02T10:00:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-03-02 10:00:07"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.id: \"ord_81f3\" -> \"zz9\" (volatile: does not match ^ord_[a-z0-9]+$)",
+        "response.body.lines.0.created_at: \"2026-01-15T09:30:01Z\" -> \"2026-03-02 10:00:07\" (volatile: does not match ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$)"
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: a value under a pattern that is no longer a string",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_zz9",
+            "status": "confirmed",
+            "created_at": 1772445600,
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-03-02T10:00:07Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.created_at: type string -> number (volatile: must be a string that matches ^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$)"
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: update mode does not write a value that does not match its own pattern",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "zz9",
+            "status": "confirmed",
+            "created_at": "2026-03-02T10:00:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-03-02T10:00:07Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: nor does it create such a fixture",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-03-02T10:00:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": null
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.lines.0.created_at"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: a pattern that is not one is refused before anything is compared",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-01-15T09:30:01Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_(?<rest>.+)$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "pattern",
+          "path": "volatile.0.pattern"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: a pattern that the test changed is a difference of volatile",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-01-15T09:30:01Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]{4}$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "volatile.0.pattern: \"^ord_[a-z0-9]+$\" -> \"^ord_[a-z0-9]{4}$\""
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: update mode writes the pattern the test changed",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]+$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-01-15T09:30:01Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]{4}$"
+          },
+          {
+            "path": "response.body.**.created_at",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"response.body.id\",\n      \"pattern\": \"^ord_[a-z0-9]{4}$\"\n    },\n    {\n      \"path\": \"response.body.**.created_at\",\n      \"pattern\": \"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$\"\n    }\n  ]\n}\n"
+    },
+    {
+      "case": "volatile: a path that gets a pattern is a difference of volatile",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.**.created_at\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "2026-01-15T09:30:01Z"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[a-z0-9]+$"
+          },
+          "response.body.**.created_at"
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "volatile.0: \"response.body.id\" -> {\"path\":\"response.body.id\",\"pattern\":\"^ord_[a-z0-9]+$\"}"
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: ** in the middle leaves the rest of the body compared",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"created_at\": \"2026-01-15T09:30:01Z\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.**.created_at\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_zz9",
+            "status": "cancelled",
+            "created_at": "later",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "created_at": "later still"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.**.created_at"
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.status: \"confirmed\" -> \"cancelled\""
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: the path of a request with an id in it",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is a download with a file name",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "total_minor": 1200
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.path",
+            "pattern": "^/orders/ord_[a-z0-9]+/receipt$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is a download with a file name\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"total_minor\": 1200\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"request.path\",\n      \"pattern\": \"^/orders/ord_[a-z0-9]+/receipt$\"\n    }\n  ]\n}\n"
+    },
+    {
+      "case": "volatile: another id in the path of the request still matches",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is a download with a file name\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"total_minor\": 1200\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"request.path\",\n      \"pattern\": \"^/orders/ord_[a-z0-9]+/receipt$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is a download with a file name",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_zz9/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "total_minor": 1200
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.path",
+            "pattern": "^/orders/ord_[a-z0-9]+/receipt$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "volatile: a path of the request that lost its shape",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is a download with a file name\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"total_minor\": 1200\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"request.path\",\n      \"pattern\": \"^/orders/ord_[a-z0-9]+/receipt$\"\n    }\n  ]\n}\n",
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is a download with a file name",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_zz9/receipt?format=pdf",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "total_minor": 1200
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.path",
+            "pattern": "^/orders/ord_[a-z0-9]+/receipt$"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "request.path: \"/orders/ord_81f3/receipt\" -> \"/orders/ord_zz9/receipt?format=pdf\" (volatile: does not match ^/orders/ord_[a-z0-9]+/receipt$)"
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: a path of the request that matches its pattern must still start with /",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is a download with a file name",
+        "request": {
+          "method": "GET",
+          "path": "orders/ord_81f3",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "total_minor": 1200
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.path",
+            "pattern": "^orders/ord_[a-z0-9]+$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "path",
+          "path": "request.path"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "volatile: a pattern on a request the consumer builds",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "Idempotency-Key": "k-4f1c9a"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "volatile": [
+          {
+            "path": "request.headers.idempotency-key",
+            "pattern": "^k-[a-f0-9]{6}$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"idempotency-key\": \"k-4f1c9a\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"volatile\": [\n    {\n      \"path\": \"request.headers.idempotency-key\",\n      \"pattern\": \"^k-[a-f0-9]{6}$\"\n    }\n  ]\n}\n"
     }
   ]
 }
