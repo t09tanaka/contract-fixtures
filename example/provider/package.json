@@ -1,0 +1,13 @@
+{
+  "name": "contract-fixtures-example-provider",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@t09tanaka/contract-fixtures": "*",
+    "@types/node": "^20.19.0",
+    "typescript": "~5.9.3"
+  }
+}

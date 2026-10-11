@@ -1,0 +1,15 @@
+{
+  "name": "contract-fixtures-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/ts",
+    "example/provider"
+  ],
+  "scripts": {
+    "build": "npm run build -w packages/ts",
+    "lint": "npm run lint -w packages/ts",
+    "typecheck": "npm run typecheck -w packages/ts && npm run typecheck -w example/provider",
+    "test": "npm test -w packages/ts",
+    "example": "npm run contract -w example/provider"
+  }
+}
