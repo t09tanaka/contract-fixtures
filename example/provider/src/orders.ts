@@ -2,6 +2,7 @@
  * A tiny order API, small enough to read in one sitting. It has no HTTP server: `handle`
  * is the function a server would call, which is also what the contract tests call.
  */
+import { randomBytes } from "node:crypto";
 
 export interface HttpRequest {
   method: string;
@@ -53,13 +54,32 @@ export function createApp(options: {
 
   return {
     handle(request) {
-      if (request.method !== "POST" || request.path !== "/orders") {
+      const known = request.path === "/orders" || request.path === "/payments";
+      if (request.method !== "POST" || !known) {
         return { status: 404, body: { error: "not_found" } };
       }
       const token = /^Bearer (.+)$/.exec(request.headers.authorization ?? "")?.[1];
       const customer = token === undefined ? undefined : options.tokens[token];
       if (customer === undefined) {
         return { status: 401, body: { error: "token_invalid" } };
+      }
+
+      if (request.path === "/payments") {
+        const orderId = ((request.body ?? {}) as { order_id?: unknown }).order_id;
+        if (typeof orderId !== "string") {
+          return { status: 422, body: { error: "invalid_request", field: "order_id" } };
+        }
+        sequence += 1;
+        return {
+          status: 201,
+          body: {
+            id: `pay_${Date.now().toString(36)}${sequence}`,
+            order_id: orderId,
+            status: "awaiting_confirmation",
+            // A secret, new for every payment: whoever holds it can confirm the payment.
+            confirm_key: randomBytes(24).toString("base64url"),
+          },
+        };
       }
 
       const body = (request.body ?? {}) as { sku?: unknown; quantity?: unknown; coupon?: unknown };
@@ -78,7 +98,7 @@ export function createApp(options: {
       if (body.coupon !== undefined && body.coupon !== null) {
         const percent = typeof body.coupon === "string" ? COUPONS[body.coupon] : undefined;
         if (percent === undefined) {
-          return { status: 422, body: { error: "invalid_coupon" } };
+          return { status: 422, body: { error: "coupon_unknown" } };
         }
         discountPercent = percent;
       }

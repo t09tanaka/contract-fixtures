@@ -55,9 +55,10 @@ contracts/
 | `tables/*.json` | **read**: run the rows through the server's calculation | **read**: run the rows through the client's calculation |
 
 Values that change on every run (ids, timestamps) are stored as they really were and listed
-under `volatile`; the verifying side compares only their type. Secrets are stored as
-placeholders such as `<token:customer-1>`. Everything else is compared exactly, after parsing,
-so a formatter may rewrite the files.
+under `volatile`; the verifying side compares only their type. Secrets are never stored: the
+test lists their paths under `secret`, and the file holds placeholders such as
+`<token:customer-1>` in their place (see [Secrets](#secrets)). Everything else is compared
+exactly, after parsing, so a formatter may rewrite the files.
 
 Every verify and read is recorded in a ledger. `check` then fails if a fixture was not verified
 by its producer (it is stale) or not read by the other side (it protects nothing). Each side
@@ -130,6 +131,46 @@ over it, and call `assertCovers` with its keys. A new fixture then fails the rea
 somebody writes down what should happen for it, and a deleted fixture fails until its
 expectation is removed. Whether the expectation is meaningful remains the job of code review.
 
+### Secrets
+
+Fixtures are committed, so a real credential must never end up in one. That concerns requests
+(an `authorization` header, a password) as much as responses (the access token a sign-in
+returns, the secret a payment API hands to the client, a session cookie).
+
+The verifying test says where the secrets are and which placeholder stands for each:
+
+```ts
+contract.verifyResponse({
+  name: "payment.started",
+  description: "Starting the payment of an order returns the key that confirms it",
+  request,
+  response: { status: response.status, body: response.body },
+  volatile: ["response.body.id"],
+  secret: { "response.body.confirm_key": "<key:payment-1>" },
+});
+```
+
+Before anything is compared, printed or written, the value at each secret path is replaced by
+its placeholder. The real value does not reach the fixture file, the differences of a failing
+test, an error message, or the ledger. The file holds `"confirm_key": "<key:payment-1>"`, and
+that is compared exactly on every run, although the API returns a new key each time.
+
+- The reading side receives the placeholder and replaces it with a value of its own
+  (`resolvePlaceholders`) before it feeds the response to the client code.
+- A path replaces a whole value; `*` stands for one key or index (`response.body.codes.*.code`),
+  `**` is not allowed. A secret that is only a part of a string cannot be addressed: for
+  `authorization: Bearer ...` or a `cookie` header, make the whole header value the secret
+  (`"request.headers.authorization": "<token:customer-1>"`).
+- A secret path that matches nothing, or a value there that is not a string, fails the test: a
+  secret that disappears from a response is a change the other side needs to hear about.
+- For a request, a test may also pass the placeholder itself and send the real value to the
+  code under test, as in the provider example above. Listing the path under `secret` as well
+  makes the fixture say so.
+- As a safety net, a fixture that contains a string of the shape of a JSON Web Token (`eyJ...`
+  in three dot-separated parts, also inside `Bearer eyJ...`) is not written, in update mode
+  either, and a stored one fails `check` as `invalid`. Other kinds of secrets (opaque tokens,
+  API keys, cookies) have no recognisable shape; only a `secret` path keeps them out.
+
 ### Requests and calculations
 
 The other direction works the same way. The consumer calls `verifyRequest` with the request its
@@ -184,6 +225,8 @@ should also be triggered by changes to the contracts directory.
 - **Old clients in the field.** The fixtures describe the code in the repository. A released app
   that users have not updated is not checked against a new API.
 - **Tests that read without asserting.** See "Keeping reading tests honest".
+- **Secrets nobody listed.** Apart from the token shape described under "Secrets", a value is
+  only kept out of a fixture when its path is under `secret`. Review new fixtures for it.
 
 It also has no matching DSL, no broker, no multi-step scenarios and no OpenAPI integration, and
 it does not depend on an HTTP client or a test framework.

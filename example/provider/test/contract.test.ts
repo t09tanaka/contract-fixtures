@@ -7,6 +7,8 @@
  * - tables: run the shared rows through this side's calculation.
  */
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 
 import { contractFixtures, resolvePlaceholders } from "@t09tanaka/contract-fixtures";
@@ -28,6 +30,8 @@ interface Scenario {
   description: string;
   request: HttpRequest;
   volatile?: string[];
+  /** Where the response holds a secret, and the placeholder the fixture stores instead. */
+  secret?: Record<string, string>;
 }
 
 const order = (body: unknown, headers: Record<string, string> = authorized): HttpRequest => ({
@@ -36,6 +40,14 @@ const order = (body: unknown, headers: Record<string, string> = authorized): Htt
   headers,
   body,
 });
+
+const startPayment: Scenario = {
+  name: "payment.started",
+  description: "Starting the payment of an order returns the key that confirms it",
+  request: { method: "POST", path: "/payments", headers: authorized, body: { order_id: "ord_demo1" } },
+  volatile: ["response.body.id"],
+  secret: { "response.body.confirm_key": "<key:payment-1>" },
+};
 
 const scenarios: Scenario[] = [
   {
@@ -56,7 +68,7 @@ const scenarios: Scenario[] = [
     request: order({ sku: "mug-200", quantity: 1 }),
   },
   {
-    name: "order.invalid-coupon",
+    name: "order.coupon-unknown",
     description: "The coupon code does not exist",
     request: order({ sku: "tea-100", quantity: 1, coupon: "NOPE" }),
   },
@@ -70,6 +82,7 @@ const scenarios: Scenario[] = [
     description: "The token is expired or was never issued",
     request: order({ sku: "tea-100", quantity: 1 }, { authorization: "Bearer expired" }),
   },
+  startPayment,
 ];
 
 describe("provider fixtures: real responses", () => {
@@ -83,9 +96,24 @@ describe("provider fixtures: real responses", () => {
         request: scenario.request,
         response,
         volatile: scenario.volatile,
+        secret: scenario.secret,
       });
     });
   }
+
+  it("payment.started: the key the API really returned is in no file of the contracts directory", () => {
+    const response = app().handle(withSecrets(startPayment.request));
+    const key = (response.body as { confirm_key: string }).confirm_key;
+    assert.match(key, /^[A-Za-z0-9_-]{32}$/);
+
+    contract.verifyResponse({ ...startPayment, response });
+
+    const files = fs.readdirSync(contract.dir, { recursive: true, withFileTypes: true });
+    for (const entry of files.filter((e) => e.isFile())) {
+      const text = fs.readFileSync(path.join(entry.parentPath, entry.name), "utf8");
+      assert.ok(!text.includes(key), `${entry.name} holds the real key`);
+    }
+  });
 
   it("scenario names are unique", () => {
     const names = scenarios.map((s) => s.name);

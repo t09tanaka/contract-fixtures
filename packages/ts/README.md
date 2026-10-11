@@ -39,6 +39,15 @@ contract.verifyResponse({
   volatile: ["response.body.id", "response.body.created_at"],
 });
 
+// A response with a secret in it: the file gets the placeholder, never the real value.
+contract.verifyResponse({
+  name: "session.created",
+  description: "Signing in returns an access token",
+  request: { method: "POST", path: "/sessions", body: { email, password: "<password:customer-1>" } },
+  response: { status: res.status, body: res.body },
+  secret: { "response.body.access_token": "<token:session-1>" },
+});
+
 // Pass every request the consumer recorded to the real handler.
 const expectations = { "create-order.request": 201 };
 contract.assertCovers("consumer", Object.keys(expectations));
@@ -58,6 +67,8 @@ const contract = contractFixtures({ side: "consumer", dir: "../contracts" });
 const expectations = { "order.created": "placed", "order.out-of-stock": "out of stock" };
 contract.assertCovers("provider", Object.keys(expectations));
 const { response } = contract.readResponse("order.created");
+// Where the provider listed a secret, the fixture holds a placeholder; put a value in first.
+const body = resolvePlaceholders(response.body, (kind, name) => `test ${kind} of ${name}`);
 
 // Verify the request the client really builds against contracts/consumer/<name>.json.
 contract.verifyRequest({
@@ -88,6 +99,16 @@ throws `ContractFixtureError`.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
   is refused when `CI` is set.
+- `observed.secret` maps paths to placeholders, for example
+  `{ "response.body.access_token": "<token:session-1>" }`. The string at each path is replaced
+  by its placeholder before anything is compared, printed or written, so the real value is not
+  in the file, in a difference, in an error message or in the ledger. A path replaces a whole
+  value (`*` for one key or index, no `**`); for a secret inside a string, such as
+  `Bearer ...` or a cookie, make the whole header value the secret. A path that matches
+  nothing, or a value that is not a string, throws `ContractFixtureError`.
+- A fixture that contains a string of the shape of a JSON Web Token is not written (in update
+  mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
+  recognised.
 - Header names are lower-cased before comparing and writing. `body: null` and `body: undefined`
   both mean "no body". NaN and infinite numbers are refused.
 
