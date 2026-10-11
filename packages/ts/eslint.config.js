@@ -5,4 +5,8 @@ export default tseslint.config(
   { ignores: ["dist/", ".test-build/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ["bin/**", "scripts/**"],
+    languageOptions: { globals: { console: "readonly" } },
+  },
 );

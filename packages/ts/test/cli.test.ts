@@ -100,12 +100,8 @@ describe("command line", () => {
     assert.match(result.out, /^Usage: contract-fixtures <command>/);
   });
 
-  it("the built executable sets the exit code", (t) => {
-    const bin = path.resolve(process.cwd(), "dist/bin.js");
-    if (!fs.existsSync(bin)) {
-      t.skip("dist/ is not built");
-      return;
-    }
+  it("the built executable sets the exit code", () => {
+    const bin = path.resolve(process.cwd(), "bin/contract-fixtures.js");
     const dir = copyOfContracts();
     exerciseProviderSide(dir);
     const ok = execFileSync(process.execPath, [bin, "check", "--side", "provider", "--dir", dir]);
@@ -113,5 +109,22 @@ describe("command line", () => {
     const failed = spawnSync(process.execPath, [bin, "check", "--side", "consumer", "--dir", dir]);
     assert.equal(failed.status, 1);
     assert.equal(spawnSync(process.execPath, [bin, "check"]).status, 2);
+  });
+
+  it("the package can be loaded with require() as well as import", () => {
+    const dir = copyOfContracts();
+    const script =
+      'const { contractFixtures } = require("@t09tanaka/contract-fixtures");' +
+      'const c = contractFixtures({ side: "consumer", dir: process.argv[1] });' +
+      'process.stdout.write(String(c.readResponse("order.created").response.status));';
+    assert.equal(execFileSync(process.execPath, ["-e", script, dir]).toString(), "201");
+    const esm =
+      'import { contractFixtures } from "@t09tanaka/contract-fixtures";' +
+      'const c = contractFixtures({ side: "provider", dir: process.argv[1] });' +
+      'process.stdout.write(String(c.list("provider").length));';
+    assert.equal(
+      execFileSync(process.execPath, ["--input-type=module", "-e", esm, dir]).toString(),
+      "2",
+    );
   });
 });

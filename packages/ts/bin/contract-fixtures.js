@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { runCli } from "./cli.js";
+import process from "node:process";
+
+import { runCli } from "../dist/esm/cli.js";
 
 process.exitCode = runCli(process.argv.slice(2), {
   out: (text) => console.log(text),
