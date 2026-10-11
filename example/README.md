@@ -101,3 +101,13 @@ key the API returned:
     secret: {"response.body.confirm_key":"<key:payment-1>"} -> (absent)
   If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
 ```
+
+Update mode does not help here. `CONTRACT_FIXTURES_UPDATE=1 npm test -w example/provider`
+leaves the fixture as it is, because rewriting it would put the real key into the file:
+
+```
+✖ payment.started
+  Error [ContractFixtureError]: contract fixture provider/payment.started.json is not updated, because that would drop a secret path:
+    secret.response.body.confirm_key: is a secret path of the stored fixture, but this test does not pass it
+  Pass the path as `secret` in this test, or remove it from the stored file by hand.
+```
