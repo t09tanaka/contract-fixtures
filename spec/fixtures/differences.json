@@ -1316,7 +1316,7 @@
       },
       "actual": {
         "order": {
-          "created_at": "2026-02-03T04:05:06Z",
+          "created_at": "2026-03-17T21:43:09Z",
           "lines": [
             {
               "sku": "tea-100",
@@ -1325,7 +1325,7 @@
           ],
           "customer": {
             "profile": {
-              "created_at": "2026-02-03T04:05:08Z"
+              "created_at": "2026-03-17T21:43:11Z"
             }
           }
         }
