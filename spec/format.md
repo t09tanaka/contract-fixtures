@@ -65,7 +65,7 @@ shape; the rules marked **(beyond the schema)** below are enforced by the packag
 | `name` | yes | Equal to the file name without `.json` **(beyond the schema)**. |
 | `description` | yes | A non-empty string: what this exchange is an example of. |
 | `request` | yes | See below. |
-| `response` | yes | `status` (integer, 100 to 599) and optionally `body` (any JSON value except `null`). |
+| `response` | yes | See below. |
 | `volatile` | no | Paths whose values change between runs. See [Volatile paths](#volatile-paths). |
 | `secret` | no | Paths whose values must not be stored, each with the placeholder that is stored instead. See [Secrets](#secrets). |
 
@@ -75,14 +75,55 @@ shape; the rules marked **(beyond the schema)** below are enforced by the packag
 |---|---|---|
 | `method` | yes | Upper-case letters, for example `POST`. |
 | `path` | yes | Starts with `/`. A query string, if any, is part of the path. |
-| `headers` | no | An object of strings. Header names are non-empty and contain no `A`–`Z`. |
+| `headers` | no | See [Headers](#headers). |
+| `body` | no | Any JSON value except `null`. |
+
+`response`:
+
+| Key | Required | Meaning |
+|---|---|---|
+| `status` | yes | An integer from 100 to 599. |
+| `headers` | no | See [Headers](#headers). |
 | `body` | no | Any JSON value except `null`. |
 
 No other keys are allowed at any of these levels. "No body" is expressed by omitting `body`;
 the helpers drop a `null` body before comparing or writing.
 
-Only what a test passes in is recorded. Record the request headers and the response fields that
-are part of the agreement between the two sides, not everything that happens to be on the wire.
+Only what a test passes in is recorded. Record the headers and the fields that are part of the
+agreement between the two sides, not everything that happens to be on the wire.
+
+### Headers
+
+`headers` of a request and of a response follow the same rules.
+
+```json
+"response": {
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "content-disposition": "attachment; filename=\"receipt-ord_81f3.json\"",
+    "set-cookie": ["<cookie:session-1>", "theme=dark; Path=/"]
+  },
+  "body": { "order_id": "ord_81f3", "total_minor": 1200 }
+}
+```
+
+- `headers` is an object. A header name is non-empty and contains no `A`–`Z`.
+- A value is a string, or a non-empty array of strings for a header that is sent more than
+  once (typically `set-cookie`). The order of the array is the order on the wire, and it is
+  compared. A string and an array of one string are different: record a header the way the
+  test receives it, and keep to that.
+- A fixture holds the headers the test passed, nothing more. A header that the test does not
+  pass is not compared; a header that is stored and no longer passed is a difference. Leave out
+  what varies with the infrastructure (`date`, `server`, `content-length`) unless it is part of
+  the agreement, or list it under `volatile`.
+- The values of a repeated header are addressed by index: `response.headers.set-cookie.0`,
+  `response.headers.set-cookie.*`. `volatile` and `secret` paths work on them as on any other
+  node.
+- A body that is not JSON (a PDF, a CSV file, an image) cannot be recorded, because a fixture
+  is a JSON document that both sides parse the same way and compare value by value. For such
+  a response, record `status` and `headers` (`content-type`, `content-disposition`) and omit
+  `body`.
 
 ## Consumer fixture
 
@@ -207,8 +248,11 @@ A secret path is written like a volatile path, with these differences:
   `body`: `request.headers.authorization`, `response.body.access_token`, `response.body` (a
   body that is a secret as a whole). Header names are written in lower case.
 - A path replaces a **whole value**. A secret inside a longer string (`Bearer <token>`, one
-  pair of a `cookie` header) cannot be addressed; make the whole header value the secret and
-  let the placeholder stand for all of it.
+  pair of a `cookie` header, the value inside a `set-cookie` header) cannot be addressed; make
+  the whole header value the secret and let the placeholder stand for all of it. For a header
+  that is sent more than once, each element of the array is such a whole value:
+  `"response.headers.set-cookie.0": "<cookie:session-1>"`. A path that stops at the array
+  (`response.headers.set-cookie`) matches a value that is not a string, which is an error.
 
 The verifying side passes `secret` together with what it really produced. Before anything is
 compared, printed or written, every string that a secret path matches is replaced by the
@@ -302,6 +346,8 @@ response.body.note: (absent) -> "gift"
 response.body.status: "confirmed" -> (absent)
 response.body.items: array length 2 -> 3
 response.body.id: type string -> number (volatile: only the type is compared)
+response.headers.cache-control: "private, no-store" -> (absent)
+response.headers.set-cookie: array length 2 -> 1
 ```
 
 Object keys are visited in UTF-16 code unit order, so both packages print the same lines in the
@@ -327,7 +373,8 @@ verify writes the fixture instead:
   do not churn.
 
 Fixtures are written as JSON with two-space indentation, a trailing newline, and the key order
-`format`, `name`, `description`, `request`, `response`, `volatile`, `secret`. An empty
+`format`, `name`, `description`, `request`, `response`, `volatile`, `secret` (inside a request:
+`method`, `path`, `headers`, `body`; inside a response: `status`, `headers`, `body`). An empty
 `volatile` or `secret` is left out. Inside a body and inside `secret`, keys keep the
 order the side produced them in, except that keys that are array indexes (`"0"`, `"10"`) come
 first in ascending order, as in a JavaScript object. Integer-valued numbers are written without

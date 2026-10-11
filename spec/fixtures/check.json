@@ -354,6 +354,42 @@
           "code": "invalid"
         }
       ]
+    },
+    {
+      "case": "headers: a fixture with response headers is read by the consumer side",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/receipt.downloaded.json\"}"
+      ],
+      "files": {
+        "provider/receipt.downloaded.json": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"content-disposition\": \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\n      \"cache-control\": \"private, no-store\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  }\n}\n"
+      },
+      "fixtures": 5,
+      "problems": []
+    },
+    {
+      "case": "headers: a stored response header with an upper-case name is invalid",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "provider/receipt.downloaded.json": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"Content-Type\": \"application/json\",\n      \"content-disposition\": \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\n      \"cache-control\": \"private, no-store\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  }\n}\n"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "provider/receipt.downloaded.json",
+          "code": "invalid"
+        }
+      ]
     }
   ]
 }

@@ -1761,6 +1761,767 @@
       "absent": [
         "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
       ]
+    },
+    {
+      "case": "headers: response headers are written between status and body, with lower-case names",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Content-Disposition": "attachment; filename=\"receipt-ord_81f3.json\"",
+            "Cache-Control": "private, no-store"
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"content-disposition\": \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\n      \"cache-control\": \"private, no-store\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  }\n}\n"
+    },
+    {
+      "case": "headers: the case of a response header name does not matter",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"content-disposition\": \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\n      \"cache-control\": \"private, no-store\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  }\n}\n",
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "CONTENT-TYPE": "application/json",
+            "content-disposition": "attachment; filename=\"receipt-ord_81f3.json\"",
+            "Cache-control": "private, no-store"
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "headers: a changed, a missing and an added response header",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"content-disposition\": \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\n      \"cache-control\": \"private, no-store\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  }\n}\n",
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json",
+            "content-disposition": "inline",
+            "etag": "\"r1\""
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.headers.cache-control: \"private, no-store\" -> (absent)",
+        "response.headers.content-disposition: \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\" -> \"inline\"",
+        "response.headers.etag: (absent) -> \"\\\"r1\\\"\""
+      ],
+      "written": null
+    },
+    {
+      "case": "headers: a response that no longer has headers",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"content-disposition\": \"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\n      \"cache-control\": \"private, no-store\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  }\n}\n",
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.headers: {\"cache-control\":\"private, no-store\",\"content-disposition\":\"attachment; filename=\\\"receipt-ord_81f3.json\\\"\",\"content-type\":\"application/json\"} -> (absent)"
+      ],
+      "written": null
+    },
+    {
+      "case": "headers: two response headers that differ only in case",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Cache-Control": "no-store",
+            "cache-control": "private"
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "update": true,
+      "outcome": "usage",
+      "written": null
+    },
+    {
+      "case": "headers: a response header value that is neither a string nor an array of strings",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-length": 42,
+            "retry-after": [
+              "30",
+              60
+            ],
+            "vary": [],
+            "x-flag": true,
+            "x-nested": [
+              [
+                "a"
+              ]
+            ],
+            "x-ok": [
+              "a"
+            ]
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "headers",
+          "path": "response.headers.content-length"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.retry-after"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.vary"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.x-flag"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.x-nested"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "headers: a header that is sent more than once is an array, in order",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "theme=dark; Path=/",
+              "lang=en; Path=/"
+            ]
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"theme=dark; Path=/\",\n        \"lang=en; Path=/\"\n      ]\n    }\n  }\n}\n"
+    },
+    {
+      "case": "headers: the order of a repeated header is compared",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"theme=dark; Path=/\",\n        \"lang=en; Path=/\"\n      ]\n    }\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "lang=en; Path=/",
+              "theme=dark; Path=/"
+            ]
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.headers.set-cookie.0: \"theme=dark; Path=/\" -> \"lang=en; Path=/\"",
+        "response.headers.set-cookie.1: \"lang=en; Path=/\" -> \"theme=dark; Path=/\""
+      ],
+      "written": null
+    },
+    {
+      "case": "headers: one value fewer",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"theme=dark; Path=/\",\n        \"lang=en; Path=/\"\n      ]\n    }\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "theme=dark; Path=/"
+            ]
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.headers.set-cookie: array length 2 -> 1"
+      ],
+      "written": null
+    },
+    {
+      "case": "headers: a string and an array of one string are different",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": \"theme=dark; Path=/\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "theme=dark; Path=/"
+            ]
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.headers.set-cookie: \"theme=dark; Path=/\" -> [\"theme=dark; Path=/\"]"
+      ],
+      "written": null
+    },
+    {
+      "case": "headers: each cookie is a secret as a whole, by its index",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "csrf=opaque-cookie-0002; Path=/; Secure"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>",
+          "response.headers.set-cookie.1": "<cookie:csrf-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"<cookie:session-1>\",\n        \"<cookie:csrf-1>\"\n      ]\n    }\n  },\n  \"secret\": {\n    \"response.headers.set-cookie.0\": \"<cookie:session-1>\",\n    \"response.headers.set-cookie.1\": \"<cookie:csrf-1>\"\n  }\n}\n",
+      "absent": [
+        "opaque-cookie-0001",
+        "opaque-cookie-0002"
+      ]
+    },
+    {
+      "case": "headers: the stored cookies still match when the real ones are different",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"<cookie:session-1>\",\n        \"<cookie:csrf-1>\"\n      ]\n    }\n  },\n  \"secret\": {\n    \"response.headers.set-cookie.0\": \"<cookie:session-1>\",\n    \"response.headers.set-cookie.1\": \"<cookie:csrf-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0003; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "csrf=opaque-cookie-0004; Path=/; Secure"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>",
+          "response.headers.set-cookie.1": "<cookie:csrf-1>"
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null,
+      "absent": [
+        "opaque-cookie-0003",
+        "opaque-cookie-0004"
+      ]
+    },
+    {
+      "case": "headers: one cookie more is reported without a real value of the others",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"<cookie:session-1>\",\n        \"<cookie:csrf-1>\"\n      ]\n    }\n  },\n  \"secret\": {\n    \"response.headers.set-cookie.0\": \"<cookie:session-1>\",\n    \"response.headers.set-cookie.1\": \"<cookie:csrf-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "csrf=opaque-cookie-0002; Path=/; Secure",
+              "theme=dark; Path=/"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>",
+          "response.headers.set-cookie.1": "<cookie:csrf-1>"
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.headers.set-cookie: array length 2 -> 3"
+      ],
+      "written": null,
+      "absent": [
+        "opaque-cookie-0001",
+        "opaque-cookie-0002"
+      ]
+    },
+    {
+      "case": "headers: * makes every value of a repeated header the same placeholder",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "csrf=opaque-cookie-0002; Path=/; Secure"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.*": "<cookie:any>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": [\n        \"<cookie:any>\",\n        \"<cookie:any>\"\n      ]\n    }\n  },\n  \"secret\": {\n    \"response.headers.set-cookie.*\": \"<cookie:any>\"\n  }\n}\n",
+      "absent": [
+        "opaque-cookie-0001",
+        "opaque-cookie-0002"
+      ]
+    },
+    {
+      "case": "headers: a secret path that names the array instead of its values",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax",
+              "csrf=opaque-cookie-0002; Path=/; Secure"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie": "<cookie:any>"
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.headers.set-cookie"
+        }
+      ],
+      "written": null,
+      "absent": [
+        "opaque-cookie-0001",
+        "opaque-cookie-0002"
+      ]
+    },
+    {
+      "case": "headers: a secret path names a response header in lower case",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "Set-Cookie": "session=opaque-cookie-0001; Path=/; HttpOnly; Secure; SameSite=Lax"
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie": "<cookie:session-1>"
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"session.created\",\n  \"description\": \"Signing in sets the session cookies\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/sessions\",\n    \"body\": {\n      \"email\": \"customer-1@example.test\",\n      \"password\": \"<password:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 204,\n    \"headers\": {\n      \"set-cookie\": \"<cookie:session-1>\"\n    }\n  },\n  \"secret\": {\n    \"response.headers.set-cookie\": \"<cookie:session-1>\"\n  }\n}\n",
+      "absent": [
+        "opaque-cookie-0001"
+      ]
+    },
+    {
+      "case": "headers: a token in a response header is not written",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "session=eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ; Path=/; HttpOnly"
+            ]
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.headers.set-cookie.0"
+        }
+      ],
+      "written": null,
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "headers: a volatile response header is compared by type only",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"etag\": \"\\\"r1\\\"\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  },\n  \"volatile\": [\n    \"response.headers.etag\"\n  ]\n}\n",
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json",
+            "etag": "\"r2\""
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        },
+        "volatile": [
+          "response.headers.etag"
+        ]
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "headers: a volatile header that turns from a string into an array",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 200,\n    \"headers\": {\n      \"content-type\": \"application/json\",\n      \"etag\": \"\\\"r1\\\"\"\n    },\n    \"body\": {\n      \"order_id\": \"ord_81f3\",\n      \"total_minor\": 1200\n    }\n  },\n  \"volatile\": [\n    \"response.headers.etag\"\n  ]\n}\n",
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json",
+            "etag": [
+              "\"r2\""
+            ]
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        },
+        "volatile": [
+          "response.headers.etag"
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.headers.etag: type string -> array (volatile: only the type is compared)"
+      ],
+      "written": null
+    },
+    {
+      "case": "headers: a response with headers and no body",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 303,
+          "headers": {
+            "Location": "/orders/ord_81f3"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"receipt.downloaded\",\n  \"description\": \"The receipt of an order is offered as a download\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/receipt\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    }\n  },\n  \"response\": {\n    \"status\": 303,\n    \"headers\": {\n      \"location\": \"/orders/ord_81f3\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "headers: a request header may be repeated too",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "Authorization": "<token:customer-1>",
+            "Accept-Language": [
+              "ja",
+              "en;q=0.8"
+            ]
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\",\n      \"accept-language\": [\n        \"ja\",\n        \"en;q=0.8\"\n      ]\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n"
+    },
+    {
+      "case": "headers: an empty array is not a request header value",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "accept-language": []
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "headers",
+          "path": "request.headers.accept-language"
+        }
+      ],
+      "written": null
     }
   ]
 }

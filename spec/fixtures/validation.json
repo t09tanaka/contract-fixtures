@@ -438,7 +438,7 @@
           "body": {
             "error": "out_of_stock"
           },
-          "headers": {}
+          "trailers": {}
         },
         "note": "x"
       },
@@ -453,7 +453,7 @@
         },
         {
           "code": "unknown-key",
-          "path": "response.headers"
+          "path": "response.trailers"
         }
       ]
     },
@@ -2519,6 +2519,604 @@
         }
       },
       "issues": []
+    },
+    {
+      "case": "headers: valid response headers",
+      "kind": "provider",
+      "name": "receipt.downloaded",
+      "value": {
+        "format": 1,
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json",
+            "content-disposition": "attachment; filename=\"receipt-ord_81f3.json\"",
+            "cache-control": "private, no-store"
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "headers: a repeated header, with a secret for each value and a volatile header",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "date": "Thu, 15 Jan 2026 09:30:00 GMT",
+            "set-cookie": [
+              "<cookie:session-1>",
+              "<cookie:csrf-1>"
+            ]
+          }
+        },
+        "volatile": [
+          "response.headers.date"
+        ],
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>",
+          "response.headers.set-cookie.1": "<cookie:csrf-1>"
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "headers: empty response headers are allowed",
+      "kind": "provider",
+      "name": "receipt.downloaded",
+      "value": {
+        "format": 1,
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "headers: a repeated request header",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "accept-language": [
+              "ja",
+              "en;q=0.8"
+            ]
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "headers: response headers not an object",
+      "kind": "provider",
+      "name": "receipt.downloaded",
+      "value": {
+        "format": 1,
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            "content-type: application/json"
+          ],
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "headers",
+          "path": "response.headers"
+        }
+      ]
+    },
+    {
+      "case": "headers: response header names are lower case and not empty",
+      "kind": "provider",
+      "name": "receipt.downloaded",
+      "value": {
+        "format": 1,
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "": "x",
+            "Content-Type": "application/json",
+            "x-É": "left alone"
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "headers",
+          "path": "response.headers."
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.Content-Type"
+        }
+      ]
+    },
+    {
+      "case": "headers: a value is a string or a non-empty array of strings",
+      "kind": "provider",
+      "name": "receipt.downloaded",
+      "value": {
+        "format": 1,
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "a": 1,
+            "b": null,
+            "c": [],
+            "d": [
+              "x",
+              2
+            ],
+            "e": [
+              [
+                "x"
+              ]
+            ],
+            "f": {
+              "x": "y"
+            },
+            "g": [
+              ""
+            ],
+            "h": ""
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "headers",
+          "path": "response.headers.a"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.b"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.c"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.d"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.e"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.f"
+        }
+      ]
+    },
+    {
+      "case": "headers: the same rule for request headers",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "a": [],
+            "b": [
+              "x",
+              null
+            ],
+            "c": [
+              "x",
+              "y"
+            ]
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "headers",
+          "path": "request.headers.a"
+        },
+        {
+          "code": "headers",
+          "path": "request.headers.b"
+        }
+      ]
+    },
+    {
+      "case": "headers: issues of a response come in the order status, headers, body",
+      "kind": "provider",
+      "name": "receipt.downloaded",
+      "value": {
+        "format": 1,
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 99,
+          "headers": {
+            "X": "y"
+          },
+          "body": null
+        }
+      },
+      "issues": [
+        {
+          "code": "status",
+          "path": "response.status"
+        },
+        {
+          "code": "headers",
+          "path": "response.headers.X"
+        },
+        {
+          "code": "body",
+          "path": "response.body"
+        }
+      ]
+    },
+    {
+      "case": "headers: a consumer fixture has no response headers",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {}
+        }
+      },
+      "issues": [
+        {
+          "code": "unknown-key",
+          "path": "response"
+        }
+      ]
+    },
+    {
+      "case": "headers: a secret path must name the values of a repeated header, not the array",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "<cookie:session-1>",
+              "<cookie:csrf-1>"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie": "<cookie:session-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.headers.set-cookie"
+        }
+      ]
+    },
+    {
+      "case": "headers: a secret path past the last value matches nothing",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "<cookie:session-1>"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>",
+          "response.headers.set-cookie.1": "<cookie:csrf-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-unmatched",
+          "path": "secret.response.headers.set-cookie.1"
+        }
+      ]
+    },
+    {
+      "case": "headers: a stored cookie that is not its placeholder",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "<cookie:session-1>",
+              "csrf=opaque-cookie-0002; Path=/; Secure"
+            ]
+          }
+        },
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>",
+          "response.headers.set-cookie.1": "<cookie:csrf-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.headers.set-cookie.1"
+        }
+      ],
+      "absent": [
+        "opaque-cookie-0002"
+      ]
+    },
+    {
+      "case": "headers: a token in a response header",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "theme=dark",
+              "session=eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ; HttpOnly"
+            ]
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "response.headers.set-cookie.1"
+        }
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+      ]
+    },
+    {
+      "case": "headers: volatile and secret on the same header value",
+      "kind": "provider",
+      "name": "session.created",
+      "value": {
+        "format": 1,
+        "name": "session.created",
+        "description": "Signing in sets the session cookies",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "body": {
+            "email": "customer-1@example.test",
+            "password": "<password:customer-1>"
+          }
+        },
+        "response": {
+          "status": 204,
+          "headers": {
+            "set-cookie": [
+              "<cookie:session-1>",
+              "<cookie:csrf-1>"
+            ]
+          }
+        },
+        "volatile": [
+          "response.headers.set-cookie.*"
+        ],
+        "secret": {
+          "response.headers.set-cookie.0": "<cookie:session-1>",
+          "response.headers.set-cookie.1": "<cookie:csrf-1>"
+        }
+      },
+      "issues": [
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.headers.set-cookie.0"
+        },
+        {
+          "code": "secret-volatile",
+          "path": "secret.response.headers.set-cookie.1"
+        }
+      ]
+    },
+    {
+      "case": "headers: a volatile path may not cover all of the response through its headers either",
+      "kind": "provider",
+      "name": "receipt.downloaded",
+      "value": {
+        "format": 1,
+        "name": "receipt.downloaded",
+        "description": "The receipt of an order is offered as a download",
+        "request": {
+          "method": "GET",
+          "path": "/orders/ord_81f3/receipt",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json",
+            "content-disposition": "attachment; filename=\"receipt-ord_81f3.json\"",
+            "cache-control": "private, no-store"
+          },
+          "body": {
+            "order_id": "ord_81f3",
+            "total_minor": 1200
+          }
+        },
+        "volatile": [
+          "response.*"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ]
     }
   ]
 }

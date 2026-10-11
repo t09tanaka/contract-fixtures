@@ -148,6 +148,17 @@ fixture throws `ContractFixtureException`.
 - A fixture that contains a string of the shape of a JSON Web Token is not written (in update
   mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
   recognised.
+- `ExchangeResponse(status:, headers:, body:)` records response headers like request headers:
+  pass the headers that are part of the agreement. A value is a `String`, or a `List<String>`
+  for a header that is sent more than once (`set-cookie`, compared in order). `headers` is a
+  `Map<String, dynamic>?`, so a `Map<String, String>`, a `Map<String, List<String>>` or a
+  decoded JSON map can be passed as it is; a value of another type fails the verify. Paths
+  reach into the list: `response.headers.set-cookie.0`. A body that is not JSON is not
+  recorded; pass the status and the headers only.
+- On the reading side, `fixture.response.headers` is the stored map, and
+  `fixture.response.headerValues('set-cookie')` gives the values of one header as a
+  `List<String>` (one element for a string, empty when the header is absent). The same on
+  `ExchangeRequest`.
 - Header names are lower-cased before comparing and writing. A `null` body means "no body".
 - Request and response bodies are whatever `jsonEncode` accepts. Numbers are compared by value,
   so `1` and `1.0` are equal.

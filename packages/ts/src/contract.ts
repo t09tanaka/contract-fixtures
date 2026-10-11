@@ -141,7 +141,7 @@ function candidate(file: string, observed: object): Record<string, unknown> {
     out.request = exchangePart(file, out.request, ["method", "path", "headers", "body"]);
   }
   if (Object.hasOwn(out, "response")) {
-    out.response = exchangePart(file, out.response, ["status", "body"]);
+    out.response = exchangePart(file, out.response, ["status", "headers", "body"]);
   }
   if (Array.isArray(out.volatile) && out.volatile.length === 0) delete out.volatile;
   if (isObject(out.secret) && Object.keys(out.secret).length === 0) delete out.secret;

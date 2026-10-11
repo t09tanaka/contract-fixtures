@@ -190,22 +190,24 @@ class ContractFixtures {
   /// Lower-cases the header names of what this side produced, after its JSON round trip.
   void _lowerCaseHeaders(String file, Object? produced) {
     if (produced is! Map<String, dynamic>) return;
-    final request = produced['request'];
-    if (request is! Map<String, dynamic>) return;
-    final headers = request['headers'];
-    if (headers is! Map<String, dynamic>) return;
-    final lower = <String, dynamic>{};
-    for (final entry in headers.entries) {
-      final key = asciiLowerCase(entry.key);
-      if (lower.containsKey(key)) {
-        throw ContractUsageException(
-          'contract fixture $file: the header $key is given '
-          'more than once (names differ only in case)',
-        );
+    for (final part in const ['request', 'response']) {
+      final exchange = produced[part];
+      if (exchange is! Map<String, dynamic>) continue;
+      final headers = exchange['headers'];
+      if (headers is! Map<String, dynamic>) continue;
+      final lower = <String, dynamic>{};
+      for (final entry in headers.entries) {
+        final key = asciiLowerCase(entry.key);
+        if (lower.containsKey(key)) {
+          throw ContractUsageException(
+            'contract fixture $file: the header $key is given '
+            'more than once (names differ only in case)',
+          );
+        }
+        lower[key] = entry.value;
       }
-      lower[key] = entry.value;
+      exchange['headers'] = lower;
     }
-    request['headers'] = lower;
   }
 
   void _verify(FixtureKind kind, String name, Map<String, dynamic> observed) {

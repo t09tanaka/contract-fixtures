@@ -463,3 +463,42 @@ describe("secret paths", () => {
     assert.ok(format.includes(`\n\`\`\`\n${JWT_PATTERN.source}\n\`\`\`\n`));
   });
 });
+
+describe("response headers", () => {
+  const signIn = (cookies: string | string[]) => ({
+    name: "session.created",
+    description: "Signing in sets the session cookies",
+    request: { method: "POST", path: "/sessions", headers: { Accept: ["application/json", "text/plain"] } },
+    response: { status: 204, headers: { "Set-Cookie": cookies, "Cache-Control": "no-store" } },
+  });
+
+  it("records them with lower-case names, and the reading side gets them back", () => {
+    const dir = tempDir();
+    contractFixtures({ side: "provider", dir, update: true }).verifyResponse({
+      ...signIn(["session=opaque-1; HttpOnly", "theme=dark"]),
+      secret: { "response.headers.set-cookie.0": "<cookie:session-1>" },
+    });
+
+    const { request, response } = contractFixtures({ side: "consumer", dir }).readResponse(
+      "session.created",
+    );
+
+    assert.deepEqual(request.headers, { accept: ["application/json", "text/plain"] });
+    assert.deepEqual(response.headers, {
+      "set-cookie": ["<cookie:session-1>", "theme=dark"],
+      "cache-control": "no-store",
+    });
+    assert.equal(response.body, undefined);
+    assert.ok(!everyFileIn(dir).some((file) => fs.readFileSync(file, "utf8").includes("opaque-1")));
+  });
+
+  it("compares the values of a repeated header in order", () => {
+    const dir = tempDir();
+    contractFixtures({ side: "provider", dir, update: true }).verifyResponse(signIn(["a=1", "b=2"]));
+    const provider = contractFixtures({ side: "provider", dir, update: false });
+
+    provider.verifyResponse(signIn(["a=1", "b=2"]));
+    assert.throws(() => provider.verifyResponse(signIn(["b=2", "a=1"])), ContractMismatchError);
+    assert.throws(() => provider.verifyResponse(signIn("a=1")), ContractMismatchError);
+  });
+});
