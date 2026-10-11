@@ -8,8 +8,8 @@
   "scripts": {
     "build": "npm run build -w packages/ts",
     "lint": "npm run lint -w packages/ts",
-    "typecheck": "npm run build && npm run typecheck -w packages/ts && npm run typecheck -w example/provider",
-    "test": "npm test -w packages/ts",
+    "typecheck": "npm run typecheck -w packages/ts && npm run typecheck -w example/provider",
+    "test": "npm run build && npm test -w packages/ts",
     "example": "npm run contract -w example/provider"
   }
 }

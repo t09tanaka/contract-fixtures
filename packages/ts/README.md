@@ -86,9 +86,10 @@ throws `ContractFixtureError`.
 
 - `dir` defaults to the environment variable `CONTRACT_FIXTURES_DIR`.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
-  differing fixture and leaves a fixture that already agrees untouched.
+  differing fixture and leaves a fixture that already agrees untouched. The environment variable
+  is refused when `CI` is set.
 - Header names are lower-cased before comparing and writing. `body: null` and `body: undefined`
-  both mean "no body".
+  both mean "no body". NaN and infinite numbers are refused.
 
 Also exported:
 

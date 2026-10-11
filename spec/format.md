@@ -74,7 +74,7 @@ shape; the rules marked **(beyond the schema)** below are enforced by the packag
 |---|---|---|
 | `method` | yes | Upper-case letters, for example `POST`. |
 | `path` | yes | Starts with `/`. A query string, if any, is part of the path. |
-| `headers` | no | An object of strings. Header names are lower case. |
+| `headers` | no | An object of strings. Header names are non-empty and contain no `A`–`Z`. |
 | `body` | no | Any JSON value except `null`. |
 
 No other keys are allowed at any of these levels. "No body" is expressed by omitting `body`;
@@ -129,7 +129,11 @@ A path is a list of segments separated by `.`, starting at the fixture root:
 - A segment is an object key or an array index.
 - `*` matches exactly one segment (any key or any index).
 - `**` is allowed only as the last segment. It matches the node before it and everything below.
-- The first segment is `request` or `response` (`request` only in a consumer fixture).
+- `*` is special only as a whole segment; a segment such as `a*b` is not allowed.
+- The first segment is `request` or `response` (`request` only in a consumer fixture), and the
+  second names one of its keys literally (`response.body`, `request.headers`, ...). A path that
+  covers the whole request or response (`response`, `response.*`, `response.**`) is rejected,
+  because it would switch the comparison off **(beyond the schema)**.
 - Every path must match at least one node of the stored fixture **(beyond the schema)**; a path
   that matches nothing is a mistake.
 - Keys that contain `.` cannot be addressed: `a.b` always means the key `b` inside `a`. A path
@@ -144,8 +148,12 @@ How the verifying side compares:
 | at or below a path ending in `**` | Same type; objects have the same keys; arrays have the same length; scalar values are not compared. |
 | anything else | Exactly equal. |
 
-A key that is present on one side and absent on the other is always a difference, also under a
-volatile path. When both rules apply to a node, the first one wins.
+A key that is present on one side and absent on the other is a difference when the key itself is
+the volatile node, and anywhere at or below a `**` path. Below a node matched by a path without
+`**`, nothing is compared, keys included. When both rules apply to a node, the first one wins.
+
+Keep volatile paths as narrow as the value that really changes: `response.body` alone reduces
+the check of the body to "it is still an object".
 
 The reading side ignores `volatile`.
 
@@ -168,13 +176,18 @@ Placeholders are a convention on values; the comparison treats them as ordinary 
   matter, so a formatter may rewrite the files.
 - What a side produced is taken through a JSON round trip first, so the comparison sees what
   would go over the wire.
-- Header names in what a side produced are lower-cased before comparing or writing. Two headers
-  that differ only in case are an error.
+- Header names in what a side produced are lower-cased before comparing or writing (`A`–`Z` only;
+  other characters are left alone). Two headers that differ only in case are an error.
+- Fixture files are UTF-8. A byte order mark at the start is ignored; a file that is not valid
+  UTF-8 is an invalid fixture.
+- A symbolic link to a file counts as that file.
 - Numbers are compared by value: `1` and `1.0` are equal.
-- A number whose value is an integer beyond ±(2^53 − 1) is not allowed anywhere in a fixture or a
-  table **(beyond the schema)**: not every JSON parser keeps it exact, so the two sides could
-  silently see different values. Send such values as strings. This holds for what a side
-  produced as well as for stored files.
+- A number whose value is a whole number beyond ±(2^53 − 1) is not allowed anywhere in a fixture
+  or a table **(beyond the schema)**: not every JSON parser keeps it exact, so the two sides
+  could silently see different values. This includes large floating point values such as `1e300`
+  and literals too large for a double (`1e400`). Send such values as strings. This holds for
+  what a side produced as well as for stored files; NaN and infinities in what a side produced
+  are rejected too.
 - Strings are compared code unit by code unit. Nothing is normalised: a composed and a decomposed
   form of the same character are different strings.
 - `null`, an absent key, `""`, `{}` and `[]` are all different from each other. The one exception
@@ -212,12 +225,13 @@ Fixtures are written as JSON with two-space indentation, a trailing newline, and
 `format`, `name`, `description`, `request`, `response`, `volatile`. Inside a body, keys keep the
 order the side produced them in, except that keys that are array indexes (`"0"`, `"10"`) come
 first in ascending order, as in a JavaScript object. Integer-valued numbers are written without
-a fraction (`1`, not `1.0`). Characters are written as they are; only control characters and
-lone surrogates are escaped. The cases in `fixtures/canonical.json` and `fixtures/verify.json` pin
+a fraction (`1`, not `1.0`). Characters are written as they are; only characters below U+0020,
+`"`, `\` and lone surrogates are escaped. The cases in `fixtures/canonical.json` and `fixtures/verify.json` pin
 the exact text for both packages. Update mode never deletes files; a fixture whose
 test was removed is found by the check.
 
-Reading never writes fixtures. Update mode is meant for a developer's machine, not for CI.
+Reading never writes fixtures. Update mode is meant for a developer's machine, not for CI: when
+the environment variable `CI` is `true` or `1`, `CONTRACT_FIXTURES_UPDATE=1` is refused.
 
 ## Ledger
 
@@ -245,7 +259,7 @@ The check fails when, for the given side:
 | `invalid` | A fixture does not follow this format. |
 | `unverified` | A fixture this side must verify was not verified: it is stale (this side no longer produces it) or its test is gone. |
 | `unread` | A fixture or table this side must read was not read: nothing on this side depends on it. |
-| `ledger` | A ledger line cannot be parsed. |
+| `ledger` | A ledger line is not an entry of this side: it cannot be parsed, names the other side, or has an unknown action. |
 | `empty` | There are no fixtures at all (most likely a wrong directory). |
 
 Exit codes of the check command: `0` no problems, `1` at least one problem, `2` wrong usage

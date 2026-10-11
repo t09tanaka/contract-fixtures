@@ -18,6 +18,9 @@ Placeholder? parsePlaceholder(String value) {
 /// Returns a copy of a JSON value in which every string that is a secret placeholder
 /// (`<kind:name>`, for example `<token:customer-1>`) is replaced by what [resolve] returns.
 ///
+/// A `Map<String, String>` or `List<String>` keeps its type; every other map or list in the
+/// result is a `Map<String, dynamic>` or `List<dynamic>`, as `jsonDecode` would build it.
+///
 /// Throws when [resolve] returns `null`, so an unknown placeholder never reaches the code
 /// under test as a literal.
 T resolvePlaceholders<T>(
@@ -34,6 +37,9 @@ T resolvePlaceholders<T>(
             'contract_fixtures: no value for the placeholder $node');
       }
       return resolved;
+    }
+    if (node is List<String>) {
+      return <String>[for (final item in node) walk(item) as String];
     }
     if (node is List) return [for (final item in node) walk(item)];
     if (node is Map<String, String>) {

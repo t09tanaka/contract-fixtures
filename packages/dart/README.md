@@ -105,7 +105,8 @@ fixture throws `ContractFixtureException`.
 
 - `dir` defaults to the environment variable `CONTRACT_FIXTURES_DIR`.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
-  differing fixture and leaves a fixture that already agrees untouched.
+  differing fixture and leaves a fixture that already agrees untouched. The environment variable
+  is refused when `CI` is set.
 - Header names are lower-cased before comparing and writing. A `null` body means "no body".
 - Request and response bodies are whatever `jsonEncode` accepts. Numbers are compared by value,
   so `1` and `1.0` are equal.

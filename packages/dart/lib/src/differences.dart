@@ -94,8 +94,11 @@ List<Difference> differences(
       }
       return;
     }
-    if (e is Map<String, dynamic> && a is Map<String, dynamic>) {
-      for (final key in sortedKeys({...e, ...a})) {
+    if (e is Map && a is Map) {
+      for (final key in sortedKeys({
+        ...e.cast<String, dynamic>(),
+        ...a.cast<String, dynamic>(),
+      })) {
         final child = segments.isEmpty ? key : '$path.$key';
         if (!a.containsKey(key)) {
           out.add(

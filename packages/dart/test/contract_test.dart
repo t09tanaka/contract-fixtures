@@ -53,6 +53,139 @@ void main() {
       );
     });
 
+    test('refuses update mode from the environment in CI', () {
+      final dir = tempDir();
+      final environment = {
+        'CONTRACT_FIXTURES_DIR': dir,
+        'CONTRACT_FIXTURES_UPDATE': '1',
+        'CI': 'true',
+      };
+      expect(
+        () => ContractFixtures(
+          side: ContractSide.provider,
+          environment: environment,
+        ),
+        throwsA(
+          isA<ContractUsageException>().having(
+            (e) => e.message,
+            'message',
+            contains('is set in CI'),
+          ),
+        ),
+      );
+      expect(
+        ContractFixtures(
+          side: ContractSide.provider,
+          update: true,
+          environment: environment,
+        ).update,
+        isTrue,
+      );
+    });
+
+    test('refuses NaN and Infinity', () {
+      final dir = tempDir();
+      final provider = ContractFixtures(
+        side: ContractSide.provider,
+        dir: dir,
+        update: true,
+      );
+      for (final bad in [
+        double.nan,
+        double.infinity,
+        double.negativeInfinity
+      ]) {
+        expect(
+          () => provider.verifyResponse(
+            name: 'order.out-of-stock',
+            description: 'The item is out of stock',
+            request: _request,
+            response: ExchangeResponse(status: 200, body: {'total': bad}),
+          ),
+          throwsA(
+            isA<ContractFixtureException>().having(
+              (e) => e.message,
+              'message',
+              contains('what this side produced is not a valid fixture'),
+            ),
+          ),
+        );
+      }
+      expect(Directory('$dir/provider').existsSync(), isFalse);
+      expect(ledgerLines(dir, 'provider'), isEmpty);
+    });
+
+    test('reports a file that is not UTF-8 as an invalid fixture', () {
+      final dir = copyOfContracts();
+      File('$dir/provider/order.created.json').writeAsBytesSync([
+        ...'{"description":"'.codeUnits,
+        0xff,
+        ...'"}'.codeUnits,
+      ]);
+      File('$dir/.ledger/consumer.jsonl')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([0xff, 0x0a]);
+      final consumer = ContractFixtures(side: ContractSide.consumer, dir: dir);
+      expect(
+        () => consumer.readResponse('order.created'),
+        throwsA(
+          isA<ContractFixtureException>().having(
+            (e) => e.message,
+            'message',
+            contains('is not valid UTF-8'),
+          ),
+        ),
+      );
+      final problems =
+          checkContracts(dir: dir, side: ContractSide.consumer).problems;
+      expect(
+        [
+          for (final p in problems)
+            if (p.code == 'invalid') [p.file, p.message],
+        ],
+        [
+          [
+            'provider/order.created.json',
+            'invalid fixture: (root) is not valid UTF-8',
+          ],
+        ],
+      );
+      expect(problems.where((p) => p.code == 'ledger'), hasLength(1));
+    });
+
+    test('follows a symbolic link to a fixture and ignores a dangling one', () {
+      final dir = copyOfContracts();
+      Link('$dir/provider/linked.json')
+          .createSync('$dir/provider/order.created.json');
+      Link('$dir/provider/dangling.json').createSync('$dir/nowhere.json');
+      final consumer = ContractFixtures(side: ContractSide.consumer, dir: dir);
+      expect(consumer.list(FixtureKind.provider), [
+        'linked',
+        'order.created',
+        'order.out-of-stock',
+      ]);
+      final result = checkContracts(dir: dir, side: ContractSide.consumer);
+      expect(result.fixtures, 5);
+      expect(
+        result.problems.any(
+          (p) => p.file == 'provider/linked.json' && p.code == 'invalid',
+        ),
+        isTrue,
+      );
+    }, testOn: '!windows');
+
+    test('differences accepts maps of any static type', () {
+      expect(
+        differences(<dynamic, dynamic>{'a': 1}, <Object, Object>{'a': 1}),
+        isEmpty,
+      );
+      expect(
+        differences(<dynamic, dynamic>{'a': 1}, <dynamic, dynamic>{'a': 2})
+            .map((d) => d.text),
+        ['a: 1 -> 2'],
+      );
+    });
+
     test('only lets the provider side verify responses and read requests', () {
       final dir = copyOfContracts();
       final consumer = ContractFixtures(side: ContractSide.consumer, dir: dir);
@@ -320,6 +453,14 @@ void main() {
         (kind, name) => 'real',
       );
       expect(resolved, {'authorization': 'real'});
+    });
+
+    test('keeps the type of a list of strings', () {
+      final List<String> resolved = resolvePlaceholders(
+        const ['<token:a>', 'plain'],
+        (kind, name) => 'real',
+      );
+      expect(resolved, ['real', 'plain']);
     });
 
     test('fails for a placeholder without a value', () {

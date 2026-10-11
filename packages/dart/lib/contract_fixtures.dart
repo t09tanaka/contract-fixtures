@@ -22,4 +22,9 @@ export 'src/placeholders.dart'
     show Placeholder, parsePlaceholder, resolvePlaceholders;
 export 'src/types.dart';
 export 'src/validate.dart'
-    show FixtureValidation, FormatIssue, validateFixture, validateFixtureValue;
+    show
+        FixtureValidation,
+        FormatIssue,
+        validateFixture,
+        validateFixtureFile,
+        validateFixtureValue;

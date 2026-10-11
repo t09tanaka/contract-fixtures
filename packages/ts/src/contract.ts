@@ -9,7 +9,7 @@ import {
   ContractMismatchError,
   ContractUsageError,
 } from "./errors.js";
-import { canonicalJson, isObject, jsonRoundTrip } from "./json.js";
+import { asciiLowerCase, canonicalJson, isObject, jsonRoundTrip, NotJsonError } from "./json.js";
 import { appendLedger } from "./ledger.js";
 import {
   FORMAT_VERSION,
@@ -21,7 +21,12 @@ import {
   type Side,
   type TableFixture,
 } from "./types.js";
-import { formatIssues, NAME_PATTERN, validateFixture, validateFixtureValue } from "./validate.js";
+import {
+  formatIssues,
+  NAME_PATTERN,
+  validateFixtureFile,
+  validateFixtureValue,
+} from "./validate.js";
 
 /** Environment variable that names the contracts directory when no `dir` option is given. */
 export const DIR_ENV = "CONTRACT_FIXTURES_DIR";
@@ -77,17 +82,18 @@ export interface ContractFixtures {
 
 function lowerCaseHeaders(file: string, headers: unknown): unknown {
   if (!isObject(headers)) return headers;
-  const out: Record<string, unknown> = {};
+  // A Map, because assigning the key "__proto__" to a plain object would not create a key.
+  const out = new Map<string, unknown>();
   for (const [key, value] of Object.entries(headers)) {
-    const lower = key.toLowerCase();
-    if (Object.hasOwn(out, lower)) {
+    const lower = asciiLowerCase(key);
+    if (out.has(lower)) {
       throw new ContractUsageError(
         `contract fixture ${file}: the header ${lower} is given more than once (names differ only in case)`,
       );
     }
-    out[lower] = value;
+    out.set(lower, value);
   }
-  return out;
+  return Object.fromEntries(out);
 }
 
 /** `value` with the known keys first, in the order the format writes them. */
@@ -110,7 +116,17 @@ function exchangePart(file: string, value: unknown, keys: readonly string[]): un
 
 /** The fixture a side produced, as it would be written. */
 function candidate(file: string, observed: object): Record<string, unknown> {
-  const wire = jsonRoundTrip({ ...observed, format: FORMAT_VERSION }) as Record<string, unknown>;
+  let wire: Record<string, unknown>;
+  try {
+    wire = jsonRoundTrip({ ...observed, format: FORMAT_VERSION }) as Record<string, unknown>;
+  } catch (error) {
+    if (!(error instanceof NotJsonError)) throw error;
+    throw new ContractFixtureError(
+      `contract fixture ${file}: what this side produced is not a valid fixture:\n` +
+        "  (root): cannot be encoded as JSON (a number that is NaN or infinite)",
+      file,
+    );
+  }
   const out = ordered(wire, ["format", "name", "description", "request", "response", "volatile"]);
   if (Object.hasOwn(out, "request")) {
     out.request = exchangePart(file, out.request, ["method", "path", "headers", "body"]);
@@ -120,6 +136,17 @@ function candidate(file: string, observed: object): Record<string, unknown> {
   }
   if (Array.isArray(out.volatile) && out.volatile.length === 0) delete out.volatile;
   return out;
+}
+
+/** Update mode as the environment asks for it. Refused in CI, where it would hide every change. */
+function updateFromEnvironment(env: Record<string, string | undefined>): boolean {
+  if (env[UPDATE_ENV] !== "1") return false;
+  if (env.CI === "true" || env.CI === "1") {
+    throw new ContractUsageError(
+      `contract-fixtures: ${UPDATE_ENV}=1 is set in CI. Update fixtures on a developer's machine and commit them.`,
+    );
+  }
+  return true;
 }
 
 /**
@@ -138,7 +165,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     );
   }
   const dir = path.resolve(given);
-  const update = options.update ?? process.env[UPDATE_ENV] === "1";
+  const update = options.update ?? updateFromEnvironment(process.env);
 
   const requireSide = (wanted: Side, method: string): void => {
     if (side !== wanted) {
@@ -183,7 +210,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       }
       write();
     } else {
-      const stored = validateFixture(kind, name, fs.readFileSync(filePath, "utf8"));
+      const stored = validateFixtureFile(kind, name, filePath);
       if (stored.issues.length > 0) {
         if (!update) {
           throw new ContractFixtureError(
@@ -224,7 +251,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     if (!fs.existsSync(filePath)) {
       throw new ContractFixtureError(`contract fixture ${file} does not exist.`, file);
     }
-    const { value, issues } = validateFixture(kind, name, fs.readFileSync(filePath, "utf8"));
+    const { value, issues } = validateFixtureFile(kind, name, filePath);
     if (issues.length > 0) {
       throw new ContractFixtureError(
         `contract fixture ${file} does not follow the format:\n` + formatIssues(issues),

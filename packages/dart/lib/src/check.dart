@@ -56,8 +56,11 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
     for (final name in listFixtureNames(dir, kind)) {
       fixtures++;
       final file = '${kind.name}/$name.json';
-      final text = File('$dir/${kind.name}/$name.json').readAsStringSync();
-      final issues = validateFixture(kind, name, text).issues;
+      final issues = validateFixtureFile(
+        kind,
+        name,
+        File('$dir/${kind.name}/$name.json'),
+      ).issues;
       if (issues.isNotEmpty) {
         for (final issue in issues) {
           problems.add(

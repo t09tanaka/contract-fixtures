@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'differences.dart';
 import 'json.dart';
@@ -32,6 +33,7 @@ class FixtureValidation {
 
 final RegExp namePattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
 final RegExp _method = RegExp(r'^[A-Z]+$');
+final RegExp _upperCase = RegExp('[A-Z]');
 
 const Map<FixtureKind, List<String>> _topLevel = {
   FixtureKind.provider: [
@@ -110,12 +112,12 @@ void _validateRequest(List<FormatIssue> issues, Object? request) {
       );
     } else {
       for (final key in sortedKeys(headers)) {
-        if (key != key.toLowerCase()) {
+        if (key.isEmpty || key.contains(_upperCase)) {
           issues.add(
             FormatIssue(
               'headers',
               'request.headers.$key',
-              'header names must be lower case',
+              'header names must be non-empty and lower case',
             ),
           );
         } else if (headers[key] is! String) {
@@ -219,9 +221,30 @@ void _validateVolatile(
       );
       continue;
     }
+    if (segments.any((s) => s.contains('*') && s != '*' && s != '**')) {
+      issues.add(
+        FormatIssue(
+          'volatile',
+          path,
+          '* is allowed only as a whole segment (* or **)',
+        ),
+      );
+      continue;
+    }
     if (!roots.contains(segments.first)) {
       issues.add(
         FormatIssue('volatile', path, 'must start with ${roots.join(' or ')}'),
+      );
+      continue;
+    }
+    if (segments.length < 2 || segments[1] == '*' || segments[1] == '**') {
+      issues.add(
+        FormatIssue(
+          'volatile',
+          path,
+          'must name a key of ${segments.first} (a path that covers the whole '
+              '${segments.first} would switch the comparison off)',
+        ),
       );
       continue;
     }
@@ -237,16 +260,16 @@ void _validateVolatile(
   }
 }
 
-/// Integers beyond 2^53 - 1 do not survive every JSON parser, so they are not allowed.
+/// Whole numbers beyond 2^53 - 1 do not survive every JSON parser, so they are not allowed.
 void _validateNumbers(List<FormatIssue> issues, Object? root) {
   void walk(Object? node, String path) {
-    if (isUnsafeInteger(node)) {
+    if (isUnsafeNumber(node)) {
       issues.add(
         FormatIssue(
           'number',
           path,
-          'is an integer beyond 2^53 - 1, which not every JSON parser keeps exact '
-              '(use a string)',
+          'is a whole number beyond 2^53 - 1 or not finite, which not every JSON '
+              'parser keeps exact (use a string)',
         ),
       );
     } else if (node is List) {
@@ -355,13 +378,28 @@ List<FormatIssue> validateFixtureValue(
 FixtureValidation validateFixture(FixtureKind kind, String name, String text) {
   final Object? value;
   try {
-    value = jsonDecode(text);
+    value = jsonDecode(text.startsWith('\uFEFF') ? text.substring(1) : text);
   } on FormatException {
     return const FixtureValidation(null, [
       FormatIssue('json', '(root)', 'is not valid JSON'),
     ]);
   }
   return FixtureValidation(value, validateFixtureValue(kind, name, value));
+}
+
+/// Reads a fixture file and checks it against format 1. The file must be UTF-8 (a byte
+/// order mark is ignored); anything else is reported as the `json` issue.
+FixtureValidation validateFixtureFile(
+    FixtureKind kind, String name, File file) {
+  final String text;
+  try {
+    text = utf8.decode(file.readAsBytesSync());
+  } on FormatException {
+    return const FixtureValidation(null, [
+      FormatIssue('json', '(root)', 'is not valid UTF-8'),
+    ]);
+  }
+  return validateFixture(kind, name, text);
 }
 
 String formatIssues(Iterable<FormatIssue> issues) =>

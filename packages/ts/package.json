@@ -35,7 +35,8 @@
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "contract-fixtures": "bin/contract-fixtures.js"
@@ -43,7 +44,8 @@
   "files": [
     "bin",
     "dist",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "sideEffects": false,
   "publishConfig": {
@@ -53,7 +55,7 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint .",
-    "test": "npm run build && rm -rf .test-build && tsc -p tsconfig.test.json && node --test --test-reporter=spec .test-build/test/*.test.js",
+    "test": "rm -rf .test-build && tsc -p tsconfig.test.json && node --test --test-reporter=spec .test-build/test/*.test.js",
     "prepack": "npm run build"
   },
   "devDependencies": {

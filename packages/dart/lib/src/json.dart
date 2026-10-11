@@ -17,16 +17,21 @@ List<String> sortedKeys(Map<String, dynamic> value) =>
 /// The largest integer every implementation represents exactly (2^53 - 1).
 const int maxSafeInteger = 9007199254740991;
 
-/// Whether a number is an integer that not every implementation can represent exactly.
-bool isUnsafeInteger(Object? value) {
+/// Whether a number is one that not every implementation can represent exactly.
+bool isUnsafeNumber(Object? value) {
   if (value is int) return value > maxSafeInteger || value < -maxSafeInteger;
   if (value is double) {
-    return value.isFinite &&
-        value == value.truncateToDouble() &&
-        value.abs() > maxSafeInteger;
+    return !value.isFinite ||
+        (value == value.truncateToDouble() && value.abs() > maxSafeInteger);
   }
   return false;
 }
+
+final RegExp _upperCase = RegExp('[A-Z]');
+
+/// Lower-cases A to Z only, so every implementation gives the same result.
+String asciiLowerCase(String text) =>
+    text.replaceAllMapped(_upperCase, (match) => match[0]!.toLowerCase());
 
 final RegExp _arrayIndex = RegExp(r'^(0|[1-9][0-9]{0,9})$');
 

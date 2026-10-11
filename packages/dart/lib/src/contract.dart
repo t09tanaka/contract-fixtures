@@ -36,11 +36,18 @@ class ContractFixtures {
         'contract_fixtures: pass the contracts directory as `dir` or set $dirEnv',
       );
     }
-    return ContractFixtures._(
-      side,
-      Directory(given).absolute.path,
-      update ?? env[updateEnv] == '1',
-    );
+    var updating = update;
+    if (updating == null) {
+      updating = env[updateEnv] == '1';
+      // Refused in CI, where it would hide every change.
+      if (updating && (env['CI'] == 'true' || env['CI'] == '1')) {
+        throw const ContractUsageException(
+          'contract_fixtures: $updateEnv=1 is set in CI. '
+          "Update fixtures on a developer's machine and commit them.",
+        );
+      }
+    }
+    return ContractFixtures._(side, Directory(given).absolute.path, updating);
   }
 
   ContractFixtures._(this.side, this.dir, this.update);
@@ -181,7 +188,7 @@ class ContractFixtures {
     if (headers != null) {
       final lower = <String, String>{};
       for (final entry in headers.entries) {
-        final key = entry.key.toLowerCase();
+        final key = asciiLowerCase(entry.key);
         if (lower.containsKey(key)) {
           throw ContractUsageException(
             'contract fixture ${kind.name}/$name.json: the header $key is given '
@@ -199,7 +206,17 @@ class ContractFixtures {
     _requireName(name);
     final file = '${kind.name}/$name.json';
     final target = File('$dir/$file');
-    final produced = jsonRoundTrip(observed);
+    final Object? produced;
+    try {
+      produced = jsonRoundTrip(observed);
+    } on JsonUnsupportedObjectError {
+      throw ContractFixtureException(
+        'contract fixture $file: what this side produced is not a valid fixture:\n'
+        '  (root): cannot be encoded as JSON (a number that is NaN or infinite, '
+        'or an object without toJson)',
+        file,
+      );
+    }
     final producedIssues = validateFixtureValue(kind, name, produced);
     if (producedIssues.isNotEmpty) {
       throw ContractFixtureException(
@@ -224,7 +241,7 @@ class ContractFixtures {
       }
       write();
     } else {
-      final stored = validateFixture(kind, name, target.readAsStringSync());
+      final stored = validateFixtureFile(kind, name, target);
       if (stored.issues.isNotEmpty) {
         if (!update) {
           throw ContractFixtureException(
@@ -272,7 +289,7 @@ class ContractFixtures {
       throw ContractFixtureException(
           'contract fixture $file does not exist.', file);
     }
-    final result = validateFixture(kind, name, source.readAsStringSync());
+    final result = validateFixtureFile(kind, name, source);
     if (result.issues.isNotEmpty) {
       throw ContractFixtureException(
         'contract fixture $file does not follow the format:\n'

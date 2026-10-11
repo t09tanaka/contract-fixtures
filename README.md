@@ -170,8 +170,9 @@ dart run contract_fixtures check --side consumer --dir ../contracts
 ```
 
 `check` exits with `0` when there are no problems, `1` when a fixture is unverified, unread or
-malformed, and `2` for wrong usage. Never set `CONTRACT_FIXTURES_UPDATE` in CI. A CI job for one
-side should also be triggered by changes to the contracts directory.
+malformed, and `2` for wrong usage. `CONTRACT_FIXTURES_UPDATE=1` is refused when the environment
+variable `CI` is set, because it would turn every difference into a pass. A CI job for one side
+should also be triggered by changes to the contracts directory.
 
 ## What it does not detect
 
@@ -209,7 +210,7 @@ same way" is kept true.
 ## Development
 
 ```sh
-npm ci
+npm ci && npm run build
 npm run lint && npm run typecheck && npm test   # TypeScript package
 npm run example                                 # provider side of the example
 

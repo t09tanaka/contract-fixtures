@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { readLedger, type LedgerAction } from "./ledger.js";
 import { KINDS, type Kind, type Side } from "./types.js";
-import { validateFixture } from "./validate.js";
+import { validateFixtureFile } from "./validate.js";
 
 export interface CheckProblem {
   /** `<kind>/<name>.json`, `.ledger/<side>.jsonl`, or `""` for the directory as a whole. */
@@ -24,14 +24,19 @@ export function requiredAction(side: Side, kind: Kind): LedgerAction {
   return kind === side ? "verified" : "read";
 }
 
+/** Whether a path is a file, following symbolic links (a dangling link is not). */
+function isFile(filePath: string): boolean {
+  return fs.statSync(filePath, { throwIfNoEntry: false })?.isFile() ?? false;
+}
+
 /** Names (file names without `.json`) of the fixtures of one kind, sorted. */
 export function listFixtureNames(dir: string, kind: Kind): string[] {
   const kindDir = path.join(dir, kind);
   if (!fs.existsSync(kindDir)) return [];
   return fs
-    .readdirSync(kindDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
-    .map((entry) => entry.name.slice(0, -".json".length))
+    .readdirSync(kindDir)
+    .filter((file) => file.endsWith(".json") && isFile(path.join(kindDir, file)))
+    .map((file) => file.slice(0, -".json".length))
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
@@ -50,8 +55,7 @@ export function checkContracts(options: { dir: string; side: Side }): CheckResul
     for (const name of listFixtureNames(dir, kind)) {
       fixtures++;
       const file = `${kind}/${name}.json`;
-      const text = fs.readFileSync(path.join(dir, kind, `${name}.json`), "utf8");
-      const { issues } = validateFixture(kind, name, text);
+      const { issues } = validateFixtureFile(kind, name, path.join(dir, kind, `${name}.json`));
       if (issues.length > 0) {
         for (const issue of issues) {
           problems.push({

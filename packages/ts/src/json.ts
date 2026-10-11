@@ -42,16 +42,31 @@ export function canonicalJson(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n";
 }
 
-/** What `value` looks like after it went over the wire as JSON (drops `undefined`). */
+/** Thrown by `jsonRoundTrip` for a value JSON has no form for. */
+export class NotJsonError extends Error {}
+
+/**
+ * What `value` looks like after it went over the wire as JSON (drops `undefined`).
+ * NaN and Infinity are refused: `JSON.stringify` would silently turn them into `null`.
+ */
 export function jsonRoundTrip(value: unknown): unknown {
-  const text = JSON.stringify(value);
+  const text = JSON.stringify(value, (_key, item: unknown) => {
+    if (typeof item === "number" && !Number.isFinite(item)) throw new NotJsonError();
+    return item;
+  });
   return text === undefined ? undefined : JSON.parse(text);
 }
 
 /** The largest integer every implementation represents exactly (2^53 - 1). */
 export const MAX_SAFE_INTEGER = 9007199254740991;
 
-/** Whether a number is an integer that not every implementation can represent exactly. */
-export function isUnsafeInteger(value: unknown): boolean {
-  return typeof value === "number" && Number.isInteger(value) && Math.abs(value) > MAX_SAFE_INTEGER;
+/** Whether a number is one that not every implementation can represent exactly. */
+export function isUnsafeNumber(value: unknown): boolean {
+  if (typeof value !== "number") return false;
+  return !Number.isFinite(value) || (Number.isInteger(value) && Math.abs(value) > MAX_SAFE_INTEGER);
+}
+
+/** Lower-cases A to Z only, so every implementation gives the same result. */
+export function asciiLowerCase(text: string): string {
+  return text.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
 }

@@ -758,6 +758,31 @@
       "update": true,
       "outcome": "invalid-observed",
       "written": null
+    },
+    {
+      "case": "only A to Z are lower-cased in header names, and a header may be called __proto__",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "X-CafÉ": "1",
+            "__proto__": "2",
+            "AUTHORIZATION": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"x-cafÉ\": \"1\",\n      \"__proto__\": \"2\",\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n"
     }
   ]
 }

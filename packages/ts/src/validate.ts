@@ -1,5 +1,7 @@
+import fs from "node:fs";
+
 import { volatileMode } from "./differences.js";
-import { isObject, isUnsafeInteger, jsonType, sortedKeys } from "./json.js";
+import { isObject, isUnsafeNumber, jsonType, sortedKeys } from "./json.js";
 import { FORMAT_VERSION, type Kind } from "./types.js";
 
 /** One way in which a file does not follow the fixture format. */
@@ -83,11 +85,11 @@ function validateRequest(issues: FormatIssue[], request: unknown): void {
       issues.push({ code: "headers", path: "request.headers", message: "must be an object" });
     } else {
       for (const key of sortedKeys(headers)) {
-        if (key !== key.toLowerCase()) {
+        if (key === "" || /[A-Z]/.test(key)) {
           issues.push({
             code: "headers",
             path: `request.headers.${key}`,
-            message: "header names must be lower case",
+            message: "header names must be non-empty and lower case",
           });
         } else if (typeof headers[key] !== "string") {
           issues.push({
@@ -171,11 +173,27 @@ function validateVolatile(
       issues.push({ code: "volatile", path, message: "** is allowed only as the last segment" });
       return;
     }
+    if (segments.some((s) => s.includes("*") && s !== "*" && s !== "**")) {
+      issues.push({
+        code: "volatile",
+        path,
+        message: "* is allowed only as a whole segment (* or **)",
+      });
+      return;
+    }
     if (!roots.includes(segments[0]!)) {
       issues.push({
         code: "volatile",
         path,
         message: `must start with ${roots.join(" or ")}`,
+      });
+      return;
+    }
+    if (segments.length < 2 || segments[1] === "*" || segments[1] === "**") {
+      issues.push({
+        code: "volatile",
+        path,
+        message: `must name a key of ${segments[0]} (a path that covers the whole ${segments[0]} would switch the comparison off)`,
       });
       return;
     }
@@ -189,14 +207,15 @@ function validateVolatile(
   });
 }
 
-/** Integers beyond 2^53 - 1 do not survive every JSON parser, so they are not allowed. */
+/** Whole numbers beyond 2^53 - 1 do not survive every JSON parser, so they are not allowed. */
 function validateNumbers(issues: FormatIssue[], root: unknown): void {
   const walk = (node: unknown, path: string): void => {
-    if (isUnsafeInteger(node)) {
+    if (isUnsafeNumber(node)) {
       issues.push({
         code: "number",
         path,
-        message: "is an integer beyond 2^53 - 1, which not every JSON parser keeps exact (use a string)",
+        message:
+          "is a whole number beyond 2^53 - 1 or not finite, which not every JSON parser keeps exact (use a string)",
       });
     } else if (Array.isArray(node)) {
       node.forEach((item, i) => walk(item, `${path}.${i}`));
@@ -279,7 +298,7 @@ export function validateFixture(
 ): { value: unknown; issues: FormatIssue[] } {
   let value: unknown;
   try {
-    value = JSON.parse(text);
+    value = JSON.parse(text.startsWith("\uFEFF") ? text.slice(1) : text);
   } catch {
     return {
       value: undefined,
@@ -287,6 +306,28 @@ export function validateFixture(
     };
   }
   return { value, issues: validateFixtureValue(kind, name, value) };
+}
+
+/**
+ * Reads a fixture file and checks it against format 1. The file must be UTF-8 (a byte order
+ * mark is ignored); anything else is reported as the `json` issue.
+ */
+export function validateFixtureFile(
+  kind: Kind,
+  name: string,
+  filePath: string,
+): { value: unknown; issues: FormatIssue[] } {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(fs.readFileSync(filePath));
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    return {
+      value: undefined,
+      issues: [{ code: "json", path: "(root)", message: "is not valid UTF-8" }],
+    };
+  }
+  return validateFixture(kind, name, text);
 }
 
 export function formatIssues(issues: readonly FormatIssue[]): string {

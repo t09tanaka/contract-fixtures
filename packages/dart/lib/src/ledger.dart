@@ -41,7 +41,9 @@ void resetLedger({required String dir, required ContractSide side}) {
   final badLines = <int>[];
   final file = ledgerFile(dir, side);
   if (!file.existsSync()) return (done: done, badLines: badLines);
-  final lines = file.readAsStringSync().split('\n');
+  // Lenient decoding: a damaged line is reported as a bad line, not as a crash.
+  final lines =
+      utf8.decode(file.readAsBytesSync(), allowMalformed: true).split('\n');
   for (var i = 0; i < lines.length; i++) {
     final line = lines[i];
     if (line.trim().isEmpty) continue;

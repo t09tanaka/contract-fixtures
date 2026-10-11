@@ -832,6 +832,10 @@
         {
           "code": "volatile-unmatched",
           "path": "volatile.5"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.8"
         }
       ]
     },
@@ -1164,6 +1168,175 @@
         }
       },
       "issues": []
+    },
+    {
+      "case": "a volatile path must name a key of the request or the response",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        },
+        "volatile": [
+          "response",
+          "request",
+          "response.*",
+          "response.**",
+          "response.*.error",
+          "response.body"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.1"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.2"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.3"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.4"
+        }
+      ]
+    },
+    {
+      "case": "a star is a whole segment or nothing",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "a*b": 1,
+            "***": 2
+          }
+        },
+        "volatile": [
+          "response.body.a*b",
+          "response.body.***"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.1"
+        }
+      ]
+    },
+    {
+      "case": "an empty header name; only A to Z count as upper case",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "": "x",
+            "x-É": "non-ASCII letters are left alone",
+            "x-σ": "y"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "headers",
+          "path": "request.headers."
+        }
+      ]
+    },
+    {
+      "case": "a number too large for a double",
+      "kind": "tables",
+      "name": "t",
+      "text": "{\"format\":1,\"name\":\"t\",\"description\":\"x\",\"rows\":[{\"n\":1e400,\"m\":-1e400,\"ok\":2.5e-308}]}",
+      "issues": [
+        {
+          "code": "number",
+          "path": "rows.0.m"
+        },
+        {
+          "code": "number",
+          "path": "rows.0.n"
+        }
+      ]
+    },
+    {
+      "case": "a byte order mark at the start is ignored",
+      "kind": "tables",
+      "name": "t",
+      "text": "﻿{\"format\":1,\"name\":\"t\",\"description\":\"x\",\"rows\":[{\"n\":1}]}",
+      "issues": []
+    },
+    {
+      "case": "a byte order mark anywhere else is not",
+      "kind": "tables",
+      "name": "t",
+      "text": "{﻿\"format\":1,\"name\":\"t\",\"description\":\"x\",\"rows\":[{\"n\":1}]}",
+      "issues": [
+        {
+          "code": "json",
+          "path": "(root)"
+        }
+      ]
     }
   ]
 }

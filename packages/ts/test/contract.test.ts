@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 import {
+  checkContracts,
   ContractCoverageError,
   ContractFixtureError,
   ContractUsageError,
@@ -38,6 +39,8 @@ describe("contractFixtures", () => {
 
   it("takes the directory and update mode from the environment", () => {
     const dir = tempDir();
+    const savedCi = process.env.CI;
+    delete process.env.CI;
     process.env.CONTRACT_FIXTURES_DIR = dir;
     process.env.CONTRACT_FIXTURES_UPDATE = "1";
     try {
@@ -47,7 +50,16 @@ describe("contractFixtures", () => {
       assert.equal(contractFixtures({ side: "provider", update: false }).update, false);
       process.env.CONTRACT_FIXTURES_UPDATE = "true";
       assert.equal(contractFixtures({ side: "provider" }).update, false);
+
+      // In CI the environment variable is refused; an explicit option is not.
+      process.env.CONTRACT_FIXTURES_UPDATE = "1";
+      process.env.CI = "true";
+      assert.throws(() => contractFixtures({ side: "provider" }), /is set in CI/);
+      assert.equal(contractFixtures({ side: "provider", update: true }).update, true);
+      assert.equal(contractFixtures({ side: "provider", update: false }).update, false);
     } finally {
+      if (savedCi === undefined) delete process.env.CI;
+      else process.env.CI = savedCi;
       delete process.env.CONTRACT_FIXTURES_DIR;
       delete process.env.CONTRACT_FIXTURES_UPDATE;
     }
@@ -172,6 +184,60 @@ describe("contractFixtures", () => {
       volatile: undefined,
     });
     assert.equal(ledgerLines(dir, "provider").length, 1);
+  });
+
+  it("refuses NaN and Infinity instead of recording null", () => {
+    const dir = tempDir();
+    const provider = contractFixtures({ side: "provider", dir, update: true });
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      assert.throws(
+        () =>
+          provider.verifyResponse({
+            ...observedResponse,
+            response: { status: 200, body: { total: bad } },
+          }),
+        (error: unknown) =>
+          error instanceof ContractFixtureError &&
+          /what this side produced is not a valid fixture/.test(error.message),
+      );
+    }
+    assert.equal(fs.existsSync(path.join(dir, "provider")), false);
+    assert.deepEqual(ledgerLines(dir, "provider"), []);
+  });
+
+  it("reports a file that is not UTF-8 as an invalid fixture", () => {
+    const dir = copyOfContracts();
+    fs.writeFileSync(
+      path.join(dir, "provider", "order.created.json"),
+      Buffer.concat([Buffer.from('{"description":"'), Buffer.from([0xff]), Buffer.from('"}')]),
+    );
+    const consumer = contractFixtures({ side: "consumer", dir });
+    assert.throws(() => consumer.readResponse("order.created"), /is not valid UTF-8/);
+    const problems = checkContracts({ dir, side: "consumer" }).problems;
+    assert.deepEqual(
+      problems.filter((p) => p.code === "invalid").map((p) => [p.file, p.message]),
+      [["provider/order.created.json", "invalid fixture: (root) is not valid UTF-8"]],
+    );
+  });
+
+  it("follows a symbolic link to a fixture and ignores a dangling one", (t) => {
+    const dir = copyOfContracts();
+    try {
+      fs.symlinkSync(
+        path.join(dir, "provider", "order.created.json"),
+        path.join(dir, "provider", "linked.json"),
+      );
+      fs.symlinkSync(path.join(dir, "nowhere.json"), path.join(dir, "provider", "dangling.json"));
+    } catch {
+      t.skip("symbolic links are not available here");
+      return;
+    }
+    const consumer = contractFixtures({ side: "consumer", dir });
+    assert.deepEqual(consumer.list("provider"), ["linked", "order.created", "order.out-of-stock"]);
+    const result = checkContracts({ dir, side: "consumer" });
+    assert.equal(result.fixtures, 5);
+    // The linked file says it is called order.created, so it is reported as invalid.
+    assert.ok(result.problems.some((p) => p.file === "provider/linked.json" && p.code === "invalid"));
   });
 
   it("resetLedger forgets one side only", () => {

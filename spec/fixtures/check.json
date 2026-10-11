@@ -277,6 +277,26 @@
           "code": "empty"
         }
       ]
+    },
+    {
+      "case": "a fixture that starts with a byte order mark is a fixture",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "tables/with-bom.json": "﻿{\"format\":1,\"name\":\"with-bom\",\"description\":\"x\",\"rows\":[{\"n\":1}]}"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "tables/with-bom.json",
+          "code": "unread"
+        }
+      ]
     }
   ]
 }
