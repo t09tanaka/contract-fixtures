@@ -282,7 +282,8 @@ contract.verifyRequest(
     method: options.method,
     path: options.uri.hasQuery ? '${options.uri.path}?${options.uri.query}' : options.uri.path,
     headers: {
-      for (final name in const ['authorization', 'content-type']) name: options.headers[name],
+      for (final name in const ['authorization', 'content-type'])
+        if (options.headers[name] != null) name: options.headers[name],
     },
     body: options.data,
   ),
