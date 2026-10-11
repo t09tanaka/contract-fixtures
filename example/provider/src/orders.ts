@@ -139,6 +139,8 @@ export function createApp(options: {
           status: "confirmed",
           total_minor: orderTotalMinor(product.unitPriceMinor, quantity, discountPercent),
           created_at: now().toISOString(),
+          // A date that is only there when a coupon was redeemed; null otherwise.
+          coupon_redeemed_at: discountPercent > 0 ? now().toISOString() : null,
         },
       };
     },

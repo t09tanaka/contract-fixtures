@@ -20,11 +20,14 @@ const order = (body: object, authorization: string = TOKEN) =>
  * it must keep, so that everything around it is still compared exactly.
  */
 const anOrderId = { path: "response.body.id", pattern: ORDER_ID };
+const A_TIME = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$";
 /** Wherever a `created_at` appears in the body, at any depth. */
-const anyCreatedAt = {
-  path: "response.body.**.created_at",
-  pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
-};
+const anyCreatedAt = { path: "response.body.**.created_at", pattern: A_TIME };
+/**
+ * A time in an order with a coupon, null in one without. The same entry serves both: with
+ * `nullable`, the value is a string of this shape or null, and nothing else.
+ */
+const aRedemptionTime = { path: "response.body.coupon_redeemed_at", pattern: A_TIME, nullable: true } as const;
 
 const scenarios: Scenario[] = [
   {
@@ -32,14 +35,14 @@ const scenarios: Scenario[] = [
     description: "An order is accepted",
     readers: ["app", "web"],
     call: order({ sku: "tea-100", quantity: 2 }),
-    volatile: [anOrderId, anyCreatedAt],
+    volatile: [anOrderId, anyCreatedAt, aRedemptionTime],
   },
   {
     name: "order.created-with-coupon",
     description: "An order with a valid coupon is accepted at the discounted total",
     readers: ["app"],
     call: order({ sku: "tin-300", quantity: 1, coupon: "SAVE10" }),
-    volatile: [anOrderId, anyCreatedAt],
+    volatile: [anOrderId, anyCreatedAt, aRedemptionTime],
   },
   {
     name: "order.out-of-stock",
