@@ -31,7 +31,7 @@ export function createServer(options: Parameters<typeof createApp>[0]): http.Ser
         try {
           body = JSON.parse(text);
         } catch {
-          send(res, { status: 400, body: { error: "invalid_json" } });
+          send(res, { status: 400, body: { error: "body_not_json" } });
           return;
         }
       }

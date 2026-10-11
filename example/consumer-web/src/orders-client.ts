@@ -16,7 +16,7 @@ export type ReceiptOutcome =
   | { kind: "failed" };
 
 export interface OrdersClientOptions {
-  /** For example `https://api.example.test`. */
+  /** For example `https://orders.example.test`. */
   baseUrl: string;
   /** The value of the `authorization` header. */
   authorization: string;
@@ -53,7 +53,7 @@ export function createOrdersClient(options: OrdersClientOptions) {
       return { kind: "failed" };
     },
 
-    async downloadReceipt(orderId: string): Promise<ReceiptOutcome> {
+    async loadReceipt(orderId: string): Promise<ReceiptOutcome> {
       const response = await call(`${options.baseUrl}/orders/${encodeURIComponent(orderId)}/receipt`, { headers });
       if (response.status === 401) return { kind: "sign-in-again" };
       const fileName = ATTACHMENT.exec(response.headers.get("content-disposition") ?? "")?.[1];

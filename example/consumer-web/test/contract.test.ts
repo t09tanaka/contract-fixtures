@@ -28,7 +28,7 @@ const contract = contractFixtures({ side: "consumer", dir: "../contracts-web" })
 function clientAnsweredBy(name: string) {
   const sent: ExchangeRequest[] = [];
   const client = createOrdersClient({
-    baseUrl: "https://api.example.test",
+    baseUrl: "https://orders.example.test",
     authorization: "Bearer token-of-the-web-test",
     fetch: async (input, init) => {
       sent.push(await requestFromFetch(input, init));
@@ -80,7 +80,7 @@ describe("provider fixtures: what the client makes of real responses", () => {
 
   for (const [name, expected] of Object.entries(receiptExpectations)) {
     it(name, async () => {
-      const outcome = await clientAnsweredBy(name).client.downloadReceipt("ord_demo1");
+      const outcome = await clientAnsweredBy(name).client.loadReceipt("ord_demo1");
 
       // The file name holds the id of the order the provider's test happened to place.
       const text =
@@ -111,7 +111,7 @@ describe("consumer fixtures: the requests the client really sends", () => {
 
   it("download-receipt.request", async () => {
     const { client, sent } = clientAnsweredBy("receipt.downloaded");
-    await client.downloadReceipt("ord_demo1");
+    await client.loadReceipt("ord_demo1");
 
     assert.equal(sent.length, 1);
     contract.verifyRequest({

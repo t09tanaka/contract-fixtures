@@ -152,7 +152,7 @@ where the two sides disagree. And the request the client really sends is never s
 function clientAnsweredBy(name: string) {
   const sent: ExchangeRequest[] = [];
   const client = createOrdersClient({
-    baseUrl: "https://api.example.test",
+    baseUrl: "https://orders.example.test",
     authorization: "Bearer token-of-the-web-test",
     fetch: async (input, init) => {
       sent.push(await requestFromFetch(input, init));
