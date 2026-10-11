@@ -132,6 +132,62 @@ over it, and call `assertCovers` with its keys. A new fixture then fails the rea
 somebody writes down what should happen for it, and a deleted fixture fails until its
 expectation is removed. Whether the expectation is meaningful remains the job of code review.
 
+With many fixtures, one table becomes unwieldy. Split it by the prefix of the names, and give
+each test its part: `assertCovers(kind, names, { prefix: "order." })` looks only at the
+fixtures that start with `order.`. One more test then lists the prefixes, so that the parts
+cannot leave a fixture out:
+
+```ts
+contract.assertPrefixesCover("provider", ["order.", "payment.", "receipt."]);
+```
+
+It fails for a fixture that starts with none of them, and for a prefix that no fixture starts
+with.
+
+### HTTP in tests
+
+The helpers take plain values (`{ method, path, headers, body }`, `{ status, headers, body }`),
+so they fit any HTTP library. Where the values come from in practice:
+
+- **A consumer that calls `fetch`** (TypeScript). Put a function in the place of `fetch` that
+  answers with the fixture and keeps the request, so the client's real code builds the request
+  and decodes the response:
+
+  ```ts
+  import { requestFromFetch, toFetchResponse } from "@t09tanaka/contract-fixtures";
+
+  const sent: ExchangeRequest[] = [];
+  const fakeFetch: typeof fetch = async (input, init) => {
+    sent.push(await requestFromFetch(input, init));
+    return toFetchResponse(contract.readResponse("order.created").response);
+  };
+  // ... run the client code with fakeFetch, assert what it made of the response, then:
+  contract.verifyRequest({ name: "create-order.request", description: "...", request: sent[0]! });
+  ```
+
+- **A provider tested through an HTTP test client** (TypeScript). `exchangeFromTestResponse`
+  reads the method, the path, the status and the body from the response object of the client,
+  and the headers a test names:
+
+  ```ts
+  const res = await client.post("/orders").set("authorization", token).send(body);
+  contract.verifyResponse({
+    name: "order.created",
+    description: "An order is accepted",
+    ...exchangeFromTestResponse(res, { requestHeaders: ["authorization"], request: { body } }),
+    secret: { "request.headers.authorization": "<token:customer-1>" },
+  });
+  ```
+
+- **A Dart client on `package:http` or dio.** The Dart package has no HTTP dependency; its
+  README shows the few lines that put a fixture behind a `MockClient` or an
+  `HttpClientAdapter`.
+
+These helpers record what a test hands them and nothing else, like the rest of the tool:
+response headers by name only, and real credentials replaced through `secret`. See the
+[TypeScript](./packages/ts/README.md#http-in-tests) and
+[Dart](./packages/dart/README.md#http-in-tests) READMEs.
+
 ### Values that change
 
 An id, a timestamp or an order number is new on every run. Such a value is stored as it really
@@ -278,10 +334,53 @@ dart test          # or: flutter test
 dart run contract_fixtures check --side consumer --dir ../contracts
 ```
 
+Run `check` after **all** tests of a side. It has no option to look at a part of the fixtures:
+a run of a part of the tests (a filter, one shard) leaves the rest `unverified` or `unread`.
+When the state of the ledger suggests a cause, the report ends with a hint:
+
+```
+contract-fixtures check (consumer side): 8 problem(s) in 11 fixture(s)
+  - provider/order.coupon-unknown.json: not read by the consumer side's tests (add a test that feeds it to the real code)
+  ...
+Hint: Only 3 of the 11 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.
+Run `contract-fixtures reset` and the consumer side's tests before this check.
+```
+
+Other hints are given when the ledger is missing or has no entries (did the tests run, and on
+this directory? is `--side` right, if the other side has a ledger?), when none of its entries
+is for a fixture of this directory, and when it names files that are gone (was it reset?). A hint is a guess; the problems and the exit code do not depend
+on it.
+
 `check` exits with `0` when there are no problems, `1` when a fixture is unverified, unread or
 malformed, and `2` for wrong usage. `CONTRACT_FIXTURES_UPDATE=1` is refused when the environment
 variable `CI` is set, because it would turn every difference into a pass. A CI job for one side
 should also be triggered by changes to the contracts directory.
+
+## Reading the fixtures side by side
+
+`summary` prints one line per fixture: the request, the status, and the keys at the top of the
+response body with their JSON types. It needs no `--side` and does not touch the ledger. Both
+packages print the same text. For the example in this repository:
+
+```
+$ npx contract-fixtures summary --dir example/contracts
+FIXTURE                                    REQUEST                            STATUS  RESPONSE BODY
+provider/order.coupon-unknown              POST /orders                       422     {error: string}
+provider/order.created                     POST /orders                       201     {created_at: string, customer: string, id: string, status: string, total_minor: number}
+provider/order.created-with-coupon         POST /orders                       201     {created_at: string, customer: string, id: string, status: string, total_minor: number}
+provider/order.invalid-quantity            POST /orders                       422     {error: string, field: string}
+provider/order.out-of-stock                POST /orders                       409     {available: number, error: string}
+provider/order.token-invalid               POST /orders                       401     {error: string}
+provider/payment.started                   POST /payments                     201     {confirm_key: string, id: string, order_id: string, status: string}
+provider/receipt.downloaded                GET /orders/ord_mv3svam01/receipt  200     {lines: array, order_id: string, total_minor: number}
+consumer/create-order.request              POST /orders                       -       -
+consumer/create-order.with-coupon.request  POST /orders                       -       -
+tables/order-total                         -                                  -       5 row(s)
+```
+
+A fixture is one exchange, so a difference between exchanges is easy to miss in review: an
+error that is `{error: string}` on one route and `{code: string, message: string}` on another
+shows here as two lines that do not line up.
 
 ## What it does not detect
 
@@ -320,7 +419,8 @@ packages/dart/   contract_fixtures
 example/         a TypeScript API and a Dart client that share example/contracts
 ```
 
-`spec/fixtures/` holds language-independent cases (comparison, validation, file output, check).
+`spec/fixtures/` holds language-independent cases (comparison, validation, file output, check
+and its hints, summary, coverage).
 Both packages run them in their own tests; that is how "the two packages treat a fixture the
 same way" is kept true.
 

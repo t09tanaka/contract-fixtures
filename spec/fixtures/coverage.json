@@ -1,0 +1,182 @@
+{
+  "description": "Cases for assertCovers and assertPrefixesCover. Create an empty file provider/<name>.json for every entry of `names` (content does not matter: only the names are looked at), then call `call` for the kind provider: `covers` with `expected` (and `prefix`, if given), or `prefixes` with `expected` as the prefixes. `message` is the message of the coverage error, word for word, or null when the call must succeed; `withoutExpectation` and `withoutFixture` are the two lists of the error.",
+  "cases": [
+    {
+      "case": "covers: the expectations name exactly the fixtures",
+      "names": [
+        "order.created",
+        "order.out-of-stock"
+      ],
+      "call": "covers",
+      "expected": [
+        "order.out-of-stock",
+        "order.created",
+        "order.created"
+      ],
+      "message": null
+    },
+    {
+      "case": "covers: a fixture without an expectation, and an expectation without a fixture",
+      "names": [
+        "order.created",
+        "order.out-of-stock",
+        "order.token-invalid"
+      ],
+      "call": "covers",
+      "expected": [
+        "order.created",
+        "order.cancelled"
+      ],
+      "message": "the expectations of this test do not cover the fixtures in provider/:\n  provider/order.out-of-stock.json: no expectation in this test\n  provider/order.token-invalid.json: no expectation in this test\n  order.cancelled: expected here, but provider/order.cancelled.json does not exist",
+      "withoutExpectation": [
+        "order.out-of-stock",
+        "order.token-invalid"
+      ],
+      "withoutFixture": [
+        "order.cancelled"
+      ]
+    },
+    {
+      "case": "covers: a prefix narrows both sides",
+      "names": [
+        "order.created",
+        "payment.started",
+        "receipt.downloaded"
+      ],
+      "call": "covers",
+      "prefix": "order.",
+      "expected": [
+        "order.created"
+      ],
+      "message": null
+    },
+    {
+      "case": "covers: with a prefix, a fixture outside it needs no expectation, and one inside does",
+      "names": [
+        "order.created",
+        "order.out-of-stock",
+        "payment.started"
+      ],
+      "call": "covers",
+      "prefix": "order.",
+      "expected": [
+        "order.created"
+      ],
+      "message": "the expectations of this test do not cover the fixtures in provider/order.*:\n  provider/order.out-of-stock.json: no expectation in this test",
+      "withoutExpectation": [
+        "order.out-of-stock"
+      ],
+      "withoutFixture": []
+    },
+    {
+      "case": "covers: with a prefix, an expectation that does not start with it is a mistake",
+      "names": [
+        "order.created",
+        "payment.started"
+      ],
+      "call": "covers",
+      "prefix": "order.",
+      "expected": [
+        "order.created",
+        "payment.started",
+        "refund.created"
+      ],
+      "message": "the expectations of this test do not cover the fixtures in provider/order.*:\n  payment.started: expected here, but it does not start with order.\n  refund.created: expected here, but it does not start with order.",
+      "withoutExpectation": [],
+      "withoutFixture": [
+        "payment.started",
+        "refund.created"
+      ]
+    },
+    {
+      "case": "covers: no fixtures and no expectations",
+      "names": [],
+      "call": "covers",
+      "expected": [],
+      "message": null
+    },
+    {
+      "case": "prefixes: every fixture starts with one of them",
+      "names": [
+        "order.created",
+        "order.out-of-stock",
+        "payment.started",
+        "receipt.downloaded"
+      ],
+      "call": "prefixes",
+      "expected": [
+        "receipt.",
+        "order.",
+        "payment.",
+        "order."
+      ],
+      "message": null
+    },
+    {
+      "case": "prefixes: a fixture that no prefix covers, and a prefix without a fixture",
+      "names": [
+        "order.created",
+        "refund.created",
+        "session.created"
+      ],
+      "call": "prefixes",
+      "expected": [
+        "payment.",
+        "order."
+      ],
+      "message": "the prefixes of this test do not cover the fixtures in provider/:\n  provider/refund.created.json: starts with none of the prefixes\n  provider/session.created.json: starts with none of the prefixes\n  payment.*: listed here, but no fixture in provider/ starts with it",
+      "withoutExpectation": [
+        "refund.created",
+        "session.created"
+      ],
+      "withoutFixture": [
+        "payment."
+      ]
+    },
+    {
+      "case": "prefixes: one prefix inside another is fine",
+      "names": [
+        "order.created",
+        "order.created-with-coupon"
+      ],
+      "call": "prefixes",
+      "expected": [
+        "order.",
+        "order.created"
+      ],
+      "message": null
+    },
+    {
+      "case": "prefixes: the empty prefix covers everything",
+      "names": [
+        "order.created",
+        "payment.started"
+      ],
+      "call": "prefixes",
+      "expected": [
+        ""
+      ],
+      "message": null
+    },
+    {
+      "case": "prefixes: no fixtures and no prefixes",
+      "names": [],
+      "call": "prefixes",
+      "expected": [],
+      "message": null
+    },
+    {
+      "case": "prefixes: no fixtures, so every prefix is without one",
+      "names": [],
+      "call": "prefixes",
+      "expected": [
+        "order."
+      ],
+      "message": "the prefixes of this test do not cover the fixtures in provider/:\n  order.*: listed here, but no fixture in provider/ starts with it",
+      "withoutExpectation": [],
+      "withoutFixture": [
+        "order."
+      ]
+    }
+  ]
+}

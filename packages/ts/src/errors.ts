@@ -32,9 +32,9 @@ export class ContractCoverageError extends Error {
   override name = "ContractCoverageError";
   constructor(
     message: string,
-    /** Fixtures on disk that the test has no expectation for. */
+    /** Fixtures on disk that the test has no expectation for, or that no prefix covers. */
     readonly withoutExpectation: readonly string[],
-    /** Expectations in the test that have no fixture on disk. */
+    /** Expectations (or prefixes) in the test that have no fixture on disk. */
     readonly withoutFixture: readonly string[],
   ) {
     super(message);

@@ -31,22 +31,32 @@ void resetLedger({required String dir, required ContractSide side}) {
   if (file.existsSync()) file.deleteSync();
 }
 
-/// The `action:file` keys of one side's ledger, and the line numbers that could not be
-/// parsed.
-({Set<String> done, List<int> badLines}) readLedger(
+/// A line that holds nothing but spaces, tabs and carriage returns (the same in every
+/// implementation).
+final RegExp _blank = RegExp(r'^[ \t\r]*$');
+
+/// The `action:file` keys of one side's ledger, the files its entries name (one per
+/// entry), the line numbers that could not be parsed, and whether the file exists at all.
+({Set<String> done, List<String> files, List<int> badLines, bool exists})
+    readLedger(
   String dir,
   ContractSide side,
 ) {
   final done = <String>{};
+  final files = <String>[];
   final badLines = <int>[];
   final file = ledgerFile(dir, side);
-  if (!file.existsSync()) return (done: done, badLines: badLines);
-  // Lenient decoding: a damaged line is reported as a bad line, not as a crash.
-  final lines =
-      utf8.decode(file.readAsBytesSync(), allowMalformed: true).split('\n');
+  if (!file.existsSync()) {
+    return (done: done, files: files, badLines: badLines, exists: false);
+  }
+  // Lenient decoding: a damaged line is reported as a bad line, not as a crash. A byte
+  // order mark is not a part of the first line.
+  var text = utf8.decode(file.readAsBytesSync(), allowMalformed: true);
+  if (text.startsWith('\uFEFF')) text = text.substring(1);
+  final lines = text.split('\n');
   for (var i = 0; i < lines.length; i++) {
     final line = lines[i];
-    if (line.trim().isEmpty) continue;
+    if (_blank.hasMatch(line)) continue;
     try {
       final entry = jsonDecode(line) as Object?;
       if (entry is Map<String, dynamic> &&
@@ -54,6 +64,7 @@ void resetLedger({required String dir, required ContractSide side}) {
           (entry['action'] == 'verified' || entry['action'] == 'read') &&
           entry['file'] is String) {
         done.add('${entry['action']}:${entry['file']}');
+        files.add(entry['file'] as String);
         continue;
       }
     } on FormatException {
@@ -61,5 +72,5 @@ void resetLedger({required String dir, required ContractSide side}) {
     }
     badLines.add(i + 1);
   }
-  return (done: done, badLines: badLines);
+  return (done: done, files: files, badLines: badLines, exists: true);
 }

@@ -20,6 +20,8 @@ export 'src/json.dart' show canonicalJson, compactJson;
 export 'src/ledger.dart' show LedgerAction, resetLedger;
 export 'src/placeholders.dart'
     show Placeholder, parsePlaceholder, resolvePlaceholders;
+export 'src/summary.dart'
+    show FixtureSummary, formatSummary, summarizeContracts;
 export 'src/types.dart';
 export 'src/volatile.dart' show VolatilePattern;
 export 'src/validate.dart'

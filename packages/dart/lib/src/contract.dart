@@ -97,10 +97,42 @@ class ContractFixtures {
         for (final name in withoutExpectation)
           '  ${kind.name}/$name.json: no expectation in this test',
         for (final name in withoutFixture)
-          '  $name: expected here, but ${kind.name}/$name.json does not exist',
+          name.startsWith(prefix)
+              ? '  $name: expected here, but ${kind.name}/$name.json does not exist'
+              : '  $name: expected here, but it does not start with $prefix',
       ].join('\n'),
       withoutExpectation,
       withoutFixture,
+    );
+  }
+
+  /// Fails unless every fixture of [kind] starts with one of [prefixes], and every prefix
+  /// has a fixture.
+  ///
+  /// Tests that call [assertCovers] with a prefix each cover a part of the fixtures; this
+  /// is the one test that shows the parts leave nothing out.
+  void assertPrefixesCover(FixtureKind kind, Iterable<String> prefixes) {
+    final onDisk = list(kind);
+    final wanted = prefixes.toSet().toList()..sort();
+    final outside = [
+      for (final name in onDisk)
+        if (!wanted.any(name.startsWith)) name,
+    ];
+    final unused = [
+      for (final prefix in wanted)
+        if (!onDisk.any((name) => name.startsWith(prefix))) prefix,
+    ];
+    if (outside.isEmpty && unused.isEmpty) return;
+    throw ContractCoverageException(
+      [
+        'the prefixes of this test do not cover the fixtures in ${kind.name}/:',
+        for (final name in outside)
+          '  ${kind.name}/$name.json: starts with none of the prefixes',
+        for (final prefix in unused)
+          '  $prefix*: listed here, but no fixture in ${kind.name}/ starts with it',
+      ].join('\n'),
+      outside,
+      unused,
     );
   }
 

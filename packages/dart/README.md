@@ -131,7 +131,8 @@ final headers = resolvePlaceholders(recorded.headers ?? {}, (kind, name) => secr
 | `readRequest(name)` | provider | Reads and validates `consumer/<name>.json`; returns a `ConsumerFixture`. |
 | `readTable(name)` | both | Reads and validates `tables/<name>.json`; returns a `TableFixture`. |
 | `list(kind, prefix:)` | both | Sorted fixture names of a `FixtureKind`. |
-| `assertCovers(kind, names, prefix:)` | both | Throws `ContractCoverageException` unless `names` are exactly the fixtures on disk. |
+| `assertCovers(kind, names, prefix:)` | both | Throws `ContractCoverageException` unless `names` are exactly the fixtures on disk (those that start with `prefix`). |
+| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageException` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. |
 
 Calling a method from the wrong side throws `ContractUsageException`. A missing or malformed
 fixture throws `ContractFixtureException`.
@@ -182,18 +183,155 @@ fixture throws `ContractFixtureException`.
 
 Top-level functions: `resolvePlaceholders`, `parsePlaceholder`, `differences`,
 `formatDifferences`, `validateFixture`, `validateFixtureValue`, `checkContracts`,
-`formatCheckResult`, `resetLedger`, `canonicalJson`, `compactJson`, `runCli`.
+`formatCheckResult` (the result has `problems` and `hints`), `summarizeContracts`,
+`formatSummary`, `resetLedger`, `canonicalJson`, `compactJson`, `runCli`.
+
+## HTTP in tests
+
+The package does not depend on an HTTP library. A fixture reaches the client's real code
+through the test double the library already has; the lines below are all it takes. In both
+cases the client builds the request and decodes the response itself, which is the point: a
+test that replaces the whole API client with a mock checks neither.
+
+### `package:http`
+
+```dart
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+final sent = <http.Request>[];
+final client = MockClient((request) async {
+  sent.add(request);
+  final response = contract.readResponse('order.created').response;
+  return http.Response.bytes(
+    response.body == null ? const [] : utf8.encode(jsonEncode(response.body)),
+    response.status,
+    headers: {
+      for (final name in response.headers?.keys ?? const <String>[])
+        name: response.headerValues(name).join(', '),
+    },
+  );
+});
+
+// ... run the client code with `client`, assert what it made of the response, then:
+final request = sent.single;
+contract.verifyRequest(
+  name: 'create-order.request',
+  description: 'The request the client sends to place an order',
+  request: ExchangeRequest(
+    method: request.method,
+    path: request.url.hasQuery
+        ? '${request.url.path}?${request.url.query}'
+        : request.url.path,
+    headers: request.headers,
+    body: request.body.isEmpty ? null : jsonDecode(request.body),
+  ),
+  secret: {'request.headers.authorization': '<token:customer-1>'},
+);
+```
+
+`http.Response.bytes` with UTF-8, not `http.Response(text, ...)`: the latter encodes as
+Latin-1 unless a `content-type` header says otherwise. `package:http` has one value per header
+name, so the values of a repeated header are joined, as it does itself for a real response;
+several `set-cookie` values cannot be taken apart again after that.
+
+### dio
+
+```dart
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+
+class FixtureAdapter implements HttpClientAdapter {
+  FixtureAdapter(this.response);
+
+  final ExchangeResponse response;
+  final sent = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    sent.add(options);
+    return ResponseBody.fromBytes(
+      response.body == null ? const [] : utf8.encode(jsonEncode(response.body)),
+      response.status,
+      headers: {
+        for (final name in response.headers?.keys ?? const <String>[])
+          name: response.headerValues(name),
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+final adapter = FixtureAdapter(contract.readResponse('order.created').response);
+final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'))..httpClientAdapter = adapter;
+
+// ... run the client code with `dio`, then:
+final options = adapter.sent.single;
+contract.verifyRequest(
+  name: 'create-order.request',
+  description: 'The request the client sends to place an order',
+  request: ExchangeRequest(
+    method: options.method,
+    path: options.uri.hasQuery ? '${options.uri.path}?${options.uri.query}' : options.uri.path,
+    headers: {
+      for (final name in const ['authorization', 'content-type'])
+        if (options.headers[name] != null) name: options.headers[name],
+    },
+    body: options.data,
+  ),
+  secret: {'request.headers.authorization': '<token:customer-1>'},
+);
+```
+
+dio decodes a body as JSON only when the response has a JSON `content-type`. If the client
+relies on that, the header is part of the agreement: record it in the provider's test, and it
+arrives here from the fixture. The request headers of dio include `content-length`; name the
+ones that matter, as above.
+
+### Numbers
+
+`jsonDecode` gives an `int` for `10` and a `double` for `10.5`, so `json['amount'] as double`
+works for one response and throws for the next. An API that sends amounts or ratios will send
+a whole number sooner or later. Read numbers as `num`:
+`(json['amount'] as num).toDouble()`. A fixture with a whole number in such a field is a good
+one to have.
 
 ## Command line
 
 ```sh
 dart run contract_fixtures reset --side consumer --dir ../contracts   # before the tests
 dart run contract_fixtures check --side consumer --dir ../contracts   # after the tests
+dart run contract_fixtures summary --dir ../contracts                 # any time
 ```
 
 `check` exits with `0` when every fixture follows the format and was verified or read by this
 side's tests since the reset, `1` otherwise, and `2` for wrong usage. `--dir` defaults to
-`CONTRACT_FIXTURES_DIR`.
+`CONTRACT_FIXTURES_DIR`. Run it after all tests of the side: it always looks at every fixture.
+When the ledger suggests why fixtures were not touched (it is missing or empty, only the other
+side has one, a part of the tests ran, it names files that are gone), the report ends with a
+line that starts with `Hint:`.
+
+`summary` prints one line per fixture, to compare them side by side: the request, the status,
+and the keys of the response body with their types. It takes no `--side` and does not touch
+the ledger.
+
+```
+FIXTURE                        REQUEST       STATUS  RESPONSE BODY
+provider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}
+provider/order.out-of-stock    POST /orders  409     {error: string}
+consumer/create-order.request  POST /orders  -       -
+tables/order-total             -             -       2 row(s)
+```
 
 ## License
 

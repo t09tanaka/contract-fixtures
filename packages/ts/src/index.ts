@@ -12,10 +12,14 @@ export {
   ContractMismatchError,
   ContractUsageError,
 } from "./errors.js";
+export { exchangeFromTestResponse, requestFromFetch, toFetchResponse } from "./http.js";
+export type { TestResponseOptions } from "./http.js";
 export { canonicalJson, compactJson } from "./json.js";
 export { resetLedger } from "./ledger.js";
 export type { LedgerAction, LedgerEntry } from "./ledger.js";
 export { parsePlaceholder, resolvePlaceholders } from "./placeholders.js";
+export { formatSummary, summarizeContracts } from "./summary.js";
+export type { FixtureSummary } from "./summary.js";
 export { FORMAT_VERSION } from "./types.js";
 export type {
   ConsumerFixture,

@@ -52,6 +52,15 @@ const receiptExpectations = <String, String>{
 };
 
 void main() {
+  // Each table above covers the fixtures of one prefix. This test shows that the prefixes
+  // leave no provider fixture out: one that starts with something else fails here.
+  test('every provider fixture belongs to one of the tables', () {
+    contract.assertPrefixesCover(
+      FixtureKind.provider,
+      ['order.', 'payment.', 'receipt.'],
+    );
+  });
+
   group('provider fixtures: a response whose headers matter', () {
     test('every receipt fixture has an expectation here', () {
       contract.assertCovers(

@@ -11,12 +11,15 @@ import {
   canonicalJson,
   checkContracts,
   compactJson,
+  ContractCoverageError,
   ContractFixtureError,
   ContractMismatchError,
   ContractUsageError,
   contractFixtures,
   differences,
+  formatSummary,
   parsePlaceholder,
+  summarizeContracts,
   validateFixture,
   validateFixtureValue,
   type Kind,
@@ -136,18 +139,20 @@ describe("spec/fixtures/check.json", () => {
     case: string;
     side: Side;
     ledger: string[];
+    noLedger?: boolean;
     otherLedger?: string[];
     files?: Record<string, string>;
     empty?: boolean;
     fixtures: number;
     problems: { file: string; code: string }[];
+    hints: string[];
   }
   for (const c of loadCases<Case>("check.json")) {
     it(c.case, () => {
       const dir = c.empty ? tempDir() : copyOfContracts();
       for (const [file, text] of Object.entries(c.files ?? {})) writeFile(dir, file, text);
       const other = c.side === "provider" ? "consumer" : "provider";
-      writeFile(dir, `.ledger/${c.side}.jsonl`, c.ledger.map((l) => l + "\n").join(""));
+      if (!c.noLedger) writeFile(dir, `.ledger/${c.side}.jsonl`, c.ledger.map((l) => l + "\n").join(""));
       if (c.otherLedger) {
         writeFile(dir, `.ledger/${other}.jsonl`, c.otherLedger.map((l) => l + "\n").join(""));
       }
@@ -159,6 +164,66 @@ describe("spec/fixtures/check.json", () => {
         result.problems.map((p) => ({ file: p.file, code: p.code })),
         c.problems,
       );
+      assert.deepEqual(result.hints, c.hints);
+    });
+  }
+});
+
+describe("spec/fixtures/summary.json", () => {
+  interface Case {
+    case: string;
+    files?: Record<string, string>;
+    empty?: boolean;
+    rows: number;
+    text: string;
+  }
+  for (const c of loadCases<Case>("summary.json")) {
+    it(c.case, () => {
+      const dir = c.empty ? tempDir() : copyOfContracts();
+      for (const [file, text] of Object.entries(c.files ?? {})) writeFile(dir, file, text);
+
+      const rows = summarizeContracts({ dir });
+
+      assert.equal(rows.length, c.rows);
+      assert.equal(formatSummary(rows), c.text);
+      assert.deepEqual(everyFileIn(dir).filter((file) => file.includes(".ledger")), []);
+    });
+  }
+});
+
+describe("spec/fixtures/coverage.json", () => {
+  interface Case {
+    case: string;
+    names: string[];
+    call: "covers" | "prefixes";
+    expected: string[];
+    prefix?: string;
+    message: string | null;
+    withoutExpectation?: string[];
+    withoutFixture?: string[];
+  }
+  for (const c of loadCases<Case>("coverage.json")) {
+    it(c.case, () => {
+      const dir = tempDir();
+      for (const name of c.names) writeFile(dir, `provider/${name}.json`, "");
+      const contract = contractFixtures({ side: "consumer", dir });
+
+      let error: unknown = null;
+      try {
+        if (c.call === "prefixes") contract.assertPrefixesCover("provider", c.expected);
+        else contract.assertCovers("provider", c.expected, c.prefix === undefined ? {} : { prefix: c.prefix });
+      } catch (caught) {
+        error = caught;
+      }
+
+      if (c.message === null) {
+        assert.equal(error, null);
+        return;
+      }
+      assert.ok(error instanceof ContractCoverageError);
+      assert.equal(error.message, c.message);
+      assert.deepEqual(error.withoutExpectation, c.withoutExpectation);
+      assert.deepEqual(error.withoutFixture, c.withoutFixture);
     });
   }
 });

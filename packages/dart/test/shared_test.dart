@@ -120,7 +120,9 @@ void main() {
         final other = side == ContractSide.provider ? 'consumer' : 'provider';
         String lines(Object? list) =>
             (list as List<dynamic>).map((l) => '$l\n').join();
-        writeFile(dir, '.ledger/${side.name}.jsonl', lines(c['ledger']));
+        if (c['noLedger'] != true) {
+          writeFile(dir, '.ledger/${side.name}.jsonl', lines(c['ledger']));
+        }
         if (c.containsKey('otherLedger')) {
           writeFile(dir, '.ledger/$other.jsonl', lines(c['otherLedger']));
         }
@@ -134,6 +136,62 @@ void main() {
           ],
           c['problems'],
         );
+        expect(result.hints, c['hints']);
+      });
+    }
+  });
+
+  group('spec/fixtures/summary.json', () {
+    for (final c in loadCases('summary.json')) {
+      test(c['case'], () {
+        final dir = c['empty'] == true ? tempDir() : copyOfContracts();
+        final files = c['files'] as Map<String, dynamic>? ?? const {};
+        for (final entry in files.entries) {
+          writeFile(dir, entry.key, entry.value as String);
+        }
+
+        final rows = summarizeContracts(dir: dir);
+
+        expect(rows, hasLength(c['rows'] as int));
+        expect(formatSummary(rows), c['text']);
+        expect(Directory('$dir/.ledger').existsSync(), isFalse);
+      });
+    }
+  });
+
+  group('spec/fixtures/coverage.json', () {
+    for (final c in loadCases('coverage.json')) {
+      test(c['case'], () {
+        final dir = tempDir();
+        for (final name in c['names'] as List<dynamic>) {
+          writeFile(dir, 'provider/$name.json', '');
+        }
+        final contract =
+            ContractFixtures(side: ContractSide.consumer, dir: dir);
+        final expected = (c['expected'] as List<dynamic>).cast<String>();
+
+        ContractCoverageException? error;
+        try {
+          if (c['call'] == 'prefixes') {
+            contract.assertPrefixesCover(FixtureKind.provider, expected);
+          } else {
+            contract.assertCovers(
+              FixtureKind.provider,
+              expected,
+              prefix: c['prefix'] as String? ?? '',
+            );
+          }
+        } on ContractCoverageException catch (caught) {
+          error = caught;
+        }
+
+        if (c['message'] == null) {
+          expect(error, isNull);
+          return;
+        }
+        expect(error?.message, c['message']);
+        expect(error?.withoutExpectation, c['withoutExpectation']);
+        expect(error?.withoutFixture, c['withoutFixture']);
       });
     }
   });

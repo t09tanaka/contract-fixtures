@@ -559,3 +559,11 @@ describe("volatile entries with a pattern", () => {
     assert.equal(pattern.test("a".repeat(300)), true);
   });
 });
+
+describe("a string in the place of a list of names", () => {
+  it("is refused by assertCovers and assertPrefixesCover", () => {
+    const contract = contractFixtures({ side: "consumer", dir: copyOfContracts() });
+    assert.throws(() => contract.assertPrefixesCover("provider", "order."), /takes a list of names, not one string/);
+    assert.throws(() => contract.assertCovers("provider", "order.created"), /takes a list of names, not one string/);
+  });
+});

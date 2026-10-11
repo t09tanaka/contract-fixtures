@@ -17,13 +17,22 @@ class CheckProblem {
 }
 
 class CheckResult {
-  const CheckResult(this.side, this.fixtures, this.problems);
+  const CheckResult(
+    this.side,
+    this.fixtures,
+    this.problems, [
+    this.hints = const [],
+  ]);
 
   final ContractSide side;
 
   /// Number of fixture files found.
   final int fixtures;
   final List<CheckProblem> problems;
+
+  /// What the state of the ledger suggests about the cause of `unverified` and `unread`
+  /// problems. Guesses, worded as such; they never change [problems].
+  final List<String> hints;
 }
 
 /// What one side has to do with each kind of fixture.
@@ -50,12 +59,16 @@ List<String> listFixtureNames(String dir, FixtureKind kind) {
 CheckResult checkContracts({required String dir, required ContractSide side}) {
   final problems = <CheckProblem>[];
   final ledger = readLedger(dir, side);
+  final onDisk = <String>{};
   var fixtures = 0;
+  var asked = 0;
+  var missing = 0;
 
   for (final kind in FixtureKind.values) {
     for (final name in listFixtureNames(dir, kind)) {
       fixtures++;
       final file = '${kind.name}/$name.json';
+      onDisk.add(file);
       final issues = validateFixtureFile(
         kind,
         name,
@@ -74,7 +87,9 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
         continue;
       }
       final action = requiredAction(side, kind);
+      asked++;
       if (!ledger.done.contains('${action.name}:$file')) {
+        missing++;
         problems.add(
           action == LedgerAction.verified
               ? CheckProblem(
@@ -111,7 +126,74 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
       ),
     );
   }
-  return CheckResult(side, fixtures, problems);
+  final other = side == ContractSide.provider
+      ? ContractSide.consumer
+      : ContractSide.provider;
+  final hints = _checkHints(
+    side: side.name,
+    other: other.name,
+    asked: asked,
+    missing: missing,
+    ledgerExists: ledger.exists,
+    lines: ledger.files.length,
+    otherLines: missing > 0 ? readLedger(dir, other).files.length : 0,
+    gone: ledger.files.toSet().difference(onDisk).length,
+  );
+  return CheckResult(side, fixtures, problems, hints);
+}
+
+/// Hints for a check with `unverified` or `unread` problems, from what the ledger looks
+/// like. At most two. The wording is pinned by spec/fixtures/check.json for every
+/// implementation.
+///
+/// [asked] counts the fixtures that follow the format (each needs one verify or read of
+/// this side), [missing] those of them that have none, [lines] and [otherLines] the entries
+/// in this side's ledger and in the other side's, and [gone] the files this side's ledger
+/// names that are not in the directory.
+List<String> _checkHints({
+  required String side,
+  required String other,
+  required int asked,
+  required int missing,
+  required bool ledgerExists,
+  required int lines,
+  required int otherLines,
+  required int gone,
+}) {
+  if (missing == 0) return const [];
+  final hints = <String>[];
+  final ledger = '.ledger/$side.jsonl';
+  if (lines == 0) {
+    final what =
+        ledgerExists ? '$ledger has no entries' : '$ledger does not exist';
+    hints.add(
+      otherLines > 0
+          ? '$what, but .ledger/$other.jsonl has some. '
+              "Did the $side side's tests run, and is $side the side to check?"
+          : "$what. Did the $side side's tests run, "
+              'and do they use this contracts directory?',
+    );
+  } else if (missing == asked) {
+    hints.add(
+      "$ledger has $lines entr${lines == 1 ? 'y' : 'ies'}, "
+      'but none that this check asks for. '
+      "Did the $side side's tests run since the fixtures changed?",
+    );
+  } else if (missing * 2 > asked) {
+    hints.add(
+      'Only ${asked - missing} of the $asked fixtures that follow the format '
+      'were verified or read. '
+      'If a part of the tests ran (a filter, one shard of several), run all of them, '
+      'or join the ledgers of all shards, before this check.',
+    );
+  }
+  if (gone > 0) {
+    hints.add(
+      '$ledger names $gone file(s) that are not in this directory. '
+      'It may be left from an earlier run: run the reset before the tests.',
+    );
+  }
+  return hints;
 }
 
 /// The report the `check` command prints.
@@ -124,6 +206,7 @@ String formatCheckResult(CheckResult result) {
     '$head: ${result.problems.length} problem(s) in ${result.fixtures} fixture(s)',
     for (final p in result.problems)
       '  - ${p.file.isEmpty ? '' : '${p.file}: '}${p.message}',
+    for (final hint in result.hints) 'Hint: $hint',
     "Run `contract_fixtures reset` and the ${result.side.name} side's tests before this check.",
   ].join('\n');
 }

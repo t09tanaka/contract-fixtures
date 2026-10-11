@@ -1,0 +1,31 @@
+{
+  "description": "Cases for the summary. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, and summarize the directory. `text` is what the summary command prints, character for character: a header and one line per fixture, the first three columns padded with spaces to the longest cell (in UTF-16 code units), columns separated by two spaces. `rows` is the number of fixtures.",
+  "cases": [
+    {
+      "case": "the shared contracts",
+      "rows": 4,
+      "text": "FIXTURE                        REQUEST       STATUS  RESPONSE BODY\nprovider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders  409     {error: string}\nconsumer/create-order.request  POST /orders  -       -\ntables/order-total             -             -       2 row(s)"
+    },
+    {
+      "case": "bodies of every form, a fixture that does not follow the format, and keys that need quotes",
+      "files": {
+        "provider/order.coupon-unknown.json": "{\n  \"format\": 1,\n  \"name\": \"order.coupon-unknown\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 1,\n      \"coupon\": \"NOPE\"\n    }\n  },\n  \"response\": {\n    \"status\": 422,\n    \"body\": {\n      \"code\": \"coupon_unknown\",\n      \"message\": \"The coupon does not exist\"\n    }\n  }\n}\n",
+        "provider/order.list.json": "{\n  \"format\": 1,\n  \"name\": \"order.list\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders?limit=2\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": [\n      {\n        \"id\": \"ord_81f3\"\n      },\n      {\n        \"id\": \"ord_81f4\"\n      }\n    ]\n  }\n}\n",
+        "provider/order.cancelled.json": "{\n  \"format\": 1,\n  \"name\": \"order.cancelled\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"DELETE\",\n    \"path\": \"/orders/ord_81f3\"\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+        "provider/order.count.json": "{\n  \"format\": 1,\n  \"name\": \"order.count\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/count\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": 3\n  }\n}\n",
+        "provider/order.empty.json": "{\n  \"format\": 1,\n  \"name\": \"order.empty\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/notes\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {}\n  }\n}\n",
+        "provider/order.keys.json": "{\n  \"format\": 1,\n  \"name\": \"order.keys\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/orders/ord_81f3/meta\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"ok\": false,\n      \"a b\": null,\n      \"10\": true,\n      \"é\": {},\n      \"n\": 1.5,\n      \"s\": \"\",\n      \"under_score-dash.dot\": []\n    }\n  }\n}\n",
+        "provider/order.broken.json": "{",
+        "provider/notes.txt": "not a fixture"
+      },
+      "rows": 11,
+      "text": "FIXTURE                        REQUEST                     STATUS  RESPONSE BODY\nprovider/order.broken          -                           -       (does not follow the format; see check)\nprovider/order.cancelled       DELETE /orders/ord_81f3     204     -\nprovider/order.count           GET /orders/count           200     number\nprovider/order.coupon-unknown  POST /orders                422     {code: string, message: string}\nprovider/order.created         POST /orders                201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.empty           GET /orders/ord_81f3/notes  200     {}\nprovider/order.keys            GET /orders/ord_81f3/meta   200     {10: boolean, \"a b\": null, n: number, ok: boolean, s: string, under_score-dash.dot: array, \"é\": object}\nprovider/order.list            GET /orders?limit=2         200     array(2)\nprovider/order.out-of-stock    POST /orders                409     {error: string}\nconsumer/create-order.request  POST /orders                -       -\ntables/order-total             -                           -       2 row(s)"
+    },
+    {
+      "case": "no fixtures: only the header",
+      "empty": true,
+      "rows": 0,
+      "text": "FIXTURE  REQUEST  STATUS  RESPONSE BODY"
+    }
+  ]
+}

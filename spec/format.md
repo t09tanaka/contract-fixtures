@@ -502,7 +502,8 @@ Every successful verify and read appends one line to `<contracts>/.ledger/<side>
 ```
 
 `action` is `verified` or `read`; `file` uses `/` on every platform. A failed verify or read
-writes nothing.
+writes nothing. A reader ignores a byte order mark at the start of the file and lines that
+hold nothing but spaces, tabs and carriage returns.
 
 ## Check
 
@@ -524,9 +525,62 @@ The check fails when, for the given side:
 Exit codes of the check command: `0` no problems, `1` at least one problem, `2` wrong usage
 (unknown option, missing or non-existent directory).
 
+The check always looks at every fixture. It is meant to run after all tests of a side; when
+the tests run in several shards, concatenate the ledger files of the shards into
+`<contracts>/.ledger/<side>.jsonl` first (the order and repetition of lines do not matter).
+
 The ledger proves that a fixture was loaded, not that the test asserted anything about it. See
 the README for the recommended way to keep reading tests honest (an expectation table whose keys
-must equal the list of fixtures).
+must equal the list of fixtures, or several tables that each cover the names with one prefix,
+together with a list of the prefixes that must cover every name). The messages of these two
+assertions are pinned by `fixtures/coverage.json`.
+
+### Hints
+
+When there are `unverified` or `unread` problems, the report of the check may add up to two
+hints about their cause, taken from the state of the ledger. They are guesses and are worded
+as such. They never change the problems or the exit code.
+
+| The ledger of the side | Hint |
+|---|---|
+| does not exist, or has no entries | Did this side's tests run, and on this directory? If the other side's ledger has entries: did they run, and is this the side to check? |
+| has entries, but no fixture has the verify or read the check asks for | Did the tests run since the fixtures changed? |
+| covers fewer than half of the fixtures that follow the format (and at least one) | A part of the tests may have run (a filter, one shard). |
+| names files that are not in the directory | It may be left from an earlier run; reset before the tests. |
+
+The first three exclude each other; the last one can follow any of them. The exact wording is
+pinned by the cases in `fixtures/check.json`.
+
+## Summary
+
+The summary command prints the fixtures of a contracts directory side by side, one line each,
+so that differences between exchanges show: which status each has, and which keys the body of
+its response has. It reads the fixture files only; the ledger plays no part.
+
+```
+FIXTURE                        REQUEST       STATUS  RESPONSE BODY
+provider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}
+provider/order.out-of-stock    POST /orders  409     {error: string}
+consumer/create-order.request  POST /orders  -       -
+tables/order-total             -             -       2 row(s)
+```
+
+- A header line, then the fixtures in the order `provider/`, `consumer/`, `tables/`, by name
+  in UTF-16 code unit order.
+- `FIXTURE` is `<kind>/<name>`; `REQUEST` is the method, a space and the path; `STATUS` is the
+  status of the response. A cell without a value holds `-`.
+- `RESPONSE BODY` is the top level of the body of the response: for an object, its keys in
+  UTF-16 code unit order, each with the JSON type of its value (`null`, `boolean`, `number`,
+  `string`, `array`, `object`), as `{key: type, key: type}`; for an array, `array(<length>)`;
+  for a scalar, its type; `-` without a body. A key that contains anything but `A`–`Z`,
+  `a`–`z`, `0`–`9`, `_`, `.` and `-` is printed as a JSON string. For a table the cell holds
+  `<n> row(s)`. A file that does not follow the format has `-` in the other cells and
+  `(does not follow the format; see check)` here.
+- The first three columns are padded with spaces to their longest cell, counted in UTF-16
+  code units; columns are separated by two spaces; no line ends in a space.
+
+Exit codes of the summary command: `0`, `1` when the directory holds no fixtures, `2` wrong
+usage. The cases in `fixtures/summary.json` pin the text.
 
 ## Versioning
 
