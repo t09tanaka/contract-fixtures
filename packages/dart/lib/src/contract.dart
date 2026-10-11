@@ -192,7 +192,7 @@ class ContractFixtures {
     return ProviderFixture(_read(FixtureKind.provider, name));
   }
 
-  /// Provider side: reads `consumer/<name>.json` to pass the request to the real handler.
+  /// Provider side: reads `consumer/<name>.json` to send the request to the real API.
   ConsumerFixture readRequest(String name) {
     _requireSide(ContractSide.provider, 'readRequest');
     return ConsumerFixture(_read(FixtureKind.consumer, name));

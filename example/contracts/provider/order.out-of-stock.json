@@ -19,5 +19,8 @@
       "error": "out_of_stock",
       "available": 0
     }
+  },
+  "secret": {
+    "request.headers.authorization": "<token:customer-1>"
   }
 }

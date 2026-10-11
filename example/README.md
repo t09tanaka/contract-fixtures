@@ -1,12 +1,37 @@
-# Example: an order API and its client
+# Example: an order API and its two clients
 
-A deliberately tiny, made-up order API.
+A deliberately tiny, made-up order API with two readers.
 
-- [`provider/`](./provider): the API in TypeScript. `src/orders.ts` is the handler;
-  `test/contract.test.ts` is its side of the contract.
-- [`consumer/`](./consumer): the client in Dart. `lib/orders_client.dart` builds the request and
+- [`provider/`](./provider): the API in TypeScript. `src/orders.ts` is the handler,
+  `src/server.ts` puts it behind HTTP, and `src/main.ts` is the entry point. The contract tests
+  in `test/` start the same server as the entry point and reach it with an HTTP test client.
+- [`consumer/`](./consumer): the app, in Dart. `lib/orders_client.dart` builds the request and
   decides what the app does with a response; `test/contract_test.dart` is its side.
-- [`contracts/`](./contracts): the fixtures both sides share.
+- [`consumer-web/`](./consumer-web): the web client, in TypeScript. `src/orders-client.ts`
+  calls `fetch`; `test/contract.test.ts` gives it a `fetch` that answers with fixtures.
+- [`contracts/`](./contracts): the fixtures the API shares with the app.
+- [`contracts-web/`](./contracts-web): the fixtures the API shares with the web client.
+
+## Two readers, two directories
+
+A contracts directory is the agreement between **one** provider and **one** consumer: the
+check asks the consumer side to read every provider fixture in it. The web client does not
+start payments and knows nothing of coupons, so in a shared directory its check would fail
+for fixtures it has no use for. Each reader therefore has a directory of its own, with the
+exchanges that reader depends on:
+
+| | `contracts/` (app) | `contracts-web/` (web client) |
+|---|---|---|
+| `order.created`, `order.out-of-stock`, `order.token-invalid`, `receipt.downloaded` | yes | yes |
+| `order.created-with-coupon`, `order.coupon-unknown`, `order.invalid-quantity`, `payment.started` | yes | |
+| `order.body-not-json` (answered by the HTTP layer, before the handler) | | yes |
+| requests the reader builds (`consumer/`) | 2 | 2 |
+| `tables/order-total` | yes | |
+
+The provider's tests name the readers of each scenario and verify the same real response into
+the directory of each ([`provider/test/support.ts`](./provider/test/support.ts)). When the API
+changes a response both depend on, both files change, and both readers' tests fail. The
+provider runs `reset` and `check` once per directory; each reader runs them on its own.
 
 Placing an order (`POST /orders`) shows responses, requests and a shared calculation. Starting
 the payment of an order (`POST /payments`) shows a response with a **secret** in it: the API
@@ -34,10 +59,13 @@ From the repository root:
 ```sh
 npm ci && npm run build
 
-# provider: reset the ledger, run the tests, check
+# provider: reset both ledgers, run the tests, check both directories
 npm run contract -w example/provider
 
-# consumer
+# web client
+npm run contract -w example/consumer-web
+
+# app
 cd example/consumer
 dart pub get
 dart run contract_fixtures reset --side consumer --dir ../contracts
@@ -60,17 +88,24 @@ Each of these was run against this example; the output is what the tools printed
 ```
 
 **(b) Update the fixture.** `CONTRACT_FIXTURES_UPDATE=1 npm test -w example/provider` rewrites
-`contracts/provider/order.out-of-stock.json`. Now the consumer's test fails, because the client
-no longer recognises the error:
+`order.out-of-stock.json` in both directories, because both readers depend on that response.
+Now the tests of both readers fail, because neither client recognises the error any more:
 
 ```
 provider fixtures: what the app makes of real responses order.out-of-stock [E]
   Expected: 'out of stock, 0 left'
     Actual: 'failed'
+
+✖ order.out-of-stock
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'failed'
+  - 'out of stock, 0 left'
 ```
 
 **(c) Add a fixture nobody touches.** Put a valid `contracts/provider/order.cancelled.json` in
-place. The check fails on both sides, and so does the consumer's coverage test:
+place. The check of that directory fails on both sides, and so does the app's coverage test:
 
 ```
 contract-fixtures check (provider side): 1 problem(s) in 12 fixture(s)
@@ -97,19 +132,20 @@ After `CONTRACT_FIXTURES_UPDATE=1 dart test` on the consumer, the provider's tes
 the real handler rejects the request:
 
 ```
-✖ create-order.request
+✖ app: create-order.request
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
   422 !== 201
 ```
 
-**(e) Stop listing the secret.** In `provider/test/contract.test.ts`, remove the `secret` line
+**(e) Stop listing the secret.** In `provider/test/payments-receipts.contract.test.ts`, remove the `secret` line
 of the `payment.started` scenario. The provider's test fails, and the message does not show the
 key the API returned:
 
 ```
 ✖ payment.started
   Error [ContractMismatchError]: contract fixture provider/payment.started.json no longer matches what the provider side produces (stored -> observed):
-    secret: {"response.body.confirm_key":"<key:payment-1>"} -> (absent)
+    secret.response.body.confirm_key: "<key:payment-1>" -> (absent)
   If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
 ```
 
@@ -133,8 +169,8 @@ leaves the fixture as it is, because rewriting it would put the real key into th
   If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
 ```
 
-After updating the fixture, the consumer's test fails, because the client only accepts the
-content type it knows:
+After updating the fixture, the app's test fails (and the web client's in the same way),
+because the client only accepts the content type it knows:
 
 ```
 provider fixtures: a response whose headers matter receipt.downloaded [E]
@@ -150,7 +186,7 @@ fails, although the value was never compared exactly:
 ```
 ✖ order.created
   Error [ContractMismatchError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
-    response.body.id: "ord_mv3svalt1" -> "order-mv3svok81" (volatile: does not match ^ord_[a-z0-9]+$)
+    response.body.id: "ord_mv3vvd5y1" -> "order-mv3vwxjb1" (volatile: does not match ^ord_[a-z0-9]+$)
   If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
 ```
 

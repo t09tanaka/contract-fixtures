@@ -35,7 +35,7 @@ shape; the rules marked **(beyond the schema)** below are enforced by the packag
 | Kind | Directory | The provider side must | The consumer side must |
 |---|---|---|---|
 | provider fixture | `provider/` | verify it against a real response | read it |
-| consumer fixture | `consumer/` | read it (and pass it to the real handler) | verify it against a request it really builds |
+| consumer fixture | `consumer/` | read it (and send it to the real API) | verify it against a request it really builds |
 | table | `tables/` | read it | read it |
 
 ## Provider fixture

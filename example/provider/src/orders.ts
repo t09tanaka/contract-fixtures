@@ -1,6 +1,6 @@
 /**
- * A tiny order API, small enough to read in one sitting. It has no HTTP server: `handle`
- * is the function a server would call, which is also what the contract tests call.
+ * A tiny order API, small enough to read in one sitting. This file is the handler; `server.ts`
+ * puts it behind HTTP, and the contract tests come in through that server.
  */
 import { randomBytes } from "node:crypto";
 

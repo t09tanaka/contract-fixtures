@@ -6,7 +6,9 @@ verify the fixtures against real responses; the consumer's tests read them.
 This is the Dart package. The idea, the workflow and the limits are described in the
 [repository README](https://github.com/t09tanaka/contract-fixtures#readme); the file format is
 in [`spec/format.md`](https://github.com/t09tanaka/contract-fixtures/blob/main/spec/format.md).
-A TypeScript package with the same API reads and writes the same files.
+A TypeScript package with the same core API reads and writes the same files. For a project
+that already has tests, see the
+[adoption guide](https://github.com/t09tanaka/contract-fixtures/blob/main/docs/adoption.md).
 
 - Pure Dart (uses `dart:io`), no dependencies. Works under `dart test` and `flutter test`.
 - Independent of the test framework: failures are thrown as ordinary exceptions.
@@ -140,7 +142,7 @@ fixture throws `ContractFixtureException`.
 - `dir` defaults to the environment variable `CONTRACT_FIXTURES_DIR`.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
-  is refused when `CI` is set.
+  is refused when `CI` is `true` or `1`.
 - `volatile` lists the values that change between runs. An entry is a path
   (`'response.body.note'`: only the JSON type is compared) or a
   `VolatilePattern(path, pattern)` (a string that must match the pattern as a whole). In a

@@ -44,3 +44,5 @@ First release.
   behind the response object of an HTTP test client; headers by name only).
 - Shared cases in `spec/fixtures/` that both packages run, including the text of the hints,
   of the summary and of the coverage messages.
+- An adoption guide (`docs/adoption.md`) and an example with an HTTP server, an app in Dart and
+  a web client in TypeScript, each client with a contracts directory of its own.
