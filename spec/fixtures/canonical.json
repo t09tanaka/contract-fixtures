@@ -24,6 +24,30 @@
       "input": "[null,true,false,0,\"\"]",
       "pretty": "[\n  null,\n  true,\n  false,\n  0,\n  \"\"\n]\n",
       "compact": "[null,true,false,0,\"\"]"
+    },
+    {
+      "case": "keys that are array indexes come first in ascending order, the rest keep their order",
+      "input": "{\"b\":1,\"10\":2,\"9\":3,\"a\":4,\"01\":5,\"-1\":6,\"4294967295\":7,\"0\":8}",
+      "pretty": "{\n  \"0\": 8,\n  \"9\": 3,\n  \"10\": 2,\n  \"b\": 1,\n  \"a\": 4,\n  \"01\": 5,\n  \"-1\": 6,\n  \"4294967295\": 7\n}\n",
+      "compact": "{\"-1\":6,\"0\":8,\"01\":5,\"10\":2,\"4294967295\":7,\"9\":3,\"a\":4,\"b\":1}"
+    },
+    {
+      "case": "characters outside the basic plane and combining characters are written as they are",
+      "input": "{\"\\ud83d\\ude00\": \"e\\u0301\", \"\\uff21\": \"\\u00e9 \\ud83d\\udc69\\u200d\\ud83d\\udcbb\"}",
+      "pretty": "{\n  \"😀\": \"é\",\n  \"Ａ\": \"é 👩‍💻\"\n}\n",
+      "compact": "{\"😀\":\"é\",\"Ａ\":\"é 👩‍💻\"}"
+    },
+    {
+      "case": "a lone surrogate is written as an escape",
+      "input": "[\"a\\ud83db\",\"\\udc00\"]",
+      "pretty": "[\n  \"a\\ud83db\",\n  \"\\udc00\"\n]\n",
+      "compact": "[\"a\\ud83db\",\"\\udc00\"]"
+    },
+    {
+      "case": "the largest and smallest supported integers",
+      "input": "[9007199254740991,-9007199254740991,9007199254740991.0]",
+      "pretty": "[\n  9007199254740991,\n  -9007199254740991,\n  9007199254740991\n]\n",
+      "compact": "[9007199254740991,-9007199254740991,9007199254740991]"
     }
   ]
 }

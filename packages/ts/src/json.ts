@@ -17,24 +17,26 @@ export function sortedKeys(value: Record<string, unknown>): string[] {
   return Object.keys(value).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-function sortKeysDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeysDeep);
-  if (isObject(value)) {
-    const out: Record<string, unknown> = {};
-    for (const key of sortedKeys(value)) out[key] = sortKeysDeep(value[key]);
-    return out;
-  }
-  return value;
-}
-
-/** One-line JSON with sorted keys. Used to print values in differences. */
+/**
+ * One-line JSON with keys in code unit order. Used to print values in differences.
+ * Written by hand because a JavaScript object cannot hold its keys in that order: keys that
+ * are array indexes always come first.
+ */
 export function compactJson(value: unknown): string {
-  return JSON.stringify(sortKeysDeep(value));
+  if (Array.isArray(value)) return `[${value.map(compactJson).join(",")}]`;
+  if (isObject(value)) {
+    const members = sortedKeys(value)
+      .filter((key) => value[key] !== undefined)
+      .map((key) => `${JSON.stringify(key)}:${compactJson(value[key])}`);
+    return `{${members.join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }
 
 /**
- * The text a fixture file is written as: two-space indentation, trailing newline, keys in the
- * order given, integer-valued numbers without a fraction.
+ * The text a fixture file is written as: two-space indentation, trailing newline,
+ * integer-valued numbers without a fraction. Keys keep the order given, except that keys that
+ * are array indexes come first in ascending order (what JavaScript does to every object).
  */
 export function canonicalJson(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n";
@@ -44,4 +46,12 @@ export function canonicalJson(value: unknown): string {
 export function jsonRoundTrip(value: unknown): unknown {
   const text = JSON.stringify(value);
   return text === undefined ? undefined : JSON.parse(text);
+}
+
+/** The largest integer every implementation represents exactly (2^53 - 1). */
+export const MAX_SAFE_INTEGER = 9007199254740991;
+
+/** Whether a number is an integer that not every implementation can represent exactly. */
+export function isUnsafeInteger(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && Math.abs(value) > MAX_SAFE_INTEGER;
 }

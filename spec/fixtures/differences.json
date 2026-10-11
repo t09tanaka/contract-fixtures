@@ -606,9 +606,9 @@
         "m": 2.5
       },
       "actual": {
-      "n": 1.0,
-      "m": 2.5
-    },
+        "n": 1.0,
+        "m": 2.5
+      },
       "volatile": [],
       "differences": []
     },
@@ -626,6 +626,247 @@
           "path": "name",
           "kind": "value",
           "text": "name: \"紅茶\" -> \"緑茶\""
+        }
+      ]
+    },
+    {
+      "case": "keys that look like integers are visited in code unit order",
+      "expected": {
+        "10": 1,
+        "9": 1,
+        "b": 1,
+        "a": 1
+      },
+      "actual": {
+        "10": 2,
+        "9": 2,
+        "b": 2,
+        "a": 2
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "10",
+          "kind": "value",
+          "text": "10: 1 -> 2"
+        },
+        {
+          "path": "9",
+          "kind": "value",
+          "text": "9: 1 -> 2"
+        },
+        {
+          "path": "a",
+          "kind": "value",
+          "text": "a: 1 -> 2"
+        },
+        {
+          "path": "b",
+          "kind": "value",
+          "text": "b: 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "values with integer-like keys are printed in code unit order",
+      "expected": {
+        "m": {
+          "10": 1,
+          "9": 2,
+          "x": 3
+        }
+      },
+      "actual": {
+        "m": null
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "m",
+          "kind": "value",
+          "text": "m: {\"10\":1,\"9\":2,\"x\":3} -> null"
+        }
+      ]
+    },
+    {
+      "case": "a key that contains a dot is printed as it is",
+      "expected": {
+        "a.b": 1,
+        "a": {
+          "b": 1
+        }
+      },
+      "actual": {
+        "a.b": 2,
+        "a": {
+          "b": 1
+        }
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "a.b",
+          "kind": "value",
+          "text": "a.b: 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "a volatile path cannot address a key that contains a dot: it means the nested key",
+      "expected": {
+        "a.b": 1,
+        "a": {
+          "b": 1
+        }
+      },
+      "actual": {
+        "a.b": 2,
+        "a": {
+          "b": 3
+        }
+      },
+      "volatile": [
+        "a.b"
+      ],
+      "differences": [
+        {
+          "path": "a.b",
+          "kind": "value",
+          "text": "a.b: 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "null, an absent key and empty values are all different",
+      "expected": {
+        "a": null,
+        "b": "",
+        "c": {},
+        "d": [],
+        "e": 0,
+        "f": false
+      },
+      "actual": {
+        "b": null,
+        "c": [],
+        "d": {},
+        "e": false,
+        "f": 0,
+        "g": null
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "a",
+          "kind": "missing",
+          "text": "a: null -> (absent)"
+        },
+        {
+          "path": "b",
+          "kind": "value",
+          "text": "b: \"\" -> null"
+        },
+        {
+          "path": "c",
+          "kind": "value",
+          "text": "c: {} -> []"
+        },
+        {
+          "path": "d",
+          "kind": "value",
+          "text": "d: [] -> {}"
+        },
+        {
+          "path": "e",
+          "kind": "value",
+          "text": "e: 0 -> false"
+        },
+        {
+          "path": "f",
+          "kind": "value",
+          "text": "f: false -> 0"
+        },
+        {
+          "path": "g",
+          "kind": "unexpected",
+          "text": "g: (absent) -> null"
+        }
+      ]
+    },
+    {
+      "case": "composed and decomposed characters are different strings",
+      "expected": {
+        "name": "café"
+      },
+      "actual": {
+        "name": "café"
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "name",
+          "kind": "value",
+          "text": "name: \"café\" -> \"café\""
+        }
+      ]
+    },
+    {
+      "case": "characters outside the basic plane",
+      "expected": {
+        "mood": "😀",
+        "same": "👩‍💻"
+      },
+      "actual": {
+        "mood": "😁",
+        "same": "👩‍💻"
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "mood",
+          "kind": "value",
+          "text": "mood: \"😀\" -> \"😁\""
+        }
+      ]
+    },
+    {
+      "case": "keys are ordered by UTF-16 code unit, not by code point",
+      "expected": {
+        "Ａ": 1,
+        "😀": 1
+      },
+      "actual": {
+        "Ａ": 2,
+        "😀": 2
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "😀",
+          "kind": "value",
+          "text": "😀: 1 -> 2"
+        },
+        {
+          "path": "Ａ",
+          "kind": "value",
+          "text": "Ａ: 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "control characters are escaped when printed",
+      "expected": {
+        "s": "a\tb"
+      },
+      "actual": {
+        "s": "a\nb\u0001"
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "s",
+          "kind": "value",
+          "text": "s: \"a\\tb\" -> \"a\\nb\\u0001\""
         }
       ]
     }

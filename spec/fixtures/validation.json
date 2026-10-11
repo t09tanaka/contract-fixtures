@@ -942,6 +942,228 @@
           "path": "request"
         }
       ]
+    },
+    {
+      "case": "a volatile path into a dotted key addresses the nested key",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "rate.limit": 5,
+            "rate": {
+              "limit": 5
+            }
+          }
+        },
+        "volatile": [
+          "response.body.rate.limit"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "a key that contains a dot cannot be addressed by a volatile path",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "rate.limit": 5
+          }
+        },
+        "volatile": [
+          "response.body.rate.limit"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.0"
+        }
+      ]
+    },
+    {
+      "case": "the largest supported integers and any fraction are fine",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "n": 9007199254740991,
+            "m": -9007199254740991,
+            "f": 0.1,
+            "small": 1.5e-300,
+            "g": 123456789012.5
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "integers beyond 2^53 - 1 are rejected wherever they are",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "id": 9007199254740993,
+            "ok": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "list": [
+              1,
+              -9007199254740992
+            ],
+            "z": {
+              "n": 1e+300
+            }
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "number",
+          "path": "request.body.id"
+        },
+        {
+          "code": "number",
+          "path": "response.body.list.1"
+        },
+        {
+          "code": "number",
+          "path": "response.body.z.n"
+        }
+      ]
+    },
+    {
+      "case": "integers beyond 2^53 - 1 in a table",
+      "kind": "tables",
+      "name": "order-total",
+      "value": {
+        "format": 1,
+        "name": "order-total",
+        "description": "x",
+        "rows": [
+          {
+            "amount": 18446744073709551616
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "number",
+          "path": "rows.0.amount"
+        }
+      ]
+    },
+    {
+      "case": "empty bodies are bodies",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": ""
+        },
+        "response": {
+          "status": 409,
+          "body": {}
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "null inside a body is fine",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "coupon": null,
+            "tags": [
+              null
+            ]
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": []
     }
   ]
 }

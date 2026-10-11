@@ -132,7 +132,9 @@ A path is a list of segments separated by `.`, starting at the fixture root:
 - The first segment is `request` or `response` (`request` only in a consumer fixture).
 - Every path must match at least one node of the stored fixture **(beyond the schema)**; a path
   that matches nothing is a mistake.
-- Keys that contain `.` cannot be addressed.
+- Keys that contain `.` cannot be addressed: `a.b` always means the key `b` inside `a`. A path
+  written for a dotted key therefore matches nothing and is rejected (or, if a nested key of
+  that name exists, addresses that one).
 
 How the verifying side compares:
 
@@ -168,7 +170,15 @@ Placeholders are a convention on values; the comparison treats them as ordinary 
   would go over the wire.
 - Header names in what a side produced are lower-cased before comparing or writing. Two headers
   that differ only in case are an error.
-- Numbers are compared by value: `1` and `1.0` are equal. Integers beyond 2^53 are not supported.
+- Numbers are compared by value: `1` and `1.0` are equal.
+- A number whose value is an integer beyond ±(2^53 − 1) is not allowed anywhere in a fixture or a
+  table **(beyond the schema)**: not every JSON parser keeps it exact, so the two sides could
+  silently see different values. Send such values as strings. This holds for what a side
+  produced as well as for stored files.
+- Strings are compared code unit by code unit. Nothing is normalised: a composed and a decomposed
+  form of the same character are different strings.
+- `null`, an absent key, `""`, `{}` and `[]` are all different from each other. The one exception
+  is the top-level `body` of a request or response, where `null` means "no body" (see above).
 - The whole fixture takes part in the comparison (`description` and `volatile` included), with
   `volatile` taken from the stored fixture.
 
@@ -182,8 +192,9 @@ response.body.items: array length 2 -> 3
 response.body.id: type string -> number (volatile: only the type is compared)
 ```
 
-Object keys are visited in code unit order, so both packages print the same lines in the same
-order. Values are printed as compact JSON with sorted keys.
+Object keys are visited in UTF-16 code unit order, so both packages print the same lines in the
+same order. Values are printed as compact JSON with keys in the same order. A key that contains
+`.` is printed as it is, so its path can look like the path of a nested key.
 
 ## Update mode
 
@@ -198,8 +209,12 @@ verify writes the fixture instead:
   do not churn.
 
 Fixtures are written as JSON with two-space indentation, a trailing newline, and the key order
-`format`, `name`, `description`, `request`, `response`, `volatile`. Integer-valued numbers are
-written without a fraction (`1`, not `1.0`). Update mode never deletes files; a fixture whose
+`format`, `name`, `description`, `request`, `response`, `volatile`. Inside a body, keys keep the
+order the side produced them in, except that keys that are array indexes (`"0"`, `"10"`) come
+first in ascending order, as in a JavaScript object. Integer-valued numbers are written without
+a fraction (`1`, not `1.0`). Characters are written as they are; only control characters and
+lone surrogates are escaped. The cases in `fixtures/canonical.json` and `fixtures/verify.json` pin
+the exact text for both packages. Update mode never deletes files; a fixture whose
 test was removed is found by the check.
 
 Reading never writes fixtures. Update mode is meant for a developer's machine, not for CI.

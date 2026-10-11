@@ -1,5 +1,5 @@
 import { volatileMode } from "./differences.js";
-import { isObject, jsonType, sortedKeys } from "./json.js";
+import { isObject, isUnsafeInteger, jsonType, sortedKeys } from "./json.js";
 import { FORMAT_VERSION, type Kind } from "./types.js";
 
 /** One way in which a file does not follow the fixture format. */
@@ -21,7 +21,8 @@ export interface FormatIssue {
     | "status"
     | "volatile"
     | "volatile-unmatched"
-    | "rows";
+    | "rows"
+    | "number";
   /** Where in the file, as a dot separated path (`(root)` for the file itself). */
   path: string;
   message: string;
@@ -188,6 +189,24 @@ function validateVolatile(
   });
 }
 
+/** Integers beyond 2^53 - 1 do not survive every JSON parser, so they are not allowed. */
+function validateNumbers(issues: FormatIssue[], root: unknown): void {
+  const walk = (node: unknown, path: string): void => {
+    if (isUnsafeInteger(node)) {
+      issues.push({
+        code: "number",
+        path,
+        message: "is an integer beyond 2^53 - 1, which not every JSON parser keeps exact (use a string)",
+      });
+    } else if (Array.isArray(node)) {
+      node.forEach((item, i) => walk(item, `${path}.${i}`));
+    } else if (isObject(node)) {
+      for (const key of sortedKeys(node)) walk(node[key], path === "" ? key : `${path}.${key}`);
+    }
+  };
+  walk(root, "");
+}
+
 /**
  * Checks a parsed fixture against format 1. `name` is the file name without `.json`.
  * Returns an empty array when the fixture is valid.
@@ -240,6 +259,7 @@ export function validateFixtureValue(kind: Kind, name: string, value: unknown): 
         }
       });
     }
+    validateNumbers(issues, value);
     return issues;
   }
   validateRequest(issues, value.request);
@@ -247,6 +267,7 @@ export function validateFixtureValue(kind: Kind, name: string, value: unknown): 
   if (Object.hasOwn(value, "volatile")) {
     validateVolatile(issues, value, kind === "provider" ? ["request", "response"] : ["request"]);
   }
+  validateNumbers(issues, value);
   return issues;
 }
 

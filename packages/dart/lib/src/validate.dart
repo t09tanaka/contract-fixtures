@@ -10,7 +10,7 @@ class FormatIssue {
 
   /// A stable identifier, the same in every implementation: `json`, `root`, `format`,
   /// `name`, `description`, `unknown-key`, `request`, `method`, `path`, `headers`, `body`,
-  /// `response`, `status`, `volatile`, `volatile-unmatched` or `rows`.
+  /// `response`, `status`, `volatile`, `volatile-unmatched`, `rows` or `number`.
   final String code;
 
   /// Where in the file, as a dot separated path (`(root)` for the file itself).
@@ -237,6 +237,32 @@ void _validateVolatile(
   }
 }
 
+/// Integers beyond 2^53 - 1 do not survive every JSON parser, so they are not allowed.
+void _validateNumbers(List<FormatIssue> issues, Object? root) {
+  void walk(Object? node, String path) {
+    if (isUnsafeInteger(node)) {
+      issues.add(
+        FormatIssue(
+          'number',
+          path,
+          'is an integer beyond 2^53 - 1, which not every JSON parser keeps exact '
+              '(use a string)',
+        ),
+      );
+    } else if (node is List) {
+      for (var i = 0; i < node.length; i++) {
+        walk(node[i], '$path.$i');
+      }
+    } else if (node is Map<String, dynamic>) {
+      for (final key in sortedKeys(node)) {
+        walk(node[key], path.isEmpty ? key : '$path.$key');
+      }
+    }
+  }
+
+  walk(root, '');
+}
+
 /// Checks a decoded fixture against format 1. [name] is the file name without `.json`.
 /// Returns an empty list when the fixture is valid.
 List<FormatIssue> validateFixtureValue(
@@ -305,6 +331,7 @@ List<FormatIssue> validateFixtureValue(
         }
       }
     }
+    _validateNumbers(issues, value);
     return issues;
   }
   _validateRequest(issues, value['request']);
@@ -320,6 +347,7 @@ List<FormatIssue> validateFixtureValue(
           : const ['request'],
     );
   }
+  _validateNumbers(issues, value);
   return issues;
 }
 

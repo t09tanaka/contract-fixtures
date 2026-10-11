@@ -619,6 +619,145 @@
       "update": false,
       "outcome": "usage",
       "written": null
+    },
+    {
+      "case": "an empty string body is not the same as no body",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/ping\"\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping"
+        },
+        "response": {
+          "status": 204,
+          "body": ""
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body: (absent) -> \"\""
+      ],
+      "written": null
+    },
+    {
+      "case": "an empty object body is not the same as no body",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/ping\"\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping"
+        },
+        "response": {
+          "status": 204,
+          "body": {}
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body: (absent) -> {}"
+      ],
+      "written": null
+    },
+    {
+      "case": "no body is not the same as a stored empty array body",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/ping\"\n  },\n  \"response\": {\n    \"status\": 204,\n    \"body\": []\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping"
+        },
+        "response": {
+          "status": 204,
+          "body": null
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body: [] -> (absent)"
+      ],
+      "written": null
+    },
+    {
+      "case": "null inside a body is not the same as an absent key",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/ping\",\n    \"body\": {\n      \"coupon\": null\n    }\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "POST",
+          "path": "/ping",
+          "body": {}
+        },
+        "response": {
+          "status": 204
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "request.body.coupon: null -> (absent)"
+      ],
+      "written": null
+    },
+    {
+      "case": "update mode keeps null inside a body, writes characters as they are and array-index keys first",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/ping\",\n    \"body\": {\n      \"coupon\": null\n    }\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "POST",
+          "path": "/ping",
+          "body": {
+            "coupon": null,
+            "note": "café 😀",
+            "10": 1,
+            "9": 2
+          }
+        },
+        "response": {
+          "status": 204
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/ping\",\n    \"body\": {\n      \"9\": 2,\n      \"10\": 1,\n      \"coupon\": null,\n      \"note\": \"café 😀\"\n    }\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n"
+    },
+    {
+      "case": "an integer beyond 2^53 - 1 in what the side produced",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "POST",
+          "path": "/ping",
+          "body": {
+            "after": 9007199254740993
+          }
+        },
+        "response": {
+          "status": 204
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null
     }
   ]
 }
