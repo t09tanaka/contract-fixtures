@@ -4,7 +4,7 @@
   "description": "The receipt of an order is a download with a file name",
   "request": {
     "method": "GET",
-    "path": "/orders/ord_demo1/receipt",
+    "path": "/orders/ord_mv3svam01/receipt",
     "headers": {
       "authorization": "<token:customer-1>"
     }
@@ -13,11 +13,11 @@
     "status": 200,
     "headers": {
       "content-type": "application/json",
-      "content-disposition": "attachment; filename=\"receipt-ord_demo1.json\"",
+      "content-disposition": "attachment; filename=\"receipt-ord_mv3svam01.json\"",
       "cache-control": "private, no-store"
     },
     "body": {
-      "order_id": "ord_demo1",
+      "order_id": "ord_mv3svam01",
       "lines": [
         {
           "sku": "tea-100",
@@ -26,5 +26,19 @@
       ],
       "total_minor": 1200
     }
-  }
+  },
+  "volatile": [
+    {
+      "path": "request.path",
+      "pattern": "^/orders/ord_[a-z0-9]+/receipt$"
+    },
+    {
+      "path": "response.body.order_id",
+      "pattern": "^ord_[a-z0-9]+$"
+    },
+    {
+      "path": "response.headers.content-disposition",
+      "pattern": "^attachment; filename=\"receipt-ord_[a-z0-9]+\\.json\"$"
+    }
+  ]
 }

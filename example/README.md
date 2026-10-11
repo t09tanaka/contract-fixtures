@@ -22,6 +22,11 @@ that are part of the agreement: the client saves the receipt under the file name
 [`contracts/provider/receipt.downloaded.json`](./contracts/provider/receipt.downloaded.json)
 records the headers as well as the body.
 
+Ids and timestamps are new on every run. The provider's test lists them under `volatile`, each
+with a pattern for the shape it keeps, and names `created_at` wherever it occurs
+(`response.body.**.created_at`). The id of an order is also a part of the path of the receipt
+request, so `request.path` has a pattern too.
+
 ## Run it
 
 From the repository root:
@@ -118,21 +123,42 @@ leaves the fixture as it is, because rewriting it would put the real key into th
   Pass the path as `secret` in this test, or remove it from the stored file by hand.
 ```
 
-**(f) Change a response header.** In `provider/src/orders.ts`, send the receipt as `inline`
-instead of `attachment`. The provider's test fails:
+**(f) Change a response header.** In `provider/src/orders.ts`, send the receipt as
+`application/json; charset=utf-8`. The provider's test fails:
 
 ```
 ✖ receipt.downloaded
   Error [ContractMismatchError]: contract fixture provider/receipt.downloaded.json no longer matches what the provider side produces (stored -> observed):
-    response.headers.content-disposition: "attachment; filename=\"receipt-ord_demo1.json\"" -> "inline; filename=\"receipt-ord_demo1.json\""
+    response.headers.content-type: "application/json" -> "application/json; charset=utf-8"
   If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
 ```
 
-After updating the fixture, the consumer's test fails, because the client only saves what the
-API offers as an attachment:
+After updating the fixture, the consumer's test fails, because the client only accepts the
+content type it knows:
 
 ```
 provider fixtures: a response whose headers matter receipt.downloaded [E]
-  Expected: 'save receipt-ord_demo1.json, total 1200'
+  Expected: 'save receipt-<order id>.json, total 1200'
     Actual: 'failed'
+```
+
+**(g) Change the shape of a value that changes.** The id of an order is new on every run, so
+the provider's test lists it under `volatile`, with the pattern `^ord_[a-z0-9]+$`. In
+`provider/src/orders.ts`, let ids start with `order-` instead of `ord_`. The provider's test
+fails, although the value was never compared exactly:
+
+```
+✖ order.created
+  Error [ContractMismatchError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
+    response.body.id: "ord_mv3svalt1" -> "order-mv3svok81" (volatile: does not match ^ord_[a-z0-9]+$)
+  If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
+```
+
+Update mode does not write a value that contradicts the pattern of its own entry; the pattern
+in the test has to change with the API:
+
+```
+✖ order.created
+  Error [ContractFixtureError]: contract fixture provider/order.created.json: what this side produced is not a valid fixture:
+    response.body.id: does not match the pattern ^ord_[a-z0-9]+$ of volatile.0
 ```
