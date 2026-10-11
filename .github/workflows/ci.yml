@@ -32,11 +32,73 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -w packages/ts
-      - name: "Example: provider side (reset, test, check)"
+      - name: "Example: provider side and web consumer (reset, test, check, each)"
         run: npm run example
       - name: Package contents
         run: npm pack --dry-run --ignore-scripts
         working-directory: packages/ts
+
+  # The provider's tests of the example in two shards. Each shard verifies and reads a part
+  # of the fixtures, so no shard can run the check; the next job joins their ledgers first.
+  example-shards:
+    name: "Example: provider tests, shard ${{ matrix.shard }} of 2"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Reset, then run one shard of the tests
+        working-directory: example/provider
+        run: |
+          npm run reset
+          rm -rf .test-build && npx tsc -p tsconfig.json
+          node --test --test-shard=${{ matrix.shard }}/2 .test-build/test/*.test.js
+      - name: Collect the ledgers of this shard
+        run: |
+          mkdir ledgers
+          for dir in contracts contracts-web; do
+            ledger="example/$dir/.ledger/provider.jsonl"
+            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir-${{ matrix.shard }}.jsonl"; fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledgers-${{ matrix.shard }}
+          path: ledgers/
+
+  example-shards-check:
+    name: "Example: check after all shards"
+    needs: example-shards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ledgers-*
+          path: ledgers
+          merge-multiple: true
+      - name: Join the ledgers of the shards, then check
+        run: |
+          for dir in contracts contracts-web; do
+            mkdir -p "example/$dir/.ledger"
+            cat ledgers/"$dir"-*.jsonl > "example/$dir/.ledger/provider.jsonl"
+          done
+          npm run check -w example/provider
 
   dart:
     name: Dart (${{ matrix.sdk }})
@@ -63,7 +125,7 @@ jobs:
         working-directory: packages/dart
       - run: dart test
         working-directory: packages/dart
-      - name: "Example: consumer side (reset, analyze, test, check)"
+      - name: "Example: app consumer (reset, analyze, test, check)"
         working-directory: example/consumer
         run: |
           dart analyze --fatal-infos

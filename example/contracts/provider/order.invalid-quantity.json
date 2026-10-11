@@ -19,5 +19,8 @@
       "error": "invalid_request",
       "field": "quantity"
     }
+  },
+  "secret": {
+    "request.headers.authorization": "<token:customer-1>"
   }
 }

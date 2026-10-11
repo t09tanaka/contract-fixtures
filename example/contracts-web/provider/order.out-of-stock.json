@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "order.out-of-stock",
+  "description": "There are fewer items in stock than were ordered",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    },
+    "body": {
+      "sku": "mug-200",
+      "quantity": 1
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "out_of_stock",
+      "available": 0
+    }
+  },
+  "secret": {
+    "request.headers.authorization": "<token:customer-1>"
+  }
+}
