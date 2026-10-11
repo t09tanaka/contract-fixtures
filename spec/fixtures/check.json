@@ -1,0 +1,302 @@
+{
+  "description": "Cases for the check. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, write `ledger` to .ledger/<side>.jsonl and `otherLedger` to the other side's ledger, then check `side`. Every implementation must report exactly these problems, in this order.",
+  "cases": [
+    {
+      "case": "provider side: everything verified or read",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": []
+    },
+    {
+      "case": "consumer side: everything verified or read",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": []
+    },
+    {
+      "case": "repeated and reordered lines are fine",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": []
+    },
+    {
+      "case": "provider side: nothing ran",
+      "side": "provider",
+      "ledger": [],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unverified"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unread"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ]
+    },
+    {
+      "case": "consumer side: nothing ran",
+      "side": "consumer",
+      "ledger": [],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unread"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unread"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unverified"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ]
+    },
+    {
+      "case": "the other side's ledger does not count",
+      "side": "consumer",
+      "ledger": [],
+      "otherLedger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unread"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unread"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unverified"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ]
+    },
+    {
+      "case": "reading is not verifying, verifying is not reading",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unread"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unverified"
+        }
+      ]
+    },
+    {
+      "case": "a stale fixture: its test is gone",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        }
+      ]
+    },
+    {
+      "case": "a new fixture nobody reads yet",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "provider/order.cancelled.json": "{\n  \"format\": 1,\n  \"name\": \"order.cancelled\",\n  \"description\": \"An order is cancelled\",\n  \"request\": {\n    \"method\": \"DELETE\",\n    \"path\": \"/orders/ord_81f3\"\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "provider/order.cancelled.json",
+          "code": "unread"
+        }
+      ]
+    },
+    {
+      "case": "an invalid fixture is reported once per issue, and not as unread",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "provider/broken.json": "{\n  \"format\": 2,\n  \"name\": \"broken\",\n  \"description\": \"x\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/\"\n  },\n  \"response\": {\n    \"status\": 700\n  }\n}\n",
+        "tables/not-json.json": "{"
+      },
+      "fixtures": 6,
+      "problems": [
+        {
+          "file": "provider/broken.json",
+          "code": "invalid"
+        },
+        {
+          "file": "provider/broken.json",
+          "code": "invalid"
+        },
+        {
+          "file": "tables/not-json.json",
+          "code": "invalid"
+        }
+      ]
+    },
+    {
+      "case": "files that are not fixtures are ignored",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "provider/README.md": "notes\n",
+        "provider/nested/inner.json": "{}",
+        "notes.json": "{}",
+        ".gitignore": ".ledger/\n"
+      },
+      "fixtures": 4,
+      "problems": []
+    },
+    {
+      "case": "ledger entries for files that no longer exist are ignored",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.removed.json\"}"
+      ],
+      "fixtures": 4,
+      "problems": []
+    },
+    {
+      "case": "ledger lines that are not entries of this side",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}",
+        "not json",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"touched\",\"file\":\"provider/order.created.json\"}",
+        ""
+      ],
+      "fixtures": 4,
+      "problems": [
+        {
+          "file": ".ledger/provider.jsonl",
+          "code": "ledger"
+        },
+        {
+          "file": ".ledger/provider.jsonl",
+          "code": "ledger"
+        },
+        {
+          "file": ".ledger/provider.jsonl",
+          "code": "ledger"
+        }
+      ]
+    },
+    {
+      "case": "no fixtures at all",
+      "side": "provider",
+      "ledger": [],
+      "empty": true,
+      "fixtures": 0,
+      "problems": [
+        {
+          "file": "",
+          "code": "empty"
+        }
+      ]
+    },
+    {
+      "case": "a fixture that starts with a byte order mark is a fixture",
+      "side": "consumer",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "tables/with-bom.json": "﻿{\"format\":1,\"name\":\"with-bom\",\"description\":\"x\",\"rows\":[{\"n\":1}]}"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "tables/with-bom.json",
+          "code": "unread"
+        }
+      ]
+    }
+  ]
+}

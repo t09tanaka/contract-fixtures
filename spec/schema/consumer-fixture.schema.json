@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/t09tanaka/contract-fixtures/blob/main/spec/schema/consumer-fixture.schema.json",
+  "title": "contract-fixtures consumer fixture (format 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "name",
+    "description",
+    "request"
+  ],
+  "properties": {
+    "format": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "path"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]+$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[^A-Z]+$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "type": [
+            "boolean",
+            "number",
+            "string",
+            "array",
+            "object"
+          ]
+        }
+      }
+    },
+    "volatile": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(request)\\.[^.*]+(\\.(\\*|[^.*]+))*(\\.\\*\\*)?$"
+      }
+    }
+  }
+}

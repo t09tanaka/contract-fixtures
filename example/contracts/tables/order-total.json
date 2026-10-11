@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "order-total",
+  "description": "Total of an order in minor units. The discount is a percentage of the subtotal, rounded half up to a whole minor unit before it is subtracted.",
+  "rows": [
+    { "case": "no discount", "unit_price_minor": 600, "quantity": 2, "discount_percent": 0, "expected_minor": 1200 },
+    { "case": "10 percent, discount rounds up (99.9 -> 100)", "unit_price_minor": 999, "quantity": 1, "discount_percent": 10, "expected_minor": 899 },
+    { "case": "10 percent, discount rounds down (125.4 -> 125)", "unit_price_minor": 1254, "quantity": 1, "discount_percent": 10, "expected_minor": 1129 },
+    { "case": "50 percent, discount is exactly half a unit (499.5 -> 500)", "unit_price_minor": 999, "quantity": 1, "discount_percent": 50, "expected_minor": 499 },
+    { "case": "several items", "unit_price_minor": 333, "quantity": 3, "discount_percent": 10, "expected_minor": 899 }
+  ]
+}

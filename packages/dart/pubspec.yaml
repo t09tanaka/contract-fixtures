@@ -1,0 +1,21 @@
+name: contract_fixtures
+description: >-
+  Shared request/response fixtures that keep an API and its clients in step.
+  The provider verifies them against real responses; the consumer reads them.
+version: 0.1.0
+repository: https://github.com/t09tanaka/contract-fixtures/tree/main/packages/dart
+issue_tracker: https://github.com/t09tanaka/contract-fixtures/issues
+topics:
+  - testing
+  - api
+  - contract-testing
+
+environment:
+  sdk: ^3.5.0
+
+executables:
+  contract_fixtures:
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "order-total",
+  "description": "Total in minor units. The discount is rounded half up before it is subtracted.",
+  "rows": [
+    {
+      "case": "no discount",
+      "unit_price_minor": 600,
+      "quantity": 2,
+      "discount_percent": 0,
+      "expected_minor": 1200
+    },
+    {
+      "case": "10 percent",
+      "unit_price_minor": 999,
+      "quantity": 1,
+      "discount_percent": 10,
+      "expected_minor": 899
+    }
+  ]
+}

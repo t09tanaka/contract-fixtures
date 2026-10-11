@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "order.created",
+  "description": "An order is accepted",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    },
+    "body": {
+      "sku": "tea-100",
+      "quantity": 2
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "id": "ord_mv3878vp1",
+      "customer": "customer-1",
+      "status": "confirmed",
+      "total_minor": 1200,
+      "created_at": "2026-10-11T02:50:36.085Z"
+    }
+  },
+  "volatile": [
+    "response.body.id",
+    "response.body.created_at"
+  ]
+}

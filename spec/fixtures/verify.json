@@ -1,0 +1,788 @@
+{
+  "description": "Cases for verifying. `storedText` is the file before (null: no file). Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written.",
+  "cases": [
+    {
+      "case": "a response that equals the stored fixture",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.out-of-stock\",\n  \"description\": \"The item is out of stock\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"mug-200\",\n      \"quantity\": 1\n    }\n  },\n  \"response\": {\n    \"status\": 409,\n    \"body\": {\n      \"error\": \"out_of_stock\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "volatile values may differ",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"total_minor\": 1200,\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"quantity\": 2,\n          \"line_id\": \"ln_1\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.created_at\",\n    \"response.body.lines.*.line_id\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_ffff",
+            "status": "confirmed",
+            "total_minor": 1200,
+            "created_at": "2027-02-02T00:00:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_9"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "update mode leaves a fixture that already agrees untouched",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"total_minor\": 1200,\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"quantity\": 2,\n          \"line_id\": \"ln_1\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.created_at\",\n    \"response.body.lines.*.line_id\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_ffff",
+            "status": "confirmed",
+            "total_minor": 1200,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "update": true,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "the stored file may be formatted differently",
+      "kind": "provider",
+      "storedText": "{\"response\": {\"status\": 409, \"body\": {\"error\": \"out_of_stock\"}}, \"request\": {\"method\": \"POST\", \"path\": \"/orders\", \"headers\": {\"authorization\": \"<token:customer-1>\"}, \"body\": {\"sku\": \"mug-200\", \"quantity\": 1}}, \"description\": \"The item is out of stock\", \"name\": \"order.out-of-stock\", \"format\": 1}",
+      "observed": {
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "header names are lower-cased before comparing",
+      "kind": "consumer",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\",\n      \"content-type\": \"application/json\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n",
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "Authorization": "<token:customer-1>",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "a null body means no body",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/ping\"\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping",
+          "body": null
+        },
+        "response": {
+          "status": 204,
+          "body": null
+        },
+        "volatile": []
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "a changed response",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"total_minor\": 1200,\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"quantity\": 2,\n          \"line_id\": \"ln_1\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.created_at\",\n    \"response.body.lines.*.line_id\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "ord_0000",
+            "total_minor": 1250,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ],
+            "state": "confirmed"
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.state: (absent) -> \"confirmed\"",
+        "response.body.status: \"confirmed\" -> (absent)",
+        "response.body.total_minor: 1200 -> 1250",
+        "response.status: 201 -> 200"
+      ],
+      "written": null
+    },
+    {
+      "case": "a volatile value that changes type",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"total_minor\": 1200,\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"quantity\": 2,\n          \"line_id\": \"ln_1\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.created_at\",\n    \"response.body.lines.*.line_id\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": 81,
+            "status": "confirmed",
+            "total_minor": 1200,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body.id: type string -> number (volatile: only the type is compared)"
+      ],
+      "written": null
+    },
+    {
+      "case": "a changed description",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.out-of-stock\",\n  \"description\": \"The item is out of stock\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"mug-200\",\n      \"quantity\": 1\n    }\n  },\n  \"response\": {\n    \"status\": 409,\n    \"body\": {\n      \"error\": \"out_of_stock\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.out-of-stock",
+        "description": "Nothing left to sell",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "description: \"The item is out of stock\" -> \"Nothing left to sell\""
+      ],
+      "written": null
+    },
+    {
+      "case": "a changed list of volatile paths",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.out-of-stock\",\n  \"description\": \"The item is out of stock\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"mug-200\",\n      \"quantity\": 1\n    }\n  },\n  \"response\": {\n    \"status\": 409,\n    \"body\": {\n      \"error\": \"out_of_stock\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        },
+        "volatile": [
+          "response.body.error"
+        ]
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "volatile: (absent) -> [\"response.body.error\"]"
+      ],
+      "written": null
+    },
+    {
+      "case": "a changed request on the consumer side",
+      "kind": "consumer",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\",\n      \"content-type\": \"application/json\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n",
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": "2"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "request.body.quantity: 2 -> \"2\"",
+        "request.headers.content-type: \"application/json\" -> (absent)"
+      ],
+      "written": null
+    },
+    {
+      "case": "no stored fixture",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "missing",
+      "written": null
+    },
+    {
+      "case": "update mode records a missing fixture in the canonical key order",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.out-of-stock",
+        "volatile": [],
+        "response": {
+          "body": {
+            "error": "out_of_stock"
+          },
+          "status": 409
+        },
+        "request": {
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          },
+          "headers": {
+            "Authorization": "<token:customer-1>"
+          },
+          "path": "/orders",
+          "method": "POST"
+        },
+        "description": "The item is out of stock"
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.out-of-stock\",\n  \"description\": \"The item is out of stock\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"mug-200\",\n      \"quantity\": 1\n    }\n  },\n  \"response\": {\n    \"status\": 409,\n    \"body\": {\n      \"error\": \"out_of_stock\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "update mode replaces a fixture that differs",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"total_minor\": 1200,\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"quantity\": 2,\n          \"line_id\": \"ln_1\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.created_at\",\n    \"response.body.lines.*.line_id\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "total_minor": 1250,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"total_minor\": 1250,\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"quantity\": 2,\n          \"line_id\": \"ln_1\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.created_at\",\n    \"response.body.lines.*.line_id\"\n  ]\n}\n"
+    },
+    {
+      "case": "a stored fixture that does not follow the format",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 2,\n  \"name\": \"order.out-of-stock\",\n  \"description\": \"The item is out of stock\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"mug-200\",\n      \"quantity\": 1\n    }\n  },\n  \"response\": {\n    \"status\": 409,\n    \"body\": {\n      \"error\": \"out_of_stock\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "invalid-stored",
+      "written": null
+    },
+    {
+      "case": "update mode replaces a stored fixture that does not follow the format",
+      "kind": "provider",
+      "storedText": "{",
+      "observed": {
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.out-of-stock\",\n  \"description\": \"The item is out of stock\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"mug-200\",\n      \"quantity\": 1\n    }\n  },\n  \"response\": {\n    \"status\": 409,\n    \"body\": {\n      \"error\": \"out_of_stock\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "what the side produced is not a valid fixture",
+      "kind": "consumer",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\",\n      \"content-type\": \"application/json\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n",
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "content-type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": false,
+      "outcome": "invalid-observed",
+      "written": null
+    },
+    {
+      "case": "what the side produced is not a valid fixture, also in update mode",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "content-type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "volatile": [
+          "request.body.nonce"
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null
+    },
+    {
+      "case": "two headers that differ only in case",
+      "kind": "consumer",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\",\n      \"content-type\": \"application/json\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n",
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "Accept": "a",
+            "accept": "b"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": false,
+      "outcome": "usage",
+      "written": null
+    },
+    {
+      "case": "an empty string body is not the same as no body",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/ping\"\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping"
+        },
+        "response": {
+          "status": 204,
+          "body": ""
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body: (absent) -> \"\""
+      ],
+      "written": null
+    },
+    {
+      "case": "an empty object body is not the same as no body",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/ping\"\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping"
+        },
+        "response": {
+          "status": 204,
+          "body": {}
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body: (absent) -> {}"
+      ],
+      "written": null
+    },
+    {
+      "case": "no body is not the same as a stored empty array body",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/ping\"\n  },\n  \"response\": {\n    \"status\": 204,\n    \"body\": []\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping"
+        },
+        "response": {
+          "status": 204,
+          "body": null
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.body: [] -> (absent)"
+      ],
+      "written": null
+    },
+    {
+      "case": "null inside a body is not the same as an absent key",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/ping\",\n    \"body\": {\n      \"coupon\": null\n    }\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "POST",
+          "path": "/ping",
+          "body": {}
+        },
+        "response": {
+          "status": 204
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "request.body.coupon: null -> (absent)"
+      ],
+      "written": null
+    },
+    {
+      "case": "update mode keeps null inside a body, writes characters as they are and array-index keys first",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/ping\",\n    \"body\": {\n      \"coupon\": null\n    }\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n",
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "POST",
+          "path": "/ping",
+          "body": {
+            "coupon": null,
+            "note": "café 😀",
+            "10": 1,
+            "9": 2
+          }
+        },
+        "response": {
+          "status": 204
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"ping\",\n  \"description\": \"Health check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/ping\",\n    \"body\": {\n      \"9\": 2,\n      \"10\": 1,\n      \"coupon\": null,\n      \"note\": \"café 😀\"\n    }\n  },\n  \"response\": {\n    \"status\": 204\n  }\n}\n"
+    },
+    {
+      "case": "an integer beyond 2^53 - 1 in what the side produced",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "POST",
+          "path": "/ping",
+          "body": {
+            "after": 9007199254740993
+          }
+        },
+        "response": {
+          "status": 204
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "written": null
+    },
+    {
+      "case": "only A to Z are lower-cased in header names, and a header may be called __proto__",
+      "kind": "consumer",
+      "storedText": null,
+      "observed": {
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "X-CafÉ": "1",
+            "__proto__": "2",
+            "AUTHORIZATION": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"create-order.request\",\n  \"description\": \"The request the client sends to place an order\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"x-cafÉ\": \"1\",\n      \"__proto__\": \"2\",\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  }\n}\n"
+    }
+  ]
+}

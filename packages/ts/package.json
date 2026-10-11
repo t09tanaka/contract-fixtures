@@ -1,0 +1,68 @@
+{
+  "name": "@t09tanaka/contract-fixtures",
+  "version": "0.1.0",
+  "description": "Shared request/response fixtures that keep an API and its clients in step: the provider verifies them against real responses, the consumer reads them.",
+  "keywords": [
+    "contract",
+    "contract-testing",
+    "fixtures",
+    "api",
+    "testing"
+  ],
+  "license": "MIT",
+  "author": "Takuto Tanaka",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t09tanaka/contract-fixtures.git",
+    "directory": "packages/ts"
+  },
+  "homepage": "https://github.com/t09tanaka/contract-fixtures#readme",
+  "bugs": "https://github.com/t09tanaka/contract-fixtures/issues",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "contract-fixtures": "bin/contract-fixtures.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint .",
+    "test": "rm -rf .test-build && tsc -p tsconfig.test.json && node --test --test-reporter=spec .test-build/test/*.test.js",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^20.19.0",
+    "eslint": "^9.39.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0"
+  }
+}

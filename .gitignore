@@ -5,3 +5,6 @@ pubspec.lock
 coverage/
 .worktrees/
 .DS_Store
+.test-build/
+.ledger/
+*.tgz

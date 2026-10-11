@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "order.invalid-quantity",
+  "description": "The quantity is not a positive integer",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    },
+    "body": {
+      "sku": "tea-100",
+      "quantity": 0
+    }
+  },
+  "response": {
+    "status": 422,
+    "body": {
+      "error": "invalid_request",
+      "field": "quantity"
+    }
+  }
+}
