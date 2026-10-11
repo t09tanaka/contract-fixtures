@@ -9,7 +9,10 @@ other side's tests fail.
 - A language-independent fixture format: [`spec/format.md`](./spec/format.md) (with JSON Schemas).
 - A TypeScript package: [`packages/ts`](./packages/ts) (`@t09tanaka/contract-fixtures`).
 - A Dart package: [`packages/dart`](./packages/dart) (`contract_fixtures`).
-- A runnable example with a TypeScript API and a Dart client: [`example/`](./example).
+- A runnable example with a TypeScript API, a Dart client and a TypeScript client:
+  [`example/`](./example).
+- A guide for putting it into a project that already has tests:
+  [`docs/adoption.md`](./docs/adoption.md).
 
 Either language can be on either side.
 
@@ -50,8 +53,8 @@ contracts/
 
 | | The provider's tests | The consumer's tests |
 |---|---|---|
-| `provider/*.json` | **verify**: call the real handler, compare the real response | **read**: feed the response to the real client code, assert what the client does |
-| `consumer/*.json` | **read**: pass the request to the real handler, assert it is accepted | **verify**: compare the request the client really builds |
+| `provider/*.json` | **verify**: send the request to the real API, compare the real response | **read**: feed the response to the real client code, assert what the client does |
+| `consumer/*.json` | **read**: send the request to the real API, assert it is accepted | **verify**: compare the request the client really builds |
 | `tables/*.json` | **read**: run the rows through the server's calculation | **read**: run the rows through the client's calculation |
 
 Values that change on every run (ids, timestamps) are stored as they really were and listed
@@ -81,8 +84,9 @@ it("order.out-of-stock", async () => {
     headers: { authorization: "<token:customer-1>" },
     body: { sku: "mug-200", quantity: 1 },
   };
-  // Send the real secret to the handler; record the placeholder.
-  const response = await callHandler(resolvePlaceholders(request, realSecret));
+  // Send the real secret to the API; record the placeholder. `send` goes over HTTP to the
+  // application as it is deployed, for example with an HTTP test client.
+  const response = await send(resolvePlaceholders(request, realSecret));
 
   contract.verifyResponse({
     name: "order.out-of-stock",
@@ -154,12 +158,14 @@ so they fit any HTTP library. Where the values come from in practice:
   and decodes the response:
 
   ```ts
-  import { requestFromFetch, toFetchResponse } from "@t09tanaka/contract-fixtures";
+  import { requestFromFetch, resolvePlaceholders, toFetchResponse } from "@t09tanaka/contract-fixtures";
 
   const sent: ExchangeRequest[] = [];
   const fakeFetch: typeof fetch = async (input, init) => {
     sent.push(await requestFromFetch(input, init));
-    return toFetchResponse(contract.readResponse("order.created").response);
+    const { response } = contract.readResponse("order.created");
+    // Where the provider listed a secret, the fixture holds a placeholder; put a value in.
+    return toFetchResponse(resolvePlaceholders(response, (kind, name) => `test ${kind} of ${name}`));
   };
   // ... run the client code with fakeFetch, assert what it made of the response, then:
   contract.verifyRequest({ name: "create-order.request", description: "...", request: sent[0]! });
@@ -298,8 +304,16 @@ that is compared exactly on every run, although the API returns a new key each t
 ### Requests and calculations
 
 The other direction works the same way. The consumer calls `verifyRequest` with the request its
-real code builds; the provider calls `readRequest` and passes it to the real handler. A table is
+real code builds; the provider calls `readRequest` and sends it to the real API. A table is
 read with `readTable` on both sides. See [`example/`](./example) for all three.
+
+### In a project that already has tests
+
+Which tests should verify, what to do with two clients of one API, with generated clients,
+with shards in CI: see the [adoption guide](./docs/adoption.md). The short version of its
+first rule: call `verifyResponse` only in tests that send a request to the application
+assembled the way the deployed one is. A test with a mocked service, or one that calls a
+handler directly, records an answer the API never gives.
 
 ## Changing a response on purpose
 
@@ -348,13 +362,16 @@ Run `contract-fixtures reset` and the consumer side's tests before this check.
 
 Other hints are given when the ledger is missing or has no entries (did the tests run, and on
 this directory? is `--side` right, if the other side has a ledger?), when none of its entries
-is for a fixture of this directory, and when it names files that are gone (was it reset?). A hint is a guess; the problems and the exit code do not depend
-on it.
+is for a fixture of this directory, and when it names files that are gone (was it reset?). A
+hint is a guess; the problems and the exit code do not depend on it. The
+[adoption guide](./docs/adoption.md#when-the-check-fails) has the usual cause of each.
 
 `check` exits with `0` when there are no problems, `1` when a fixture is unverified, unread or
 malformed, and `2` for wrong usage. `CONTRACT_FIXTURES_UPDATE=1` is refused when the environment
 variable `CI` is set, because it would turn every difference into a pass. A CI job for one side
-should also be triggered by changes to the contracts directory.
+should also be triggered by changes to the contracts directory. The
+[adoption guide](./docs/adoption.md#ci) has workflow examples for separate jobs, `paths`,
+shards and containers.
 
 ## Reading the fixtures side by side
 
@@ -372,7 +389,7 @@ provider/order.invalid-quantity            POST /orders                       42
 provider/order.out-of-stock                POST /orders                       409     {available: number, error: string}
 provider/order.token-invalid               POST /orders                       401     {error: string}
 provider/payment.started                   POST /payments                     201     {confirm_key: string, id: string, order_id: string, status: string}
-provider/receipt.downloaded                GET /orders/ord_mv3svam01/receipt  200     {lines: array, order_id: string, total_minor: number}
+provider/receipt.downloaded                GET /orders/ord_mv3vvd651/receipt  200     {lines: array, order_id: string, total_minor: number}
 consumer/create-order.request              POST /orders                       -       -
 consumer/create-order.with-coupon.request  POST /orders                       -       -
 tables/order-total                         -                                  -       5 row(s)
@@ -382,27 +399,60 @@ A fixture is one exchange, so a difference between exchanges is easy to miss in 
 error that is `{error: string}` on one route and `{code: string, message: string}` on another
 shows here as two lines that do not line up.
 
-## What it does not detect
+## What it does not cover
 
-- **Cases without a fixture.** Only the exchanges somebody recorded are protected.
-- **Order and state.** A fixture is one request and one response. Disagreements that only show
-  up across several calls, or in a particular server state, are out of scope.
-- **Third-party services.** If the provider's tests stub a payment gateway, the fixture reflects
-  the stub, not the gateway.
-- **Old clients in the field.** The fixtures describe the code in the repository. A released app
-  that users have not updated is not checked against a new API.
-- **Query strings as parameters.** The path of a request, query string included, is one string.
-  The side that builds a request does so in a fixed way, so comparing the string (or giving it
-  a pattern) is enough; the order or encoding of parameters is not interpreted.
-- **Bodies that are not JSON.** A fixture is a JSON document that both sides parse and compare
-  value by value; a PDF, a CSV file or an image has no place in it. For such a response, record
-  the status and the headers (`content-type`, `content-disposition`) and leave the body out.
-- **Tests that read without asserting.** See "Keeping reading tests honest".
+Each of these is left out on purpose. The reason is given so that it is clear what to use
+instead.
+
+**Not detected**
+
+- **Cases without a fixture.** Only the exchanges somebody recorded are protected. A fixture
+  is an example, not a rule: it does not show that a field is always there.
+- **A new enum member, a new field, a new status.** They appear in responses nobody recorded.
+  The tool compares what was recorded and knows no schema that could say "this value is new".
+- **Tests that read without asserting.** The ledger shows that a fixture was loaded. A table
+  of expectations with `assertCovers` closes most of the gap (see "Keeping reading tests
+  honest"); the rest is code review.
 - **Secrets nobody listed.** Apart from the token shape described under "Secrets", a value is
-  only kept out of a fixture when its path is under `secret`. Review new fixtures for it.
+  only kept out of a fixture when its path is under `secret`, because other secrets have no
+  shape to recognise. Review new fixtures for it.
+- **Old clients in the field.** The fixtures describe the code in the repository. A released
+  app that users have not updated is not checked against a new API.
+- **A test application that differs from the deployed one.** The tool records what the test
+  hands it. A response from a mocked service or from an application assembled differently is
+  recorded faithfully and is wrong. See the
+  [adoption guide](./docs/adoption.md#which-tests-verify).
 
-It also has no matching DSL, no broker, no multi-step scenarios and no OpenAPI integration, and
-it does not depend on an HTTP client or a test framework.
+**Not expressed by the format**
+
+- **Order and state.** A fixture is one request and one response, so that every file can be
+  read and replayed alone. Disagreements that only show up across several calls, or in a
+  particular server state, need a test of the flow.
+- **Bodies that are not JSON.** A fixture is a JSON document that both sides parse and compare
+  value by value; a PDF, a CSV file or an image has no place in it. For such a response,
+  record the status and the headers (`content-type`, `content-disposition`) and leave the
+  body out.
+- **Signatures over raw bytes.** Fixtures are compared after parsing, and a formatter may
+  rewrite them, so the exact bytes of a body are not kept. A signature over those bytes (a
+  signed webhook) cannot be checked from a fixture.
+- **Query strings as parameters.** The path of a request, query string included, is one
+  string. The side that builds a request does so in a fixed way, so comparing the string (or
+  giving it a pattern) is enough; the order or encoding of parameters is not interpreted.
+- **A secret or a changing value inside a longer value.** `secret` and `volatile` address
+  whole values, which keeps "what is stored" and "what is compared" unambiguous. For a token
+  inside a header or a URL, make the whole value the secret; for a changing part of a string,
+  give the string a pattern.
+
+**Outside the tool**
+
+- **Third-party services.** If the provider's tests stub a payment gateway, the fixture
+  reflects the stub, not the gateway. The response of somebody else's service cannot be
+  verified by your tests.
+- **A side that is not in the repository.** Both checks need tests: a consumer nobody here
+  owns (external callers, the sender of a webhook) cannot read or verify.
+- **Matching rules, a broker, provider states, OpenAPI.** There is no matching DSL, no
+  broker, no multi-step scenario and no OpenAPI integration, and no dependency on an HTTP
+  client or a test framework. Comparison is exact, with `volatile` as the one exception.
 
 ## Measured in practice
 
@@ -416,7 +466,8 @@ seconds. The application-independent helper code was 399 lines in 3 files.
 spec/            the format (format.md, JSON Schemas) and cases both packages must pass
 packages/ts/     @t09tanaka/contract-fixtures
 packages/dart/   contract_fixtures
-example/         a TypeScript API and a Dart client that share example/contracts
+example/         a TypeScript API with two clients (Dart, TypeScript), each with a contracts directory
+docs/            the adoption guide
 ```
 
 `spec/fixtures/` holds language-independent cases (comparison, validation, file output, check
@@ -429,7 +480,7 @@ same way" is kept true.
 ```sh
 npm ci && npm run build
 npm run lint && npm run typecheck && npm test   # TypeScript package
-npm run example                                 # provider side of the example
+npm run example                                 # the example: provider side and web client
 
 cd packages/dart && dart pub get
 dart format --output=none --set-exit-if-changed . && dart analyze --fatal-infos && dart test

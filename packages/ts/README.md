@@ -6,9 +6,13 @@ verify the fixtures against real responses; the consumer's tests read them.
 This is the TypeScript package. The idea, the workflow and the limits are described in the
 [repository README](https://github.com/t09tanaka/contract-fixtures#readme); the file format is
 in [`spec/format.md`](https://github.com/t09tanaka/contract-fixtures/blob/main/spec/format.md).
-A Dart package with the same API reads and writes the same files.
+A Dart package with the same core API reads and writes the same files. For a project that
+already has tests, see the
+[adoption guide](https://github.com/t09tanaka/contract-fixtures/blob/main/docs/adoption.md).
 
 - Node.js 20 or later. No runtime dependencies.
+- The type definitions use the global `fetch` types (`Request`, `Response`, `RequestInit`), so
+  a TypeScript project needs `@types/node` (20 or later) or the `DOM` library.
 - ES modules and CommonJS, with type definitions.
 - Independent of the test framework: failures are thrown as ordinary errors.
 
@@ -52,11 +56,11 @@ contract.verifyResponse({
   secret: { "response.body.access_token": "<token:session-1>" },
 });
 
-// Pass every request the consumer recorded to the real handler.
+// Send every request the consumer recorded to the real API.
 const expectations = { "create-order.request": 201 };
 contract.assertCovers("consumer", Object.keys(expectations));
 const { request } = contract.readRequest("create-order.request");
-const res = await callHandler(resolvePlaceholders(request, (kind, name) => secrets[`${kind}:${name}`]));
+const res = await send(resolvePlaceholders(request, (kind, name) => secrets[`${kind}:${name}`]));
 
 // Run a shared table through this side's calculation.
 for (const row of contract.readTable<Row>("order-total").rows) { /* assert */ }

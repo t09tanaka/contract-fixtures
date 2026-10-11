@@ -1,0 +1,117 @@
+# The contract of the example, the way a repository with an API and two clients would run it:
+# one job per side, started by a change to that side or to a contracts directory it uses.
+# docs/adoption.md quotes this file.
+name: Example contracts
+
+on:
+  pull_request:
+    paths:
+      - "example/contracts/**"
+      - "example/contracts-web/**"
+      - "example/provider/**"
+      - "example/consumer/**"
+      - "example/consumer-web/**"
+      - "packages/**"
+      - "package-lock.json"
+      - ".github/workflows/example.yml"
+  push:
+    branches: [main]
+
+concurrency:
+  group: example-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The provider's tests in two shards. Each shard verifies and reads a part of the fixtures,
+  # so no shard can run the check; the next job joins their ledgers first.
+  provider:
+    name: Provider tests, shard ${{ matrix.shard }} of 2
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Reset, then run one shard of the tests
+        working-directory: example/provider
+        run: |
+          npm run reset
+          rm -rf .test-build && npx tsc -p tsconfig.json
+          node --test --test-shard=${{ matrix.shard }}/2 .test-build/test/*.test.js
+      - name: Collect the ledgers of this shard
+        run: |
+          mkdir ledgers
+          for dir in contracts contracts-web; do
+            ledger="example/$dir/.ledger/provider.jsonl"
+            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir-${{ matrix.shard }}.jsonl"; fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledgers-${{ matrix.shard }}
+          path: ledgers/
+
+  provider-check:
+    name: Provider check, after all shards
+    needs: provider
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ledgers-*
+          path: ledgers
+          merge-multiple: true
+      - name: Join the ledgers of the shards, then check
+        run: |
+          for dir in contracts contracts-web; do
+            mkdir -p "example/$dir/.ledger"
+            cat ledgers/"$dir"-*.jsonl > "example/$dir/.ledger/provider.jsonl"
+          done
+          npm run check -w example/provider
+
+  web:
+    name: Web client (reset, test, check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run contract -w example/consumer-web
+
+  app:
+    name: App (reset, test, check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+        working-directory: example/consumer
+      - working-directory: example/consumer
+        run: |
+          dart run contract_fixtures reset --side consumer --dir ../contracts
+          dart test
+          dart run contract_fixtures check --side consumer --dir ../contracts

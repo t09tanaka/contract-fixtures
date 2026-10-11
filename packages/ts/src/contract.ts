@@ -90,7 +90,7 @@ export interface ContractFixtures {
   /** Consumer side: reads `provider/<name>.json` to feed the response to the real client code. */
   readResponse(name: string): ProviderFixture;
 
-  /** Provider side: reads `consumer/<name>.json` to pass the request to the real handler. */
+  /** Provider side: reads `consumer/<name>.json` to send the request to the real API. */
   readRequest(name: string): ConsumerFixture;
 
   /** Either side: reads `tables/<name>.json`. */

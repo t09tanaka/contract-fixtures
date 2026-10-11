@@ -6,7 +6,9 @@ verify the fixtures against real responses; the consumer's tests read them.
 This is the Dart package. The idea, the workflow and the limits are described in the
 [repository README](https://github.com/t09tanaka/contract-fixtures#readme); the file format is
 in [`spec/format.md`](https://github.com/t09tanaka/contract-fixtures/blob/main/spec/format.md).
-A TypeScript package with the same API reads and writes the same files.
+A TypeScript package with the same core API reads and writes the same files. For a project
+that already has tests, see the
+[adoption guide](https://github.com/t09tanaka/contract-fixtures/blob/main/docs/adoption.md).
 
 - Pure Dart (uses `dart:io`), no dependencies. Works under `dart test` and `flutter test`.
 - Independent of the test framework: failures are thrown as ordinary exceptions.
