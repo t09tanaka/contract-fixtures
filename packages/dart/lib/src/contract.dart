@@ -6,6 +6,7 @@ import 'differences.dart';
 import 'errors.dart';
 import 'json.dart';
 import 'ledger.dart';
+import 'secrets.dart';
 import 'types.dart';
 import 'validate.dart';
 
@@ -106,21 +107,26 @@ class ContractFixtures {
   /// Provider side: compares a real response with `provider/<name>.json`.
   ///
   /// Throws [ContractMismatch] on a difference; writes the fixture in update mode.
+  ///
+  /// [secret] maps paths to placeholders: the real value at such a path is replaced by its
+  /// placeholder before anything is compared, printed or written.
   void verifyResponse({
     required String name,
     required String description,
     required ExchangeRequest request,
     required ExchangeResponse response,
     List<String> volatile = const [],
+    Map<String, String> secret = const {},
   }) {
     _requireSide(ContractSide.provider, 'verifyResponse');
     _verify(FixtureKind.provider, name, {
       'format': formatVersion,
       'name': name,
       'description': description,
-      'request': _request(FixtureKind.provider, name, request),
+      'request': request.toJson(),
       'response': response.toJson(),
       if (volatile.isNotEmpty) 'volatile': volatile,
+      if (secret.isNotEmpty) 'secret': secret,
     });
   }
 
@@ -128,19 +134,22 @@ class ContractFixtures {
   /// `consumer/<name>.json`.
   ///
   /// Throws [ContractMismatch] on a difference; writes the fixture in update mode.
+  /// [secret] works as in [verifyResponse].
   void verifyRequest({
     required String name,
     required String description,
     required ExchangeRequest request,
     List<String> volatile = const [],
+    Map<String, String> secret = const {},
   }) {
     _requireSide(ContractSide.consumer, 'verifyRequest');
     _verify(FixtureKind.consumer, name, {
       'format': formatVersion,
       'name': name,
       'description': description,
-      'request': _request(FixtureKind.consumer, name, request),
+      'request': request.toJson(),
       if (volatile.isNotEmpty) 'volatile': volatile,
+      if (secret.isNotEmpty) 'secret': secret,
     });
   }
 
@@ -178,28 +187,25 @@ class ContractFixtures {
     }
   }
 
-  Map<String, dynamic> _request(
-    FixtureKind kind,
-    String name,
-    ExchangeRequest request,
-  ) {
-    final json = request.toJson();
-    final headers = request.headers;
-    if (headers != null) {
-      final lower = <String, String>{};
-      for (final entry in headers.entries) {
-        final key = asciiLowerCase(entry.key);
-        if (lower.containsKey(key)) {
-          throw ContractUsageException(
-            'contract fixture ${kind.name}/$name.json: the header $key is given '
-            'more than once (names differ only in case)',
-          );
-        }
-        lower[key] = entry.value;
+  /// Lower-cases the header names of what this side produced, after its JSON round trip.
+  void _lowerCaseHeaders(String file, Object? produced) {
+    if (produced is! Map<String, dynamic>) return;
+    final request = produced['request'];
+    if (request is! Map<String, dynamic>) return;
+    final headers = request['headers'];
+    if (headers is! Map<String, dynamic>) return;
+    final lower = <String, dynamic>{};
+    for (final entry in headers.entries) {
+      final key = asciiLowerCase(entry.key);
+      if (lower.containsKey(key)) {
+        throw ContractUsageException(
+          'contract fixture $file: the header $key is given '
+          'more than once (names differ only in case)',
+        );
       }
-      json['headers'] = lower;
+      lower[key] = entry.value;
     }
-    return json;
+    request['headers'] = lower;
   }
 
   void _verify(FixtureKind kind, String name, Map<String, dynamic> observed) {
@@ -217,6 +223,12 @@ class ContractFixtures {
         file,
       );
     }
+    _lowerCaseHeaders(file, produced);
+    // From here on the real values are gone: nothing below can print or write them.
+    replaceSecrets(
+      produced,
+      produced is Map<String, dynamic> ? produced['secret'] : null,
+    );
     final producedIssues = validateFixtureValue(kind, name, produced);
     if (producedIssues.isNotEmpty) {
       throw ContractFixtureException(
@@ -242,6 +254,7 @@ class ContractFixtures {
       write();
     } else {
       final stored = validateFixtureFile(kind, name, target);
+      if (update) _refuseToRemoveSecrets(file, produced, stored.value);
       if (stored.issues.isNotEmpty) {
         if (!update) {
           throw ContractFixtureException(
@@ -257,7 +270,8 @@ class ContractFixtures {
         final volatile =
             (value['volatile'] as List<dynamic>? ?? const <dynamic>[])
                 .cast<String>();
-        final diffs = differences(value, produced, volatile);
+        final diffs =
+            differences(value, _comparable(produced, value), volatile);
         if (diffs.isNotEmpty) {
           if (!update) {
             throw ContractMismatch(
@@ -274,6 +288,56 @@ class ContractFixtures {
       }
     }
     appendLedger(dir, side, LedgerAction.verified, kind, name);
+  }
+
+  /// [produced] as it is compared with the stored fixture. Paths that only the stored
+  /// fixture lists as secret are covered as well, so that the difference names the path
+  /// (and the change of `secret`) without printing a value that used to be kept out of the
+  /// file.
+  Object? _comparable(Object? produced, Map<String, dynamic> stored) {
+    final removed = _removedSecretPaths(produced, stored);
+    if (removed.isEmpty) return produced;
+    final copy = jsonRoundTrip(produced);
+    replaceSecrets(
+      copy,
+      stored['secret'],
+      everything: true,
+      skip: (path) => !removed.contains(path),
+    );
+    return copy;
+  }
+
+  /// The secret paths of the stored fixture that what this side produced does not list.
+  List<String> _removedSecretPaths(Object? produced, Object? stored) {
+    final storedSecret =
+        stored is Map<String, dynamic> ? stored['secret'] : null;
+    if (storedSecret is! Map<String, dynamic>) return const [];
+    final own = produced is Map<String, dynamic> ? produced['secret'] : null;
+    return [
+      for (final path in sortedKeys(storedSecret))
+        if (own is! Map<String, dynamic> || !own.containsKey(path)) path,
+    ];
+  }
+
+  /// Update mode never drops a secret path: the value behind it would be written as it
+  /// really is. Whoever wants the path gone removes it from the stored file by hand.
+  void _refuseToRemoveSecrets(String file, Object? produced, Object? stored) {
+    final issues = [
+      for (final path in _removedSecretPaths(produced, stored))
+        FormatIssue(
+          'secret-removed',
+          'secret.$path',
+          'is a secret path of the stored fixture, but this test does not pass it',
+        ),
+    ];
+    if (issues.isEmpty) return;
+    throw ContractFixtureException(
+      'contract fixture $file is not updated, because that would drop a secret path:\n'
+      '${formatIssues(issues)}\n'
+      'Pass the path as `secret` in this test, or remove it from the stored file by hand.',
+      file,
+      issues,
+    );
   }
 
   Map<String, dynamic> _read(FixtureKind kind, String name) {

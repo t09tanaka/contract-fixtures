@@ -1,7 +1,8 @@
 // The consumer side of the contract.
 //
 // - provider fixtures: feed the responses the API really gave (../contracts/provider/,
-//   verified by the provider's tests) to the client's real response handling.
+//   verified by the provider's tests) to the client's real response handling. Where the
+//   API returned a secret, the fixture holds a placeholder.
 // - consumer fixtures: verify the requests the client really builds against
 //   ../contracts/consumer/ (the provider's tests pass those to the real handler).
 // - tables: run the shared rows through this side's calculation.
@@ -34,12 +35,48 @@ const expectations = <String, String>{
   'order.created': 'placed, total 1200',
   'order.created-with-coupon': 'placed, total 899',
   'order.out-of-stock': 'out of stock, 0 left',
-  'order.invalid-coupon': 'coupon rejected',
+  'order.coupon-unknown': 'coupon rejected',
   'order.invalid-quantity': 'failed',
   'order.token-invalid': 'sign in again',
 };
 
+/// The same for the responses to "start the payment". The fixture holds a placeholder where
+/// the API returned a secret; this side puts a value of its own in before the client reads it.
+const paymentExpectations = <String, String>{
+  'payment.started': 'confirm with the key of payment-1',
+};
+
 void main() {
+  group('provider fixtures: a response with a secret in it', () {
+    test('every payment fixture has an expectation here', () {
+      contract.assertCovers(
+        FixtureKind.provider,
+        paymentExpectations.keys,
+        prefix: 'payment.',
+      );
+    });
+
+    for (final entry in paymentExpectations.entries) {
+      test(entry.key, () {
+        final fixture = contract.readResponse(entry.key);
+        final body = resolvePlaceholders(
+          fixture.response.body,
+          (kind, name) => kind == 'key' ? 'the key of $name' : null,
+        );
+
+        final result = readStartPaymentResponse(fixture.response.status, body);
+
+        expect(
+          switch (result) {
+            PaymentStarted(:final confirmKey) => 'confirm with $confirmKey',
+            PaymentFailed() => 'failed',
+          },
+          entry.value,
+        );
+      });
+    }
+  });
+
   group('provider fixtures: what the app makes of real responses', () {
     test('every provider fixture has an expectation here', () {
       contract.assertCovers(

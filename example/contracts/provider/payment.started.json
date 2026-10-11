@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "payment.started",
+  "description": "Starting the payment of an order returns the key that confirms it",
+  "request": {
+    "method": "POST",
+    "path": "/payments",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    },
+    "body": {
+      "order_id": "ord_demo1"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "id": "pay_mv3qjado1",
+      "order_id": "ord_demo1",
+      "status": "awaiting_confirmation",
+      "confirm_key": "<key:payment-1>"
+    }
+  },
+  "volatile": [
+    "response.body.id"
+  ],
+  "secret": {
+    "response.body.confirm_key": "<key:payment-1>"
+  }
+}

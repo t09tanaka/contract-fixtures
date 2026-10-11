@@ -81,6 +81,11 @@ class ProviderFixture {
   String get description => json['description'] as String;
   List<String> get volatile =>
       (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<String>();
+
+  /// Path -> placeholder: what is stored in place of the real value at that path.
+  Map<String, String> get secret =>
+      (json['secret'] as Map<String, dynamic>? ?? const <String, dynamic>{})
+          .cast<String, String>();
 }
 
 /// A request the consumer really builds (`consumer/<name>.json`).
@@ -97,6 +102,11 @@ class ConsumerFixture {
   String get description => json['description'] as String;
   List<String> get volatile =>
       (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<String>();
+
+  /// Path -> placeholder: what is stored in place of the real value at that path.
+  Map<String, String> get secret =>
+      (json['secret'] as Map<String, dynamic>? ?? const <String, dynamic>{})
+          .cast<String, String>();
 }
 
 /// Rows of input and expected output for a shared calculation (`tables/<name>.json`).

@@ -34,3 +34,11 @@ export function ledgerLines(dir: string, side: string): string[] {
   if (!fs.existsSync(file)) return [];
   return fs.readFileSync(file, "utf8").split("\n").filter((line) => line !== "");
 }
+
+/** Every file below `dir`, the ledger included. */
+export function everyFileIn(dir: string): string[] {
+  return fs
+    .readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(entry.parentPath, entry.name));
+}

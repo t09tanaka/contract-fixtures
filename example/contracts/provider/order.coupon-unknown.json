@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "name": "order.invalid-coupon",
+  "name": "order.coupon-unknown",
   "description": "The coupon code does not exist",
   "request": {
     "method": "POST",
@@ -17,7 +17,7 @@
   "response": {
     "status": 422,
     "body": {
-      "error": "invalid_coupon"
+      "error": "coupon_unknown"
     }
   }
 }

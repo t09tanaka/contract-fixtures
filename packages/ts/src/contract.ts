@@ -9,8 +9,16 @@ import {
   ContractMismatchError,
   ContractUsageError,
 } from "./errors.js";
-import { asciiLowerCase, canonicalJson, isObject, jsonRoundTrip, NotJsonError } from "./json.js";
+import {
+  asciiLowerCase,
+  canonicalJson,
+  isObject,
+  jsonRoundTrip,
+  NotJsonError,
+  sortedKeys,
+} from "./json.js";
 import { appendLedger } from "./ledger.js";
+import { replaceSecrets } from "./secrets.js";
 import {
   FORMAT_VERSION,
   type ConsumerFixture,
@@ -23,6 +31,7 @@ import {
 } from "./types.js";
 import {
   formatIssues,
+  type FormatIssue,
   NAME_PATTERN,
   validateFixtureFile,
   validateFixtureValue,
@@ -114,7 +123,7 @@ function exchangePart(file: string, value: unknown, keys: readonly string[]): un
   return out;
 }
 
-/** The fixture a side produced, as it would be written. */
+/** The fixture a side produced, as it would be written: placeholders in place of secrets. */
 function candidate(file: string, observed: object): Record<string, unknown> {
   let wire: Record<string, unknown>;
   try {
@@ -127,7 +136,7 @@ function candidate(file: string, observed: object): Record<string, unknown> {
       file,
     );
   }
-  const out = ordered(wire, ["format", "name", "description", "request", "response", "volatile"]);
+  const out = ordered(wire, ["format", "name", "description", "request", "response", "volatile", "secret"]);
   if (Object.hasOwn(out, "request")) {
     out.request = exchangePart(file, out.request, ["method", "path", "headers", "body"]);
   }
@@ -135,7 +144,51 @@ function candidate(file: string, observed: object): Record<string, unknown> {
     out.response = exchangePart(file, out.response, ["status", "body"]);
   }
   if (Array.isArray(out.volatile) && out.volatile.length === 0) delete out.volatile;
+  if (isObject(out.secret) && Object.keys(out.secret).length === 0) delete out.secret;
+  // From here on the real values are gone: nothing below can print or write them.
+  replaceSecrets(out, out.secret, "strings");
   return out;
+}
+
+/**
+ * `produced` as it is compared with the stored fixture. Paths that only the stored fixture
+ * lists as secret are covered as well, so that the difference names the path (and the change
+ * of `secret`) without printing a value that used to be kept out of the file.
+ */
+function comparable(produced: Record<string, unknown>, stored: unknown): unknown {
+  const removed = removedSecretPaths(produced, stored);
+  if (removed.length === 0) return produced;
+  const copy = jsonRoundTrip(produced);
+  replaceSecrets(copy, (stored as { secret: unknown }).secret, "everything", (p) => !removed.includes(p));
+  return copy;
+}
+
+/** The secret paths of the stored fixture that what this side produced does not list. */
+function removedSecretPaths(produced: Record<string, unknown>, stored: unknown): string[] {
+  const storedSecret = isObject(stored) ? stored.secret : undefined;
+  if (!isObject(storedSecret)) return [];
+  const own = isObject(produced.secret) ? produced.secret : {};
+  return sortedKeys(storedSecret).filter((p) => !Object.hasOwn(own, p));
+}
+
+/**
+ * Update mode never drops a secret path: the value behind it would be written as it really
+ * is. Whoever wants the path gone removes it from the stored file by hand.
+ */
+function refuseToRemoveSecrets(file: string, produced: Record<string, unknown>, stored: unknown): void {
+  const issues: FormatIssue[] = removedSecretPaths(produced, stored).map((p) => ({
+    code: "secret-removed",
+    path: `secret.${p}`,
+    message: "is a secret path of the stored fixture, but this test does not pass it",
+  }));
+  if (issues.length === 0) return;
+  throw new ContractFixtureError(
+    `contract fixture ${file} is not updated, because that would drop a secret path:\n` +
+      `${formatIssues(issues)}\n` +
+      "Pass the path as `secret` in this test, or remove it from the stored file by hand.",
+    file,
+    issues,
+  );
 }
 
 /** Update mode as the environment asks for it. Refused in CI, where it would hide every change. */
@@ -211,6 +264,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       write();
     } else {
       const stored = validateFixtureFile(kind, name, filePath);
+      if (update) refuseToRemoveSecrets(file, produced, stored.value);
       if (stored.issues.length > 0) {
         if (!update) {
           throw new ContractFixtureError(
@@ -222,7 +276,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
         write();
       } else {
         const volatile = (stored.value as { volatile?: string[] }).volatile ?? [];
-        const diffs = differences(stored.value, produced, volatile);
+        const diffs = differences(stored.value, comparable(produced, stored.value), volatile);
         if (diffs.length > 0) {
           if (!update) {
             throw new ContractMismatchError(

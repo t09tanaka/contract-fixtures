@@ -2,6 +2,8 @@ import fs from "node:fs";
 
 import { volatileMode } from "./differences.js";
 import { isObject, isUnsafeNumber, jsonType, sortedKeys } from "./json.js";
+import { parsePlaceholder } from "./placeholders.js";
+import { JWT_PATTERN, secretNodes, secretPathProblem } from "./secrets.js";
 import { FORMAT_VERSION, type Kind } from "./types.js";
 
 /** One way in which a file does not follow the fixture format. */
@@ -23,6 +25,13 @@ export interface FormatIssue {
     | "status"
     | "volatile"
     | "volatile-unmatched"
+    | "secret"
+    | "secret-unmatched"
+    | "secret-value"
+    | "secret-volatile"
+    /** Not a fault of a file: update mode was asked to drop a secret path (see contract.ts). */
+    | "secret-removed"
+    | "jwt"
     | "rows"
     | "number";
   /** Where in the file, as a dot separated path (`(root)` for the file itself). */
@@ -33,8 +42,8 @@ export interface FormatIssue {
 export const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 const TOP_LEVEL: Record<Kind, readonly string[]> = {
-  provider: ["format", "name", "description", "request", "response", "volatile"],
-  consumer: ["format", "name", "description", "request", "volatile"],
+  provider: ["format", "name", "description", "request", "response", "volatile", "secret"],
+  consumer: ["format", "name", "description", "request", "volatile", "secret"],
   tables: ["format", "name", "description", "rows"],
 };
 
@@ -226,6 +235,91 @@ function validateNumbers(issues: FormatIssue[], root: unknown): void {
   walk(root, "");
 }
 
+function validateSecret(
+  issues: FormatIssue[],
+  fixture: Record<string, unknown>,
+  roots: readonly string[],
+): void {
+  const secret = fixture.secret;
+  if (!isObject(secret)) {
+    issues.push({
+      code: "secret",
+      path: "secret",
+      message: "must be an object of paths and placeholders",
+    });
+    return;
+  }
+  const volatile = Array.isArray(fixture.volatile)
+    ? fixture.volatile
+        .filter((entry: unknown): entry is string => typeof entry === "string")
+        .map((entry) => entry.split("."))
+    : [];
+  for (const key of sortedKeys(secret)) {
+    const path = `secret.${key}`;
+    const problem = secretPathProblem(key, roots);
+    if (problem !== null) {
+      issues.push({ code: "secret", path, message: problem });
+      continue;
+    }
+    const placeholder = secret[key];
+    if (typeof placeholder !== "string" || parsePlaceholder(placeholder) === null) {
+      issues.push({
+        code: "secret",
+        path,
+        message: "must be a placeholder such as <token:customer-1>",
+      });
+      continue;
+    }
+    const nodes = secretNodes(fixture, key.split("."));
+    if (nodes.length === 0) {
+      issues.push({
+        code: "secret-unmatched",
+        path,
+        message: `${key} matches nothing in this fixture`,
+      });
+      continue;
+    }
+    for (const node of nodes) {
+      if (node.value === placeholder) continue;
+      // The value itself is never printed: it may be the secret.
+      const found = typeof node.value === "string" ? "another string" : jsonType(node.value);
+      issues.push({
+        code: "secret-value",
+        path: node.segments.join("."),
+        message: `is listed in secret, so it must be a string that is stored as ${placeholder} (found ${found})`,
+      });
+    }
+    if (nodes.some((node) => volatileMode(volatile, node.segments) !== null)) {
+      issues.push({
+        code: "secret-volatile",
+        path,
+        message: `${key} is also covered by volatile (a placeholder does not change between runs)`,
+      });
+    }
+  }
+}
+
+/** A token that was not replaced by a placeholder must not be written or stay stored. */
+function validateNoJwt(issues: FormatIssue[], root: unknown): void {
+  const walk = (node: unknown, path: string): void => {
+    if (typeof node === "string") {
+      if (JWT_PATTERN.test(node)) {
+        issues.push({
+          code: "jwt",
+          path,
+          message:
+            "contains what looks like a JSON Web Token (list this path in secret, so that a placeholder is stored instead)",
+        });
+      }
+    } else if (Array.isArray(node)) {
+      node.forEach((item, i) => walk(item, `${path}.${i}`));
+    } else if (isObject(node)) {
+      for (const key of sortedKeys(node)) walk(node[key], path === "" ? key : `${path}.${key}`);
+    }
+  };
+  walk(root, "");
+}
+
 /**
  * Checks a parsed fixture against format 1. `name` is the file name without `.json`.
  * Returns an empty array when the fixture is valid.
@@ -283,10 +377,11 @@ export function validateFixtureValue(kind: Kind, name: string, value: unknown): 
   }
   validateRequest(issues, value.request);
   if (kind === "provider") validateResponse(issues, value.response);
-  if (Object.hasOwn(value, "volatile")) {
-    validateVolatile(issues, value, kind === "provider" ? ["request", "response"] : ["request"]);
-  }
+  const roots = kind === "provider" ? ["request", "response"] : ["request"];
+  if (Object.hasOwn(value, "volatile")) validateVolatile(issues, value, roots);
+  if (Object.hasOwn(value, "secret")) validateSecret(issues, value, roots);
   validateNumbers(issues, value);
+  validateNoJwt(issues, value);
   return issues;
 }
 

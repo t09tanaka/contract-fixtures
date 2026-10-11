@@ -8,6 +8,14 @@ A deliberately tiny, made-up order API.
   decides what the app does with a response; `test/contract_test.dart` is its side.
 - [`contracts/`](./contracts): the fixtures both sides share.
 
+Placing an order (`POST /orders`) shows responses, requests and a shared calculation. Starting
+the payment of an order (`POST /payments`) shows a response with a **secret** in it: the API
+returns a new `confirm_key` every time, the provider's test lists
+`response.body.confirm_key` under `secret`, and
+[`contracts/provider/payment.started.json`](./contracts/provider/payment.started.json) holds
+the placeholder `<key:payment-1>` instead. The consumer's test replaces the placeholder with a
+value of its own before the client reads the response.
+
 ## Run it
 
 From the repository root:
@@ -54,10 +62,10 @@ provider fixtures: what the app makes of real responses order.out-of-stock [E]
 place. The check fails on both sides, and so does the consumer's coverage test:
 
 ```
-contract-fixtures check (provider side): 1 problem(s) in 10 fixture(s)
+contract-fixtures check (provider side): 1 problem(s) in 11 fixture(s)
   - provider/order.cancelled.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)
 
-contract-fixtures check (consumer side): 1 problem(s) in 10 fixture(s)
+contract-fixtures check (consumer side): 1 problem(s) in 11 fixture(s)
   - provider/order.cancelled.json: not read by the consumer side's tests (add a test that feeds it to the real code)
 
 provider fixtures: what the app makes of real responses every provider fixture has an expectation here [E]
@@ -81,4 +89,25 @@ the real handler rejects the request:
 ✖ create-order.request
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   422 !== 201
+```
+
+**(e) Stop listing the secret.** In `provider/test/contract.test.ts`, remove the `secret` line
+of the `payment.started` scenario. The provider's test fails, and the message does not show the
+key the API returned:
+
+```
+✖ payment.started
+  Error [ContractMismatchError]: contract fixture provider/payment.started.json no longer matches what the provider side produces (stored -> observed):
+    secret: {"response.body.confirm_key":"<key:payment-1>"} -> (absent)
+  If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
+```
+
+Update mode does not help here. `CONTRACT_FIXTURES_UPDATE=1 npm test -w example/provider`
+leaves the fixture as it is, because rewriting it would put the real key into the file:
+
+```
+✖ payment.started
+  Error [ContractFixtureError]: contract fixture provider/payment.started.json is not updated, because that would drop a secret path:
+    secret.response.body.confirm_key: is a secret path of the stored fixture, but this test does not pass it
+  Pass the path as `secret` in this test, or remove it from the stored file by hand.
 ```

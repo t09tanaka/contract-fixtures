@@ -7,12 +7,14 @@ import {
   checkContracts,
   ContractCoverageError,
   ContractFixtureError,
+  ContractMismatchError,
   ContractUsageError,
   contractFixtures,
   resetLedger,
   resolvePlaceholders,
 } from "../src/index.js";
-import { copyOfContracts, ledgerLines, tempDir, writeFile } from "./helpers.js";
+import { JWT_PATTERN } from "../src/secrets.js";
+import { copyOfContracts, everyFileIn, ledgerLines, tempDir, writeFile } from "./helpers.js";
 
 const observedResponse = {
   name: "order.out-of-stock",
@@ -269,5 +271,195 @@ describe("resolvePlaceholders", () => {
       () => resolvePlaceholders({ a: "<key:unknown>" }, () => undefined),
       /no value for the placeholder <key:unknown>/,
     );
+  });
+});
+
+describe("secret paths", () => {
+  /** A string of the shape of a token; a new one on every call, as a real API would issue. */
+  let issued = 0;
+  const base64url = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString("base64url");
+  const issueToken = (): string =>
+    [base64url({ alg: "HS256" }), base64url({ sub: "customer-1", n: ++issued }), "c2lnbmF0dXJl"].join(".");
+
+  const signInExchange = (token: unknown, seconds = 3600) => ({
+    name: "session.created",
+    description: "Signing in returns an access token",
+    request: {
+      method: "POST",
+      path: "/sessions",
+      body: { email: "customer-1@example.test", password: "<password:customer-1>" },
+    },
+    response: { status: 200, body: { access_token: token, expires_in: seconds } },
+  });
+  const secret = { "response.body.access_token": "<token:session-1>" };
+
+  const everythingIn = (dir: string): string =>
+    everyFileIn(dir)
+      .map((file) => fs.readFileSync(file, "utf8"))
+      .join("\n");
+  const thrownBy = (run: () => void): Error => {
+    try {
+      run();
+    } catch (error) {
+      return error as Error;
+    }
+    throw new Error("nothing was thrown");
+  };
+
+  it("negative control: without a secret path, a token cannot be written", () => {
+    const dir = tempDir();
+    const provider = contractFixtures({ side: "provider", dir, update: true });
+    const token = issueToken();
+
+    const error = thrownBy(() => provider.verifyResponse(signInExchange(token)));
+
+    assert.ok(error instanceof ContractFixtureError);
+    assert.deepEqual(
+      error.issues.map((issue) => `${issue.code} ${issue.path}`),
+      ["jwt response.body.access_token"],
+    );
+    assert.ok(!String(error.stack).includes(token));
+    assert.deepEqual(everyFileIn(dir), []);
+  });
+
+  it("with a secret path, the real value is nowhere: not in a file, the ledger or a message", () => {
+    const dir = tempDir();
+    const first = issueToken();
+    contractFixtures({ side: "provider", dir, update: true }).verifyResponse({
+      ...signInExchange(first),
+      secret,
+    });
+
+    // Another run issues another token; the stored placeholder still matches.
+    const provider = contractFixtures({ side: "provider", dir, update: false });
+    const second = issueToken();
+    provider.verifyResponse({ ...signInExchange(second), secret });
+
+    // A difference elsewhere is reported without the token.
+    const third = issueToken();
+    const error = thrownBy(() => provider.verifyResponse({ ...signInExchange(third, 60), secret }));
+    assert.ok(error instanceof ContractMismatchError);
+    assert.deepEqual(
+      error.differences.map((d) => d.text),
+      ["response.body.expires_in: 3600 -> 60"],
+    );
+
+    const written = everythingIn(dir) + String(error.stack);
+    assert.match(written, /"access_token": "<token:session-1>"/);
+    assert.equal(ledgerLines(dir, "provider").length, 2);
+    for (const token of [first, second, third]) assert.ok(!written.includes(token));
+    assert.ok(!JWT_PATTERN.test(written));
+  });
+
+  it("a test that stops passing the secret path does not print the value either", () => {
+    const dir = tempDir();
+    contractFixtures({ side: "provider", dir, update: true }).verifyResponse({
+      ...signInExchange("opaque-value-1"),
+      secret,
+    });
+
+    const error = thrownBy(() =>
+      contractFixtures({ side: "provider", dir, update: false }).verifyResponse(
+        signInExchange("opaque-value-2"),
+      ),
+    );
+
+    assert.ok(error instanceof ContractMismatchError);
+    assert.deepEqual(
+      error.differences.map((d) => d.path),
+      ["secret"],
+    );
+    assert.ok(!String(error.stack).includes("opaque-value-2"));
+  });
+
+  it("a value that is not a string, or a path that matches nothing, is an error without the value", () => {
+    const provider = contractFixtures({ side: "provider", dir: tempDir(), update: true });
+
+    const notString = thrownBy(() =>
+      provider.verifyResponse({ ...signInExchange({ value: "opaque-value-3" }), secret }),
+    );
+    assert.ok(notString instanceof ContractFixtureError);
+    assert.deepEqual(
+      notString.issues.map((issue) => `${issue.code} ${issue.path}`),
+      ["secret-value response.body.access_token"],
+    );
+    assert.ok(!notString.message.includes("opaque-value-3"));
+
+    const unmatched = thrownBy(() =>
+      provider.verifyResponse({
+        ...signInExchange("opaque-value-4"),
+        secret: { "response.body.refresh_token": "<token:renewal-1>" },
+      }),
+    );
+    assert.ok(unmatched instanceof ContractFixtureError);
+    assert.deepEqual(
+      unmatched.issues.map((issue) => `${issue.code} ${issue.path}`),
+      ["secret-unmatched secret.response.body.refresh_token"],
+    );
+    assert.deepEqual(everyFileIn(provider.dir), []);
+  });
+
+  it("update mode does not drop a secret path, and says which one without the value", () => {
+    const dir = tempDir();
+    const update = contractFixtures({ side: "provider", dir, update: true });
+    update.verifyResponse({ ...signInExchange("opaque-value-5"), secret });
+    const before = everythingIn(dir);
+
+    const error = thrownBy(() => update.verifyResponse(signInExchange("opaque-value-6")));
+
+    assert.ok(error instanceof ContractFixtureError);
+    assert.equal(
+      error.message,
+      "contract fixture provider/session.created.json is not updated, because that would drop a secret path:\n" +
+        "  secret.response.body.access_token: is a secret path of the stored fixture, but this test does not pass it\n" +
+        "Pass the path as `secret` in this test, or remove it from the stored file by hand.",
+    );
+    assert.equal(everythingIn(dir), before);
+    assert.ok(!before.includes("opaque-value"));
+  });
+
+  it("a number that is not JSON is reported before a header that is given twice", () => {
+    const consumer = contractFixtures({ side: "consumer", dir: tempDir(), update: true });
+    const request = (body: unknown) => ({
+      name: "create-order.request",
+      description: "The request the client sends to place an order",
+      request: { method: "POST", path: "/orders", headers: { Accept: "a", accept: "b" }, body },
+    });
+
+    assert.ok(thrownBy(() => consumer.verifyRequest(request({ n: NaN }))) instanceof ContractFixtureError);
+    assert.ok(thrownBy(() => consumer.verifyRequest(request({ n: 1 }))) instanceof ContractUsageError);
+  });
+
+  it("does not change what the test passed in", () => {
+    const provider = contractFixtures({ side: "provider", dir: tempDir(), update: true });
+    const token = issueToken();
+    const observed = { ...signInExchange(token), secret };
+
+    provider.verifyResponse(observed);
+
+    assert.equal(observed.response.body.access_token, token);
+  });
+
+  it("the reading side gets the placeholder and puts a value of its own in", () => {
+    const dir = tempDir();
+    contractFixtures({ side: "provider", dir, update: true }).verifyResponse({
+      ...signInExchange(issueToken()),
+      secret,
+    });
+
+    const fixture = contractFixtures({ side: "consumer", dir }).readResponse("session.created");
+
+    assert.deepEqual(fixture.secret, secret);
+    assert.deepEqual(
+      resolvePlaceholders(fixture.response.body, (kind, name) => `${kind} of ${name}`),
+      { access_token: "token of session-1", expires_in: 3600 },
+    );
+    assert.deepEqual(checkContracts({ dir, side: "consumer" }).problems, []);
+  });
+
+  it("uses the expression that spec/format.md gives for a token", () => {
+    const format = fs.readFileSync(path.resolve(process.cwd(), "../../spec/format.md"), "utf8");
+    assert.ok(format.includes(`\n\`\`\`\n${JWT_PATTERN.source}\n\`\`\`\n`));
   });
 });

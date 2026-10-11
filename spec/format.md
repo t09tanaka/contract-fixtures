@@ -67,6 +67,7 @@ shape; the rules marked **(beyond the schema)** below are enforced by the packag
 | `request` | yes | See below. |
 | `response` | yes | `status` (integer, 100 to 599) and optionally `body` (any JSON value except `null`). |
 | `volatile` | no | Paths whose values change between runs. See [Volatile paths](#volatile-paths). |
+| `secret` | no | Paths whose values must not be stored, each with the placeholder that is stored instead. See [Secrets](#secrets). |
 
 `request`:
 
@@ -85,7 +86,8 @@ are part of the agreement between the two sides, not everything that happens to 
 
 ## Consumer fixture
 
-The same as a provider fixture without `response`. `volatile` paths start with `request`.
+The same as a provider fixture without `response`. `volatile` and `secret` paths start with
+`request`.
 
 ```json
 {
@@ -122,6 +124,7 @@ same rows and assert that their own implementation produces the expected values.
 Values such as generated ids, timestamps and order numbers differ on every run. They are stored
 as they really were (so the reading side parses a real sample), and the fixture lists their
 locations in `volatile`.
+Values that must not be stored at all are a different matter: see [Secrets](#secrets).
 
 A path is a list of segments separated by `.`, starting at the fixture root:
 `response.body.items.0.id`.
@@ -157,18 +160,113 @@ the check of the body to "it is still an object".
 
 The reading side ignores `volatile`.
 
-## Secret placeholders
+## Secrets
 
-Fixtures are committed, so they must not contain credentials. A string value that consists
-entirely of `<kind:name>` (`^<[a-z][a-z0-9-]*:[A-Za-z0-9._-]+>$`), for example
-`<token:customer-1>`, is a placeholder.
+Fixtures are committed, so they must not contain credentials: not a password in a request, and
+not an access token, a payment secret or a session cookie that the other side sends back.
 
-- The verifying test passes the placeholder (not the real secret) as the recorded request, and
-  sends the real value to the code under test.
+### Placeholders
+
+A string value that consists entirely of `<kind:name>`
+(`^<[a-z][a-z0-9-]*:[A-Za-z0-9._-]+>$`), for example `<token:customer-1>`, is a placeholder. It
+is what a fixture holds in place of a secret.
+
 - A test that replays a fixture replaces placeholders with real values first. Both packages ship
   a helper that walks a JSON value and replaces every placeholder through a callback.
+- The comparison treats placeholders as ordinary strings.
 
-Placeholders are a convention on values; the comparison treats them as ordinary strings.
+### Secret paths
+
+`secret` is an object that maps a path to the placeholder stored at that path:
+
+```json
+{
+  "format": 1,
+  "name": "session.created",
+  "description": "Signing in returns an access token",
+  "request": {
+    "method": "POST",
+    "path": "/sessions",
+    "body": { "email": "customer-1@example.test", "password": "<password:customer-1>" }
+  },
+  "response": {
+    "status": 200,
+    "body": { "access_token": "<token:session-1>", "expires_in": 3600 }
+  },
+  "secret": {
+    "request.body.password": "<password:customer-1>",
+    "response.body.access_token": "<token:session-1>"
+  }
+}
+```
+
+A secret path is written like a volatile path, with these differences:
+
+- `**` is not allowed. `*` matches exactly one segment, as in a volatile path.
+- After `request` or `response` (`request` only in a consumer fixture) comes `headers` or
+  `body`: `request.headers.authorization`, `response.body.access_token`, `response.body` (a
+  body that is a secret as a whole). Header names are written in lower case.
+- A path replaces a **whole value**. A secret inside a longer string (`Bearer <token>`, one
+  pair of a `cookie` header) cannot be addressed; make the whole header value the secret and
+  let the placeholder stand for all of it.
+
+The verifying side passes `secret` together with what it really produced. Before anything is
+compared, printed or written, every string that a secret path matches is replaced by the
+placeholder of that path. The real value therefore never reaches the fixture file, the text of
+a difference, the message of an error, or the ledger. After that the fixture is compared like
+any other: the stored fixture holds the same placeholder at the same place, so the value is
+equal on every run, and `secret` itself is compared too.
+
+- The value may already be the placeholder (a test that hands the placeholder to the helper
+  and the real value to the code under test). Replacing it changes nothing.
+- A secret path that matches nothing in what the side produced is an error, and so is a matched
+  value that is not a string (`null`, a number, an object, an array). Neither is written, and
+  neither message contains the value. A secret that disappears from a response is therefore
+  noticed by the verifying side, not passed over.
+- Paths are applied in UTF-16 code unit order. Two paths that give one node different
+  placeholders are an error.
+- A path that only the *stored* fixture lists (the test no longer passes it) is covered before
+  differences are printed as well: the difference names `secret`, and the value at that path
+  is not shown. Update mode refuses to write such a fixture; see [Update mode](#update-mode).
+
+**(beyond the schema)** A stored fixture is invalid when
+
+| Code | |
+|---|---|
+| `secret` | `secret` is not an object, a key is not a secret path, or a value is not a placeholder. |
+| `secret-unmatched` | a path matches no node of the fixture. |
+| `secret-value` | a node that a path matches does not hold exactly the placeholder of that path. |
+| `secret-volatile` | a node that a path matches is also covered by a volatile path (matched by it, or at or below a path that ends in `**`). A placeholder never changes, so it is compared exactly. |
+
+A volatile path on a parent and a secret path on one of its children are two different nodes
+and may be combined. The schema accepts upper-case letters in a path; a path that names a
+header in upper case simply matches nothing (`secret-unmatched`), because stored header names
+are lower case.
+
+The reading side ignores `secret`: it receives the placeholders as they are stored and replaces
+them with values of its own.
+
+### Tokens that were not replaced
+
+As a safety net, a provider or consumer fixture must not contain a string in which this
+expression (ECMAScript syntax) finds a match:
+
+```
+(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+
+```
+
+That is the shape of a JSON Web Token: three base64url parts separated by dots, the first one
+starting with `eyJ`, not preceded by a base64url character. Every string value of the fixture
+is searched (object keys and header names are not), the token may be a part of a longer string
+(`Bearer eyJ...`), and it does not matter whether a volatile path covers the value.
+
+- A verify that would write or compare such a fixture fails instead, in update mode too
+  (issue code `jwt`). List the path in `secret`.
+- A stored fixture that contains such a string is invalid (`jwt`).
+
+The net is deliberately narrow, so that it does not get in the way: it knows this one shape.
+Opaque tokens, API keys, payment secrets, cookies, and tokens with an empty third part are not
+recognised; they are kept out of fixtures by `secret` paths only. Tables are not searched.
 
 ## Comparison
 
@@ -192,8 +290,9 @@ Placeholders are a convention on values; the comparison treats them as ordinary 
   form of the same character are different strings.
 - `null`, an absent key, `""`, `{}` and `[]` are all different from each other. The one exception
   is the top-level `body` of a request or response, where `null` means "no body" (see above).
-- The whole fixture takes part in the comparison (`description` and `volatile` included), with
-  `volatile` taken from the stored fixture.
+- The whole fixture takes part in the comparison (`description`, `volatile` and `secret`
+  included), with `volatile` taken from the stored fixture, and after the secret paths of what
+  the side produced have been replaced by their placeholders.
 
 A difference is reported as a path and what changed, stored value first:
 
@@ -218,11 +317,18 @@ verify writes the fixture instead:
 
 - A missing fixture is created.
 - A fixture that differs is replaced.
+- A stored fixture is **not** replaced when it lists a secret path that the test does not pass
+  (the same path as a key of `secret`; the placeholder may be another one). Writing it would
+  put the real value into the file. The verify fails with the name of the fixture and the
+  paths (issue code `secret-removed`), without a value. Either pass the path as `secret` in
+  the test, or remove it from the stored file by hand. This holds whether or not the stored
+  fixture follows the format otherwise.
 - A fixture that already agrees (volatile paths considered) is left untouched, so volatile values
   do not churn.
 
 Fixtures are written as JSON with two-space indentation, a trailing newline, and the key order
-`format`, `name`, `description`, `request`, `response`, `volatile`. Inside a body, keys keep the
+`format`, `name`, `description`, `request`, `response`, `volatile`, `secret`. An empty
+`volatile` or `secret` is left out. Inside a body and inside `secret`, keys keep the
 order the side produced them in, except that keys that are array indexes (`"0"`, `"10"`) come
 first in ascending order, as in a JavaScript object. Integer-valued numbers are written without
 a fraction (`1`, not `1.0`). Characters are written as they are; only characters below U+0020,

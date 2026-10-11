@@ -24,7 +24,14 @@ import {
   type ObservedResponse,
   type Side,
 } from "../src/index.js";
-import { copyOfContracts, ledgerLines, loadCases, tempDir, writeFile } from "./helpers.js";
+import {
+  copyOfContracts,
+  everyFileIn,
+  ledgerLines,
+  loadCases,
+  tempDir,
+  writeFile,
+} from "./helpers.js";
 
 describe("spec/fixtures/differences.json", () => {
   interface Case {
@@ -49,6 +56,7 @@ describe("spec/fixtures/validation.json", () => {
     text?: string;
     value?: unknown;
     issues: { code: string; path: string }[];
+    absent?: string[];
   }
   for (const c of loadCases<Case>("validation.json")) {
     it(c.case, () => {
@@ -60,7 +68,10 @@ describe("spec/fixtures/validation.json", () => {
         issues.map((i) => ({ code: i.code, path: i.path })),
         c.issues,
       );
-      for (const issue of issues) assert.notEqual(issue.message, "");
+      for (const issue of issues) {
+        assert.notEqual(issue.message, "");
+        for (const text of c.absent ?? []) assert.ok(!issue.message.includes(text));
+      }
     });
   }
 });
@@ -133,7 +144,9 @@ describe("spec/fixtures/verify.json", () => {
     update: boolean;
     outcome: string;
     differences?: string[];
+    issues?: { code: string; path: string }[];
     written: string | null;
+    absent?: string[];
   }
   for (const c of loadCases<Case>("verify.json")) {
     it(c.case, () => {
@@ -145,10 +158,13 @@ describe("spec/fixtures/verify.json", () => {
 
       let outcome = "ok";
       let lines: string[] | undefined;
+      let message = "";
+      let issues: { code: string; path: string }[] | undefined;
       try {
         if (c.kind === "provider") contract.verifyResponse(c.observed as ObservedResponse);
         else contract.verifyRequest(c.observed as ObservedRequest);
       } catch (error) {
+        message = String(error instanceof Error ? error.stack : error);
         if (error instanceof ContractMismatchError) {
           outcome = "mismatch";
           lines = error.differences.map((d) => d.text);
@@ -156,8 +172,10 @@ describe("spec/fixtures/verify.json", () => {
         } else if (error instanceof ContractUsageError) {
           outcome = "usage";
         } else if (error instanceof ContractFixtureError) {
-          outcome =
-            c.storedText === null && !c.update && error.issues.length === 0
+          issues = error.issues.map((i) => ({ code: i.code, path: i.path }));
+          outcome = error.issues.some((i) => i.code === "secret-removed")
+            ? "refused"
+            : c.storedText === null && !c.update && error.issues.length === 0
               ? "missing"
               : error.message.includes("what this side produced")
                 ? "invalid-observed"
@@ -171,12 +189,19 @@ describe("spec/fixtures/verify.json", () => {
 
       assert.equal(outcome, c.outcome);
       if (c.differences) assert.deepEqual(lines, c.differences);
+      if (c.issues) assert.deepEqual(issues, c.issues);
       assert.equal(after, c.written ?? c.storedText);
       const succeeded = c.outcome === "ok" || c.outcome === "written";
       assert.deepEqual(
         ledgerLines(dir, c.kind),
         succeeded ? [JSON.stringify({ side: c.kind, action: "verified", file: relative })] : [],
       );
+      for (const text of c.absent ?? []) {
+        assert.ok(!message.includes(text), "the message of the error holds the real value");
+        for (const found of everyFileIn(dir)) {
+          assert.ok(!fs.readFileSync(found, "utf8").includes(text), `${found} holds the real value`);
+        }
+      }
     });
   }
 });

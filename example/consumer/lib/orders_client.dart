@@ -1,6 +1,7 @@
 /// The client of the tiny order API: how it builds a request and what it makes of a
 /// response. There is no HTTP here; a real client would send [ApiRequest] with its HTTP
-/// library and pass the status and decoded body to [readCreateOrderResponse].
+/// library and pass the status and decoded body to [readCreateOrderResponse] or
+/// [readStartPaymentResponse].
 library;
 
 class ApiRequest {
@@ -72,6 +73,30 @@ class OrderFailed extends OrderOutcome {
   const OrderFailed();
 }
 
+/// What the app does after it asked to start the payment of an order.
+sealed class PaymentOutcome {
+  const PaymentOutcome();
+}
+
+/// Hand the confirm key to the payment screen. The key is a secret: it is never logged.
+class PaymentStarted extends PaymentOutcome {
+  const PaymentStarted(this.paymentId, this.confirmKey);
+  final String paymentId;
+  final String confirmKey;
+}
+
+/// Show a generic error.
+class PaymentFailed extends PaymentOutcome {
+  const PaymentFailed();
+}
+
+PaymentOutcome readStartPaymentResponse(int status, Object? body) {
+  if (status == 201 && body is Map<String, dynamic>) {
+    return PaymentStarted(body['id'] as String, body['confirm_key'] as String);
+  }
+  return const PaymentFailed();
+}
+
 OrderOutcome readCreateOrderResponse(int status, Object? body) {
   final json = body is Map<String, dynamic> ? body : const <String, dynamic>{};
   if (status == 201) {
@@ -81,7 +106,7 @@ OrderOutcome readCreateOrderResponse(int status, Object? body) {
   switch (json['error']) {
     case 'out_of_stock':
       return OutOfStock(json['available'] as int);
-    case 'invalid_coupon':
+    case 'coupon_unknown':
       return const CouponRejected();
     default:
       return const OrderFailed();

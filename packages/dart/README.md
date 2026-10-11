@@ -69,6 +69,26 @@ void main() {
 }
 ```
 
+Where the provider listed a secret, the fixture holds a placeholder such as
+`<token:session-1>`. Put a value in before the client code reads the response:
+
+```dart
+final fixture = contract.readResponse('session.created');
+final body = resolvePlaceholders(fixture.response.body, (kind, name) => 'test $kind of $name');
+```
+
+A request this side builds with a real credential in it is verified with `secret`; the file
+gets the placeholder, never the real value:
+
+```dart
+contract.verifyRequest(
+  name: 'create-order.request',
+  description: 'The request the client sends to place an order',
+  request: ExchangeRequest(method: request.method, path: request.path, headers: request.headers, body: request.body),
+  secret: {'request.headers.authorization': '<token:customer-1>'},
+);
+```
+
 ### Provider side
 
 ```dart
@@ -82,6 +102,15 @@ contract.verifyResponse(
   volatile: ['response.body.id', 'response.body.created_at'],
 );
 
+// A response with a secret in it: the file gets the placeholder, never the real value.
+contract.verifyResponse(
+  name: 'session.created',
+  description: 'Signing in returns an access token',
+  request: signIn,
+  response: ExchangeResponse(status: response.statusCode, body: jsonDecode(response.body)),
+  secret: {'response.body.access_token': '<token:session-1>'},
+);
+
 final recorded = contract.readRequest('create-order.request').request;
 final headers = resolvePlaceholders(recorded.headers ?? {}, (kind, name) => secrets['$kind:$name']);
 ```
@@ -92,8 +121,8 @@ final headers = resolvePlaceholders(recorded.headers ?? {}, (kind, name) => secr
 
 | Member | Side | What it does |
 |---|---|---|
-| `verifyResponse(name:, description:, request:, response:, volatile:)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatch` listing the differences. Writes the file in update mode. |
-| `verifyRequest(name:, description:, request:, volatile:)` | consumer | The same for `consumer/<name>.json`. |
+| `verifyResponse(name:, description:, request:, response:, volatile:, secret:)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatch` listing the differences. Writes the file in update mode. |
+| `verifyRequest(name:, description:, request:, volatile:, secret:)` | consumer | The same for `consumer/<name>.json`. |
 | `readResponse(name)` | consumer | Reads and validates `provider/<name>.json`; returns a `ProviderFixture`. |
 | `readRequest(name)` | provider | Reads and validates `consumer/<name>.json`; returns a `ConsumerFixture`. |
 | `readTable(name)` | both | Reads and validates `tables/<name>.json`; returns a `TableFixture`. |
@@ -107,6 +136,18 @@ fixture throws `ContractFixtureException`.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
   is refused when `CI` is set.
+- `secret` maps paths to placeholders, for example
+  `{'response.body.access_token': '<token:session-1>'}`. The string at each path is replaced
+  by its placeholder before anything is compared, printed or written, so the real value is not
+  in the file, in a difference, in an exception or in the ledger. A path replaces a whole
+  value (`*` for one key or index, no `**`); for a secret inside a string, such as
+  `Bearer ...` or a cookie, make the whole header value the secret. A path that matches
+  nothing, or a value that is not a string, throws `ContractFixtureException`. So does update
+  mode when the stored fixture lists a secret path that the test does not pass: remove the
+  path from the stored file by hand if it is no longer a secret.
+- A fixture that contains a string of the shape of a JSON Web Token is not written (in update
+  mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
+  recognised.
 - Header names are lower-cased before comparing and writing. A `null` body means "no body".
 - Request and response bodies are whatever `jsonEncode` accepts. Numbers are compared by value,
   so `1` and `1.0` are equal.

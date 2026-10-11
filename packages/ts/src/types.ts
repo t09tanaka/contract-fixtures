@@ -35,6 +35,8 @@ export interface ProviderFixture {
   request: ExchangeRequest;
   response: ExchangeResponse;
   volatile?: string[];
+  /** Path -> placeholder: what is stored in place of the real value at that path. */
+  secret?: Record<string, string>;
 }
 
 /** A request the consumer really builds (`consumer/<name>.json`). */
@@ -44,6 +46,8 @@ export interface ConsumerFixture {
   description: string;
   request: ExchangeRequest;
   volatile?: string[];
+  /** Path -> placeholder: what is stored in place of the real value at that path. */
+  secret?: Record<string, string>;
 }
 
 /** Rows of input and expected output for a shared calculation (`tables/<name>.json`). */
