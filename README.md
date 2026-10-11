@@ -1,5 +1,8 @@
 # contract-fixtures
 
+[![CI](https://github.com/t09tanaka/contract-fixtures/actions/workflows/ci.yml/badge.svg)](https://github.com/t09tanaka/contract-fixtures/actions/workflows/ci.yml)
+[![Example contracts](https://github.com/t09tanaka/contract-fixtures/actions/workflows/example.yml/badge.svg)](https://github.com/t09tanaka/contract-fixtures/actions/workflows/example.yml)
+
 Shared request/response fixtures that keep an API and its clients in step, across languages.
 
 The API's tests compare its **real responses** with fixture files. The client's tests **read the
@@ -15,6 +18,52 @@ other side's tests fail.
   [`docs/adoption.md`](./docs/adoption.md).
 
 Either language can be on either side.
+
+## Install
+
+```sh
+npm install --save-dev @t09tanaka/contract-fixtures   # TypeScript: Node.js 20 or later
+dart pub add --dev contract_fixtures                  # Dart 3.5 or later
+```
+
+> **Not published yet.** Version 0.1.0 is not on npm or pub.dev, so these two commands do not
+> work for now. Until it is, install from the repository as described below.
+
+### From the repository
+
+A version that is not published can be installed from a clone (TypeScript) or straight from
+git (Dart).
+
+TypeScript: npm cannot install a package from a subdirectory of a git repository, so pack it
+first and install the file.
+
+```sh
+git clone https://github.com/t09tanaka/contract-fixtures.git
+cd contract-fixtures
+npm ci
+npm pack -w packages/ts --pack-destination ..   # builds, then writes ../t09tanaka-contract-fixtures-0.1.0.tgz
+
+cd ../your-project
+npm install --save-dev ../t09tanaka-contract-fixtures-0.1.0.tgz
+npx contract-fixtures --version
+```
+
+Dart: name the repository and the directory of the package in it.
+
+```sh
+dart pub add --dev contract_fixtures --git-url=https://github.com/t09tanaka/contract-fixtures.git --git-path=packages/dart
+dart run contract_fixtures --version
+```
+
+which writes this to `pubspec.yaml`:
+
+```yaml
+dev_dependencies:
+  contract_fixtures:
+    git:
+      url: https://github.com/t09tanaka/contract-fixtures.git
+      path: packages/dart
+```
 
 ## The problem
 
@@ -55,7 +104,7 @@ contracts/
 |---|---|---|
 | `provider/*.json` | **verify**: send the request to the real API, compare the real response | **read**: feed the response to the real client code, assert what the client does |
 | `consumer/*.json` | **read**: send the request to the real API, assert it is accepted | **verify**: compare the request the client really builds |
-| `tables/*.json` | **read**: run the rows through the server's calculation | **read**: run the rows through the client's calculation |
+| `tables/*.json` | **read**: run the rows through the API's calculation | **read**: run the rows through the client's calculation |
 
 Values that change on every run (ids, timestamps) are stored as they really were and listed
 under `volatile`, preferably with the shape they keep (see
@@ -353,11 +402,12 @@ a run of a part of the tests (a filter, one shard) leaves the rest `unverified` 
 When the state of the ledger suggests a cause, the report ends with a hint:
 
 ```
-contract-fixtures check (consumer side): 8 problem(s) in 11 fixture(s)
+$ dart run contract_fixtures check --side consumer --dir ../contracts
+contract_fixtures check (consumer side): 8 problem(s) in 11 fixture(s)
   - provider/order.coupon-unknown.json: not read by the consumer side's tests (add a test that feeds it to the real code)
   ...
 Hint: Only 3 of the 11 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.
-Run `contract-fixtures reset` and the consumer side's tests before this check.
+Run `contract_fixtures reset` and the consumer side's tests before this check.
 ```
 
 Other hints are given when the ledger is missing or has no entries (did the tests run, and on
@@ -366,11 +416,11 @@ is for a fixture of this directory, and when it names files that are gone (was i
 hint is a guess; the problems and the exit code do not depend on it. The
 [adoption guide](./docs/adoption.md#when-the-check-fails) has the usual cause of each.
 
-`check` exits with `0` when there are no problems, `1` when a fixture is unverified, unread or
-malformed, and `2` for wrong usage. `CONTRACT_FIXTURES_UPDATE=1` is refused when the environment
-variable `CI` is `true` or `1`, because it would turn every difference into a pass. A CI job for one side
-should also be triggered by changes to the contracts directory. The
-[adoption guide](./docs/adoption.md#ci) has workflow examples for separate jobs, `paths`,
+The exit codes of the commands are listed under [Command line](#command-line).
+`CONTRACT_FIXTURES_UPDATE=1` is refused in CI (see
+[Environment variables](#environment-variables)), because it would turn every difference into
+a pass. A CI job for one side should also be triggered by changes to the contracts directory.
+The [adoption guide](./docs/adoption.md#ci) has workflow examples for separate jobs, `paths`,
 shards and containers.
 
 ## Reading the fixtures side by side
@@ -398,6 +448,52 @@ tables/order-total                         -                                  - 
 A fixture is one exchange, so a difference between exchanges is easy to miss in review: an
 error that is `{error: string}` on one route and `{code: string, message: string}` on another
 shows here as two lines that do not line up.
+
+## Command line
+
+Both packages have the same three commands. The executable is `contract-fixtures` in the
+TypeScript package (`npx contract-fixtures`) and `contract_fixtures` in the Dart package
+(`dart run contract_fixtures`). Apart from that name, which is also the first word of their
+messages, the two print the same text.
+
+| Command | What it does |
+|---|---|
+| `reset --side <provider\|consumer> [--dir <contracts>]` | Forgets what earlier test runs of this side did. Run it before the tests. |
+| `check --side <provider\|consumer> [--dir <contracts>]` | Fails unless this side's tests verified or read every fixture since the reset, and every fixture follows the format. Run it after all tests of the side. |
+| `summary [--dir <contracts>]` | Prints one line per fixture. Takes no `--side` and does not touch the ledger. |
+
+`--dir` is the **contracts directory**: the one that holds `provider/`, `consumer/` and
+`tables/`. It is not the directory of a package, and it does not default to the current
+directory: without `--dir` the commands use `CONTRACT_FIXTURES_DIR`, and without both they
+exit with 2. `-h, --help` prints the help, `-v, --version` the version of the package.
+
+| Exit code | `reset` | `check` | `summary` |
+|---|---|---|---|
+| 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
+| 1 | Not used | At least one problem: a fixture is `invalid`, `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures | The directory holds no fixtures |
+| 2 | Wrong usage: an unknown command or option, a missing or wrong `--side`, no contracts directory, or one that does not exist | The same | The same, or a `--side` |
+
+A `reset`, and a `check` without problems, print one line to standard output. From
+`example/provider`:
+
+```
+$ npx contract-fixtures reset --side provider --dir ../contracts
+contract-fixtures reset (provider side): OK (no entries in .ledger/provider.jsonl)
+$ npx contract-fixtures check --side provider --dir ../contracts
+contract-fixtures check (provider side): OK (11 fixture(s), all verified or read by this side's tests)
+```
+
+A `check` with problems prints its report to standard error, starting with
+`contract-fixtures check (provider side): 1 problem(s) in 12 fixture(s)`. Wrong usage prints
+one line that says what is wrong, then the help, to standard error.
+
+### Environment variables
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `CONTRACT_FIXTURES_DIR` | the helpers, the commands | The contracts directory, for a test that passes no `dir` and for a command without `--dir`. |
+| `CONTRACT_FIXTURES_UPDATE` | the helpers | `1` turns update mode on for a test that passes no `update`: a verify writes a missing or differing fixture instead of failing. Every other value leaves it off. |
+| `CI` | the helpers | With `true` or `1`, `CONTRACT_FIXTURES_UPDATE=1` is refused: the helpers throw a usage error before any test verifies. Update mode is for a developer's machine. |
 
 ## What it does not cover
 
@@ -471,9 +567,9 @@ docs/            the adoption guide
 ```
 
 `spec/fixtures/` holds language-independent cases (comparison, validation, file output, check
-and its hints, summary, coverage).
-Both packages run them in their own tests; that is how "the two packages treat a fixture the
-same way" is kept true.
+with its report and hints, summary, coverage, and the command line with its help, messages
+and exit codes). Both packages run them in their own tests; that is how "the two packages
+treat a fixture the same way" is kept true.
 
 ## Development
 
@@ -485,6 +581,17 @@ npm run example                                 # the example: provider side and
 cd packages/dart && dart pub get
 dart format --output=none --set-exit-if-changed . && dart analyze --fatal-infos && dart test
 ```
+
+## Related tools
+
+- [test-gates](https://github.com/t09tanaka/test-gates) (npm `@t09tanaka/test-gates`): gates for JavaScript and TypeScript. A list of the files that must not be wrong, each one pure, covered completely, guarded by a negative control and by a verdict on a mutation report.
+- [test_gates](https://github.com/t09tanaka/test-gates-dart) (pub.dev): the same gates for Dart and Flutter.
+- [dart_mutant](https://github.com/t09tanaka/dart_mutant) (pub.dev): mutation testing for Dart, the tool that writes the mutation report those gates judge.
+
+The gates and this tool guard different things. A gate guards one file: that the decisions
+made inside it are tested, and that the tests would notice a change. `contract-fixtures`
+guards what lies between two programs: that the requests and responses they agreed on have
+not drifted apart on one side.
 
 ## License
 

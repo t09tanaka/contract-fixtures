@@ -110,9 +110,11 @@ place. The check of that directory fails on both sides, and so does the app's co
 ```
 contract-fixtures check (provider side): 1 problem(s) in 12 fixture(s)
   - provider/order.cancelled.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)
+Run `contract-fixtures reset` and the provider side's tests before this check.
 
-contract-fixtures check (consumer side): 1 problem(s) in 12 fixture(s)
+contract_fixtures check (consumer side): 1 problem(s) in 12 fixture(s)
   - provider/order.cancelled.json: not read by the consumer side's tests (add a test that feeds it to the real code)
+Run `contract_fixtures reset` and the consumer side's tests before this check.
 
 provider fixtures: what the app makes of real responses every provider fixture has an expectation here [E]
   the expectations of this test do not cover the fixtures in provider/order.*:
@@ -138,9 +140,9 @@ the real handler rejects the request:
   422 !== 201
 ```
 
-**(e) Stop listing the secret.** In `provider/test/payments-receipts.contract.test.ts`, remove the `secret` line
-of the `payment.started` scenario. The provider's test fails, and the message does not show the
-key the API returned:
+**(e) Stop listing the secret.** In `provider/test/payments-receipts.contract.test.ts`, remove
+the `secret` line of the `payment.started` scenario. The provider's test fails, and the message
+does not show the key the API returned:
 
 ```
 ✖ payment.started
