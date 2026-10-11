@@ -182,7 +182,7 @@ function checkHints(state: {
 export function formatCheckResult(result: CheckResult): string {
   const head = `contract-fixtures check (${result.side} side)`;
   if (result.problems.length === 0) {
-    return `${head}: ${result.fixtures} fixture(s), all verified or read by this side's tests.`;
+    return `${head}: OK (${result.fixtures} fixture(s), all verified or read by this side's tests)`;
   }
   const lines = result.problems.map((p) => `  - ${p.file === "" ? "" : `${p.file}: `}${p.message}`);
   return [

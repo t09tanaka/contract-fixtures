@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:contract_fixtures/contract_fixtures.dart';
+import 'package:contract_fixtures/src/version.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -52,8 +53,8 @@ void main() {
     expect(result.code, 0);
     expect(
       result.out,
-      'contract-fixtures check (provider side): 4 fixture(s), '
-      "all verified or read by this side's tests.",
+      'contract_fixtures check (provider side): OK (4 fixture(s), '
+      "all verified or read by this side's tests)",
     );
     expect(result.err, isEmpty);
   });
@@ -65,7 +66,7 @@ void main() {
     expect(result.code, 1);
     expect(result.out, isEmpty);
     expect(result.err.split('\n'), [
-      'contract-fixtures check (consumer side): 4 problem(s) in 4 fixture(s)',
+      'contract_fixtures check (consumer side): 4 problem(s) in 4 fixture(s)',
       "  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)",
       "  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)",
@@ -84,7 +85,13 @@ void main() {
   test("reset forgets this side's ledger, so the next check fails", () {
     final dir = copyOfContracts();
     exerciseProviderSide(dir);
-    expect(run(['reset', '--side', 'provider', '--dir', dir]).code, 0);
+    final reset = run(['reset', '--side', 'provider', '--dir', dir]);
+    expect(reset.code, 0);
+    expect(
+      reset.out,
+      'contract_fixtures reset (provider side): '
+      'OK (no entries in .ledger/provider.jsonl)',
+    );
     expect(ledgerLines(dir, 'provider'), isEmpty);
     expect(run(['check', '--side', 'provider', '--dir', dir]).code, 1);
   });
@@ -164,7 +171,10 @@ void main() {
       expect(result.code, 2, reason: arguments.join(' '));
       expect(
         result.err,
-        matches(RegExp(r'^contract_fixtures: .+\n\nUsage: ')),
+        matches(
+          RegExp(
+              r'^contract_fixtures: .+\n\ncontract_fixtures — .+\n\nUsage: '),
+        ),
         reason: arguments.join(' '),
       );
     }
@@ -173,8 +183,34 @@ void main() {
   test('prints the usage for --help', () {
     final result = run(['--help']);
     expect(result.code, 0);
-    expect(result.out,
-        startsWith('Usage: contract_fixtures <reset|check> --side'));
+    expect(result.out, usage);
+    expect(
+      result.out,
+      contains('\n\nUsage: contract_fixtures <reset|check> --side'),
+    );
+  });
+
+  test('prints the version of pubspec.yaml for --version', () {
+    for (final flag in ['--version', '-v']) {
+      final result = run([flag]);
+      expect((result.code, result.out, result.err), (0, packageVersion, ''));
+    }
+    expect(
+      File('pubspec.yaml').readAsLinesSync(),
+      contains('version: $packageVersion'),
+    );
+  });
+
+  test(
+      'the copies of the changelog and the licence in this package are those of the repository',
+      () {
+    for (final file in ['CHANGELOG.md', 'LICENSE']) {
+      expect(
+        File(file).readAsStringSync(),
+        File('../../$file').readAsStringSync(),
+        reason: file,
+      );
+    }
   });
 
   test('the executable sets the exit code', () {

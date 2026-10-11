@@ -198,9 +198,9 @@ List<String> _checkHints({
 
 /// The report the `check` command prints.
 String formatCheckResult(CheckResult result) {
-  final head = 'contract-fixtures check (${result.side.name} side)';
+  final head = 'contract_fixtures check (${result.side.name} side)';
   if (result.problems.isEmpty) {
-    return "$head: ${result.fixtures} fixture(s), all verified or read by this side's tests.";
+    return "$head: OK (${result.fixtures} fixture(s), all verified or read by this side's tests)";
   }
   return [
     '$head: ${result.problems.length} problem(s) in ${result.fixtures} fixture(s)',

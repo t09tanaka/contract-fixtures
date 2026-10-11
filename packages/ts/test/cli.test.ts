@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { contractFixtures, runCli } from "../src/index.js";
+import { contractFixtures, runCli, USAGE } from "../src/index.js";
 import { copyOfContracts, ledgerLines, tempDir } from "./helpers.js";
 
 function run(argv: string[], env: Record<string, string | undefined> = {}) {
@@ -32,7 +32,7 @@ describe("command line", () => {
     assert.equal(result.code, 0);
     assert.equal(
       result.out,
-      "contract-fixtures check (provider side): 4 fixture(s), all verified or read by this side's tests.",
+      "contract-fixtures check (provider side): OK (4 fixture(s), all verified or read by this side's tests)",
     );
     assert.equal(result.err, "");
   });
@@ -63,7 +63,9 @@ describe("command line", () => {
   it("reset forgets this side's ledger, so the next check fails", () => {
     const dir = copyOfContracts();
     exerciseProviderSide(dir);
-    assert.equal(run(["reset", "--side", "provider", "--dir", dir]).code, 0);
+    const reset = run(["reset", "--side", "provider", "--dir", dir]);
+    assert.equal(reset.code, 0);
+    assert.equal(reset.out, "contract-fixtures reset (provider side): OK (no entries in .ledger/provider.jsonl)");
     assert.deepEqual(ledgerLines(dir, "provider"), []);
     assert.equal(run(["check", "--side", "provider", "--dir", dir]).code, 1);
   });
@@ -127,14 +129,30 @@ describe("command line", () => {
     for (const argv of wrong) {
       const result = run(argv);
       assert.equal(result.code, 2, argv.join(" "));
-      assert.match(result.err, /^contract-fixtures: .+\n\nUsage: /, argv.join(" "));
+      assert.match(result.err, /^contract-fixtures: .+\n\ncontract-fixtures — .+\n\nUsage: /, argv.join(" "));
     }
   });
 
   it("prints the usage for --help", () => {
     const result = run(["--help"]);
     assert.equal(result.code, 0);
-    assert.match(result.out, /^Usage: contract-fixtures <reset\|check> --side/);
+    assert.equal(result.out, USAGE);
+    assert.match(result.out, /\n\nUsage: contract-fixtures <reset\|check> --side/);
+  });
+
+  it("prints the version of package.json for --version", () => {
+    const { version } = JSON.parse(fs.readFileSync("package.json", "utf8")) as { version: string };
+    for (const flag of ["--version", "-v"]) {
+      assert.deepEqual(run([flag]), { code: 0, out: version, err: "" });
+    }
+    const bin = path.resolve(process.cwd(), "bin/contract-fixtures.js");
+    assert.equal(execFileSync(process.execPath, [bin, "--version"]).toString(), `${version}\n`);
+  });
+
+  it("the copies of the changelog and the licence in this package are those of the repository", () => {
+    for (const file of ["CHANGELOG.md", "LICENSE"]) {
+      assert.equal(fs.readFileSync(file, "utf8"), fs.readFileSync(path.join("../..", file), "utf8"), file);
+    }
   });
 
   it("the built executable sets the exit code", () => {
