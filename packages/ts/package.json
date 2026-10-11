@@ -7,17 +7,20 @@
     "contract-testing",
     "fixtures",
     "api",
-    "testing"
+    "testing",
+    "cli"
   ],
   "license": "MIT",
-  "author": "Takuto Tanaka",
+  "author": "t09tanaka",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/t09tanaka/contract-fixtures.git",
     "directory": "packages/ts"
   },
   "homepage": "https://github.com/t09tanaka/contract-fixtures#readme",
-  "bugs": "https://github.com/t09tanaka/contract-fixtures/issues",
+  "bugs": {
+    "url": "https://github.com/t09tanaka/contract-fixtures/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=20"

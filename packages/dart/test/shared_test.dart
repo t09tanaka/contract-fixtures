@@ -5,9 +5,13 @@ import 'dart:io';
 
 import 'package:contract_fixtures/contract_fixtures.dart';
 import 'package:contract_fixtures/src/pattern.dart';
+import 'package:contract_fixtures/src/version.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+
+/// What {tool} stands for in the shared cases: the name of this package's executable.
+const tool = 'contract_fixtures';
 
 void main() {
   group('spec/fixtures/differences.json', () {
@@ -137,6 +141,61 @@ void main() {
           c['problems'],
         );
         expect(result.hints, c['hints']);
+        expect(
+          formatCheckResult(result),
+          (c['report'] as String).replaceAll('{tool}', tool),
+        );
+      });
+    }
+  });
+
+  group('spec/fixtures/cli.json', () {
+    final help = loadHelp().replaceAll('{tool}', tool);
+
+    test('the help is the exported text', () {
+      expect(usage, help);
+    });
+
+    for (final c in loadCases('cli.json')) {
+      test(c['case'], () {
+        final dir = c['empty'] == true ? tempDir() : copyOfContracts();
+        final ledger = c['ledger'] as Map<String, dynamic>? ?? const {};
+        for (final entry in ledger.entries) {
+          writeFile(
+            dir,
+            '.ledger/${entry.key}.jsonl',
+            (entry.value as List<dynamic>).map((l) => '$l\n').join(),
+          );
+        }
+        String inDir(Object? text) => (text as String).replaceAll('{dir}', dir);
+        String printed(Object? text) => inDir(text)
+            .replaceAll('{help}', help)
+            .replaceAll('{tool}', tool)
+            .replaceAll('{version}', packageVersion);
+        final env = c['env'] as Map<String, dynamic>? ?? const {};
+        final out = <String>[];
+        final err = <String>[];
+
+        final code = runCli(
+          (c['args'] as List<dynamic>).map(inDir).toList(),
+          out: out.add,
+          err: err.add,
+          environment: {
+            for (final entry in env.entries) entry.key: inDir(entry.value),
+          },
+        );
+
+        expect(out.join('\n'), printed(c['stdout']));
+        expect(err.join('\n'), printed(c['stderr']));
+        expect(code, c['exit']);
+        final after = c['ledgerAfter'] as Map<String, dynamic>? ?? const {};
+        for (final entry in after.entries) {
+          final file = File('$dir/.ledger/${entry.key}.jsonl');
+          expect(file.existsSync(), entry.value != null, reason: file.path);
+          if (entry.value != null) {
+            expect(ledgerLines(dir, entry.key), entry.value);
+          }
+        }
       });
     }
   });

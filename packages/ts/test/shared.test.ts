@@ -17,9 +17,12 @@ import {
   ContractUsageError,
   contractFixtures,
   differences,
+  formatCheckResult,
   formatSummary,
   parsePlaceholder,
+  runCli,
   summarizeContracts,
+  USAGE,
   validateFixture,
   validateFixtureValue,
   type Kind,
@@ -34,9 +37,13 @@ import {
   everyFileIn,
   ledgerLines,
   loadCases,
+  loadHelp,
   tempDir,
   writeFile,
 } from "./helpers.js";
+
+/** What {tool} stands for in the shared cases: the name of this package's executable. */
+const TOOL = "contract-fixtures";
 
 describe("spec/fixtures/differences.json", () => {
   interface Case {
@@ -146,6 +153,7 @@ describe("spec/fixtures/check.json", () => {
     fixtures: number;
     problems: { file: string; code: string }[];
     hints: string[];
+    report: string;
   }
   for (const c of loadCases<Case>("check.json")) {
     it(c.case, () => {
@@ -165,6 +173,56 @@ describe("spec/fixtures/check.json", () => {
         c.problems,
       );
       assert.deepEqual(result.hints, c.hints);
+      assert.equal(formatCheckResult(result), c.report.replaceAll("{tool}", TOOL));
+    });
+  }
+});
+
+describe("spec/fixtures/cli.json", () => {
+  interface Case {
+    case: string;
+    args: string[];
+    env?: Record<string, string>;
+    empty?: boolean;
+    ledger?: Record<string, string[]>;
+    ledgerAfter?: Record<string, string[] | null>;
+    exit: number;
+    stdout: string;
+    stderr: string;
+  }
+  const help = loadHelp().replaceAll("{tool}", TOOL);
+  const { version } = JSON.parse(fs.readFileSync("package.json", "utf8")) as { version: string };
+
+  it("the help is the exported text", () => {
+    assert.equal(USAGE, help);
+  });
+
+  for (const c of loadCases<Case>("cli.json")) {
+    it(c.case, () => {
+      const dir = c.empty ? tempDir() : copyOfContracts();
+      for (const [side, lines] of Object.entries(c.ledger ?? {})) {
+        writeFile(dir, `.ledger/${side}.jsonl`, lines.map((l) => l + "\n").join(""));
+      }
+      const inDir = (text: string) => text.replaceAll("{dir}", dir);
+      const printed = (text: string) =>
+        inDir(text).replaceAll("{help}", help).replaceAll("{tool}", TOOL).replaceAll("{version}", version);
+      const out: string[] = [];
+      const err: string[] = [];
+
+      const code = runCli(c.args.map(inDir), {
+        out: (text) => out.push(text),
+        err: (text) => err.push(text),
+        env: Object.fromEntries(Object.entries(c.env ?? {}).map(([name, value]) => [name, inDir(value)])),
+      });
+
+      assert.equal(out.join("\n"), printed(c.stdout));
+      assert.equal(err.join("\n"), printed(c.stderr));
+      assert.equal(code, c.exit);
+      for (const [side, lines] of Object.entries(c.ledgerAfter ?? {})) {
+        const file = path.join(dir, ".ledger", `${side}.jsonl`);
+        assert.equal(fs.existsSync(file), lines !== null, file);
+        if (lines !== null) assert.deepEqual(ledgerLines(dir, side), lines);
+      }
     });
   }
 });

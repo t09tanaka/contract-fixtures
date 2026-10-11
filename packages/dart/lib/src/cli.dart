@@ -5,11 +5,14 @@ import 'contract.dart';
 import 'ledger.dart';
 import 'summary.dart';
 import 'types.dart';
+import 'version.dart';
 
 /// The text printed for `--help` and after a usage error.
 const String usage = '''
-Usage: contract_fixtures <reset|check> --side <provider|consumer> [--dir <contracts>]
-       contract_fixtures summary [--dir <contracts>]
+$executable — shared request/response fixtures that keep an API and its clients in step
+
+Usage: $executable <reset|check> --side <provider|consumer> [--dir <contracts>]
+       $executable summary [--dir <contracts>]
 
 Commands:
   reset    Forget what earlier test runs of this side did. Run it before the tests.
@@ -19,10 +22,14 @@ Commands:
            with their types. Does not touch the ledger.
 
 Options:
-  --side  The side whose tests ran: provider or consumer. Not for summary.
-  --dir   The contracts directory. Defaults to the environment variable $dirEnv.
+  --side <provider|consumer>  The side whose tests ran. Not for summary
+  --dir <contracts>           The contracts directory: the one that holds provider/, consumer/
+                              and tables/, not the directory of a package
+                              (default: the environment variable $dirEnv)
+  -h, --help                  Show this help
+  -v, --version               Show the version
 
-Exit codes: 0 no problems, 1 problems found (summary: no fixtures), 2 wrong usage.''';
+Exit codes: 0 no problems, 1 problems found (summary: no fixtures), 2 wrong usage''';
 
 final RegExp _option = RegExp(r'^--(side|dir)(?:=(.*))?$', dotAll: true);
 
@@ -34,7 +41,7 @@ int runCli(
   Map<String, String>? environment,
 }) {
   int wrong(String message) {
-    err('contract_fixtures: $message\n\n$usage');
+    err('$executable: $message\n\n$usage');
     return 2;
   }
 
@@ -44,6 +51,10 @@ int runCli(
     final arg = arguments[i];
     if (arg == '--help' || arg == '-h') {
       out(usage);
+      return 0;
+    }
+    if (arg == '--version' || arg == '-v') {
+      out(packageVersion);
       return 0;
     }
     final option = _option.firstMatch(arg);
@@ -57,16 +68,16 @@ int runCli(
       }
       values[option.group(1)!] = value;
     } else if (arg.startsWith('-')) {
-      return wrong('unknown option $arg');
+      return wrong('unknown option: $arg');
     } else if (command == null) {
       command = arg;
     } else {
-      return wrong('unexpected argument $arg');
+      return wrong('unexpected argument: $arg');
     }
   }
-  if (command == null) return wrong('missing command');
+  if (command == null) return wrong('no command given');
   if (command != 'check' && command != 'reset' && command != 'summary') {
-    return wrong('unknown command $command');
+    return wrong('unknown command: $command');
   }
   var side = ContractSide.provider;
   if (command == 'summary') {
@@ -90,7 +101,7 @@ int runCli(
     final rows = summarizeContracts(dir: dir);
     if (rows.isEmpty) {
       err(
-        'contract-fixtures summary: no fixtures found under provider/, '
+        '$executable summary: no fixtures found under provider/, '
         'consumer/ or tables/ (wrong directory?)',
       );
       return 1;
@@ -100,6 +111,10 @@ int runCli(
   }
   if (command == 'reset') {
     resetLedger(dir: dir, side: side);
+    out(
+      '$executable reset (${side.name} side): '
+      'OK (no entries in .ledger/${side.name}.jsonl)',
+    );
     return 0;
   }
   final result = checkContracts(dir: dir, side: side);

@@ -1,5 +1,7 @@
 # @t09tanaka/contract-fixtures
 
+[![CI](https://github.com/t09tanaka/contract-fixtures/actions/workflows/ci.yml/badge.svg)](https://github.com/t09tanaka/contract-fixtures/actions/workflows/ci.yml)
+
 Shared request/response fixtures that keep an API and its clients in step. The provider's tests
 verify the fixtures against real responses; the consumer's tests read them.
 
@@ -21,6 +23,10 @@ already has tests, see the
 ```sh
 npm install --save-dev @t09tanaka/contract-fixtures
 ```
+
+To install a version that is not on npm, from the repository, see
+[Install](https://github.com/t09tanaka/contract-fixtures#install)
+in the repository README.
 
 ## Use
 
@@ -101,7 +107,7 @@ contract.verifyRequest({
 | `assertCovers(kind, names, { prefix? })` | both | Throws `ContractCoverageError` unless `names` are exactly the fixtures on disk (those that start with `prefix`). |
 | `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageError` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. |
 
-Calling a method from the wrong side throws `ContractUsageError`. A missing or malformed fixture
+Calling a method from the wrong side throws `ContractUsageError`. A missing or invalid fixture
 throws `ContractFixtureError`.
 
 - `dir` defaults to the environment variable `CONTRACT_FIXTURES_DIR`.
@@ -228,14 +234,30 @@ Also exported:
 npx contract-fixtures reset --side provider --dir ../contracts   # before the tests
 npx contract-fixtures check --side provider --dir ../contracts   # after the tests
 npx contract-fixtures summary --dir ../contracts                 # any time
+npx contract-fixtures --version                                  # also -v; --help or -h for the help
 ```
 
-`check` exits with `0` when every fixture follows the format and was verified or read by this
-side's tests since the reset, `1` otherwise, and `2` for wrong usage. `--dir` defaults to
-`CONTRACT_FIXTURES_DIR`. Run it after all tests of the side: it always looks at every fixture.
-When the ledger suggests why fixtures were not touched (it is missing or empty, only the other
-side has one, a part of the tests ran, it names files that are gone), the report ends with a
-line that starts with `Hint:`.
+`--dir` is the **contracts directory**: the one that holds `provider/`, `consumer/` and
+`tables/`, not the directory of a package. It defaults to the environment variable
+`CONTRACT_FIXTURES_DIR`, not to the current directory.
+
+| Exit code | `reset` | `check` | `summary` |
+|---|---|---|---|
+| 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
+| 1 | Not used | At least one problem: a fixture is `invalid`, `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures | The directory holds no fixtures |
+| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, no contracts directory, or a `--dir` that is not a directory | The same | The same, or a `--side` |
+
+A `reset`, and a `check` without problems, print one line to standard output:
+
+```
+contract-fixtures reset (provider side): OK (no entries in .ledger/provider.jsonl)
+contract-fixtures check (provider side): OK (4 fixture(s), all verified or read by this side's tests)
+```
+
+Run `check` after all tests of the side: it always looks at every fixture. With problems it
+prints a report to standard error. When the ledger suggests why fixtures were not touched (it
+is missing or empty, only the other side has one, a part of the tests ran, it names files that
+are gone), the report ends with a line that starts with `Hint:`.
 
 `summary` prints one line per fixture, to compare them side by side: the request, the status,
 and the keys of the response body with their types. It takes no `--side` and does not touch
@@ -251,6 +273,17 @@ tables/order-total             -             -       2 row(s)
 
 With Jest or Vitest, the helpers append to the ledger from every worker; no reporter or plugin is
 needed.
+
+The environment variables (`CONTRACT_FIXTURES_DIR`, `CONTRACT_FIXTURES_UPDATE`, `CI`) are in
+one table in the
+[repository README](https://github.com/t09tanaka/contract-fixtures#environment-variables).
+
+## Related tools
+
+The gates for the code that must not be wrong (`test-gates`, `test_gates`) and the mutation
+testing behind them (`dart_mutant`) are listed in the
+[repository README](https://github.com/t09tanaka/contract-fixtures#related-tools),
+with what they guard and what this package guards.
 
 ## License
 

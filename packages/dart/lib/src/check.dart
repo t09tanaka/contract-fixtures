@@ -196,17 +196,21 @@ List<String> _checkHints({
   return hints;
 }
 
+/// The name users type, the first word of what the commands print. The TypeScript package
+/// prints `contract-fixtures`.
+const String executable = 'contract_fixtures';
+
 /// The report the `check` command prints.
 String formatCheckResult(CheckResult result) {
-  final head = 'contract-fixtures check (${result.side.name} side)';
+  final head = '$executable check (${result.side.name} side)';
   if (result.problems.isEmpty) {
-    return "$head: ${result.fixtures} fixture(s), all verified or read by this side's tests.";
+    return "$head: OK (${result.fixtures} fixture(s), all verified or read by this side's tests)";
   }
   return [
     '$head: ${result.problems.length} problem(s) in ${result.fixtures} fixture(s)',
     for (final p in result.problems)
       '  - ${p.file.isEmpty ? '' : '${p.file}: '}${p.message}',
     for (final hint in result.hints) 'Hint: $hint',
-    "Run `contract_fixtures reset` and the ${result.side.name} side's tests before this check.",
+    "Run `$executable reset` and the ${result.side.name} side's tests before this check.",
   ].join('\n');
 }

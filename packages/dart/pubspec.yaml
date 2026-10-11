@@ -9,6 +9,8 @@ topics:
   - testing
   - api
   - contract-testing
+  - fixtures
+  - cli
 
 environment:
   sdk: ^3.5.0

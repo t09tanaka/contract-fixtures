@@ -11,6 +11,13 @@ List<Map<String, dynamic>> loadCases(String file) {
   return (parsed['cases'] as List<dynamic>).cast<Map<String, dynamic>>();
 }
 
+/// The text of the help in spec/fixtures/cli.json, with {tool} for the name of the executable.
+String loadHelp() {
+  final parsed = jsonDecode(File('$specFixtures/cli.json').readAsStringSync())
+      as Map<String, dynamic>;
+  return parsed['help'] as String;
+}
+
 String tempDir() =>
     Directory.systemTemp.createTempSync('contract-fixtures-').path;
 

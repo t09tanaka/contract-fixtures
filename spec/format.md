@@ -11,7 +11,8 @@ shape; the rules marked **(beyond the schema)** below are enforced by the packag
 
 - **Provider**: the side that answers requests (an API).
 - **Consumer**: the side that sends requests and interprets the responses (a client).
-- **Side**: `provider` or `consumer`. Every helper call and every check is made on behalf of one side.
+- **Side**: `provider` or `consumer`. Every helper call and every check is made on behalf of one
+  side.
 - **Verify**: compare what this side really produced with the stored fixture.
 - **Read**: load a fixture that the *other* side verifies (or a table), in order to feed it to this
   side's real code.
@@ -163,9 +164,9 @@ same rows and assert that their own implementation produces the expected values.
 ## Volatile paths
 
 Values such as generated ids, timestamps and order numbers differ on every run. They are stored
-as they really were (so the reading side parses a real sample), and the fixture lists their
-locations in `volatile`.
-Values that must not be stored at all are a different matter: see [Secrets](#secrets).
+as they really were (so the reading side parses a real value), and the fixture lists their
+locations in `volatile`. Values that must not be stored at all are a different matter: see
+[Secrets](#secrets).
 
 ```json
 "volatile": [
@@ -267,9 +268,10 @@ anchors of its own.
 
 Everything else is not a pattern of this format and makes the fixture invalid (issue code
 `pattern`): lazy repetitions (`*?`), a repetition of a repetition (`a{2}{3}`), `^*`, look-ahead
-and look-behind, named groups, back references, `\b`, `\u`, `\x`, `\p{...}`, every other escape that is not in the
-table (`\_`, `\1`, `\a`), `\d`, `\w` or `\s` as one end of a range in a class, an unescaped `{`, `}` or `]` that is not part of a construct above, and
-characters beyond U+FFFF (a value may contain them; each counts as two code units).
+and look-behind, named groups, back references, `\b`, `\u`, `\x`, `\p{...}`, every other
+escape that is not in the table (`\_`, `\1`, `\a`), `\d`, `\w` or `\s` as one end of a range
+in a class, an unescaped `{`, `}` or `]` that is not part of a construct above, and characters
+beyond U+FFFF (a value may contain them; each counts as two code units).
 
 Limits, so that a fixture cannot make a test run away: a pattern is at most 1000 code units
 long, a repetition count has at most 5 digits, and the *size* of a pattern is at most 10000,
@@ -481,13 +483,13 @@ Fixtures are written as JSON with two-space indentation, a trailing newline, and
 `format`, `name`, `description`, `request`, `response`, `volatile`, `secret` (inside a request:
 `method`, `path`, `headers`, `body`; inside a response: `status`, `headers`, `body`). An empty
 `volatile` or `secret` is left out. The entries of `volatile` keep the order the side gave
-them; an entry with a pattern is written with the keys `path`, `pattern`. Inside a body and inside `secret`, keys keep the
-order the side produced them in, except that keys that are array indexes (`"0"`, `"10"`) come
-first in ascending order, as in a JavaScript object. Integer-valued numbers are written without
-a fraction (`1`, not `1.0`). Characters are written as they are; only characters below U+0020,
-`"`, `\` and lone surrogates are escaped. The cases in `fixtures/canonical.json` and `fixtures/verify.json` pin
-the exact text for both packages. Update mode never deletes files; a fixture whose
-test was removed is found by the check.
+them; an entry with a pattern is written with the keys `path`, `pattern`. Inside a body and
+inside `secret`, keys keep the order the side produced them in, except that keys that are
+array indexes (`"0"`, `"10"`) come first in ascending order, as in a JavaScript object.
+Integer-valued numbers are written without a fraction (`1`, not `1.0`). Characters are written
+as they are; only characters below U+0020, `"`, `\` and lone surrogates are escaped. The cases
+in `fixtures/canonical.json` and `fixtures/verify.json` pin the exact text for both packages.
+Update mode never deletes files; a fixture whose test was removed is found by the check.
 
 Reading never writes fixtures. Update mode is meant for a developer's machine, not for CI: when
 the environment variable `CI` is `true` or `1`, `CONTRACT_FIXTURES_UPDATE=1` is refused.
@@ -523,7 +525,8 @@ The check fails when, for the given side:
 | `empty` | There are no fixtures at all (most likely a wrong directory). |
 
 Exit codes of the check command: `0` no problems, `1` at least one problem, `2` wrong usage
-(unknown option, missing or non-existent directory).
+(see [Command line](#command-line)). The reset command exits with `0`, or with `2` for wrong
+usage.
 
 The check always looks at every fixture. It is meant to run after all tests of a side; when
 the tests run in several shards, concatenate the ledger files of the shards into
@@ -549,7 +552,7 @@ as such. They never change the problems or the exit code.
 | names files that are not in the directory | It may be left from an earlier run; reset before the tests. |
 
 The first three exclude each other; the last one can follow any of them. The exact wording is
-pinned by the cases in `fixtures/check.json`.
+pinned by the cases in `fixtures/check.json`, together with the whole report of every case.
 
 ## Summary
 
@@ -581,6 +584,40 @@ tables/order-total             -             -       2 row(s)
 
 Exit codes of the summary command: `0`, `1` when the directory holds no fixtures, `2` wrong
 usage. The cases in `fixtures/summary.json` pin the text.
+
+## Command line
+
+Every package has an executable with the commands `reset`, `check` and `summary`. Its name
+follows the conventions of the language (`contract-fixtures` in the TypeScript package,
+`contract_fixtures` in the Dart package), and it is the first word of what the commands
+print. Everything else is the same text in every package.
+
+- `reset --side <provider|consumer>` and `check --side <provider|consumer>` act on one side;
+  `summary` takes no `--side`.
+- `--dir <contracts>` is the contracts directory. Without it, the environment variable
+  `CONTRACT_FIXTURES_DIR` is used, and an empty value there counts as not set. An option is
+  written `--dir <value>` or `--dir=<value>`; when it is given twice, the last one counts.
+- `-h`, `--help` prints the help and `-v`, `--version` the version of the package, both to
+  standard output with the exit code `0`.
+- A reset, and a check without problems, print one line to standard output:
+  `<tool> reset (<side> side): OK (no entries in .ledger/<side>.jsonl)` and
+  `<tool> check (<side> side): OK (<n> fixture(s), all verified or read by this side's tests)`.
+- A check with problems prints its report to standard error. The first line is
+  `<tool> check (<side> side): <n> problem(s) in <m> fixture(s)`; then one line per problem,
+  the hints, and a last line that names the reset.
+- Wrong usage prints `<tool>: <what is wrong>`, an empty line and the help to standard error.
+  Wrong usage is: an unknown command, option or argument, an option without its value, a
+  missing or wrong `--side` (or a `--side` for `summary`), no contracts directory, and a
+  `--dir` that is not a directory.
+
+| Exit code | `reset` | `check` | `summary` |
+|---|---|---|---|
+| 0 | done | no problems | printed |
+| 1 | not used | at least one problem | the directory holds no fixtures |
+| 2 | wrong usage | wrong usage | wrong usage |
+
+The cases in `fixtures/cli.json` pin the help, the messages and the exit codes; in them
+`{tool}` stands for the name of the executable.
 
 ## Versioning
 

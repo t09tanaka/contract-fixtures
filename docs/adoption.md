@@ -115,9 +115,10 @@ the app, the CORS headers follow `origin`. A fixture recorded without that heade
 request gets this response", which is true only for the header the test happened to send, and
 the reader cannot tell.
 
-**What to do.** Name every such header in `requestHeaders`, so that it is in the fixture. Record one fixture per value that a consumer depends on
-(`order.out-of-stock.en`, `order.out-of-stock.ja`). If the response says which request
-headers it depends on (`vary`), record that header too.
+**What to do.** Name every such header in `requestHeaders`, so that it is in the fixture.
+Record one fixture per value that a consumer depends on (`order.out-of-stock.en`,
+`order.out-of-stock.ja`). If the response says which request headers it depends on (`vary`),
+record that header too.
 
 ### Responses the tests cannot produce
 
@@ -275,7 +276,7 @@ reads the provider fixtures, or nobody verifies the consumer fixtures.
   end-to-end tests, an SDK that is published from the same repository). Otherwise this is the
   wrong tool; a published schema and tests against it fit better.
 - For a webhook that an external service sends to you, that service is the consumer that
-  builds the request. You cannot verify what it builds. Keep a sample of its request as an
+  builds the request. You cannot verify what it builds. Keep a copy of its request as an
   ordinary test resource, not in `consumer/`.
 - For a service you call, see [third-party services](#what-to-leave-out).
 
@@ -370,6 +371,8 @@ other's results, only the committed fixtures. The workflow of the example in thi
 ```
 
 where `contract` is `contract-fixtures reset ... && npm test && contract-fixtures check ...`.
+The job fails when a test fails or when the check exits with 1; the exit codes are listed in
+the [README](../README.md#command-line).
 (`npm run build` builds the package of this repository; a project that installs it from the
 registry has no such step.)
 

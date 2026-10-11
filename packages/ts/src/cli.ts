@@ -1,14 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { checkContracts, formatCheckResult } from "./check.js";
+import { checkContracts, formatCheckResult, TOOL } from "./check.js";
 import { DIR_ENV } from "./contract.js";
 import { resetLedger } from "./ledger.js";
 import { formatSummary, summarizeContracts } from "./summary.js";
 import type { Side } from "./types.js";
+import { VERSION } from "./version.js";
 
-export const USAGE = `Usage: contract-fixtures <reset|check> --side <provider|consumer> [--dir <contracts>]
-       contract-fixtures summary [--dir <contracts>]
+/** The text printed for `--help` and after a usage error. */
+export const USAGE = `${TOOL} — shared request/response fixtures that keep an API and its clients in step
+
+Usage: ${TOOL} <reset|check> --side <provider|consumer> [--dir <contracts>]
+       ${TOOL} summary [--dir <contracts>]
 
 Commands:
   reset    Forget what earlier test runs of this side did. Run it before the tests.
@@ -18,10 +22,14 @@ Commands:
            with their types. Does not touch the ledger.
 
 Options:
-  --side  The side whose tests ran: provider or consumer. Not for summary.
-  --dir   The contracts directory. Defaults to the environment variable ${DIR_ENV}.
+  --side <provider|consumer>  The side whose tests ran. Not for summary
+  --dir <contracts>           The contracts directory: the one that holds provider/, consumer/
+                              and tables/, not the directory of a package
+                              (default: the environment variable ${DIR_ENV})
+  -h, --help                  Show this help
+  -v, --version               Show the version
 
-Exit codes: 0 no problems, 1 problems found (summary: no fixtures), 2 wrong usage.`;
+Exit codes: 0 no problems, 1 problems found (summary: no fixtures), 2 wrong usage`;
 
 export interface CliIo {
   out: (text: string) => void;
@@ -32,7 +40,7 @@ export interface CliIo {
 /** Runs the command line and returns the exit code. */
 export function runCli(argv: readonly string[], io: CliIo): number {
   const usage = (message: string): number => {
-    io.err(`contract-fixtures: ${message}\n\n${USAGE}`);
+    io.err(`${TOOL}: ${message}\n\n${USAGE}`);
     return 2;
   };
   let command: string | undefined;
@@ -43,22 +51,26 @@ export function runCli(argv: readonly string[], io: CliIo): number {
       io.out(USAGE);
       return 0;
     }
+    if (arg === "--version" || arg === "-v") {
+      io.out(VERSION);
+      return 0;
+    }
     const option = /^--(side|dir)(?:=(.*))?$/s.exec(arg);
     if (option) {
       const value = option[2] ?? argv[++i];
       if (value === undefined) return usage(`--${option[1]} needs a value`);
       values[option[1]!] = value;
     } else if (arg.startsWith("-")) {
-      return usage(`unknown option ${arg}`);
+      return usage(`unknown option: ${arg}`);
     } else if (command === undefined) {
       command = arg;
     } else {
-      return usage(`unexpected argument ${arg}`);
+      return usage(`unexpected argument: ${arg}`);
     }
   }
-  if (command === undefined) return usage("missing command");
+  if (command === undefined) return usage("no command given");
   if (command !== "check" && command !== "reset" && command !== "summary") {
-    return usage(`unknown command ${command}`);
+    return usage(`unknown command: ${command}`);
   }
   const side = values.side;
   if (command === "summary") {
@@ -76,7 +88,7 @@ export function runCli(argv: readonly string[], io: CliIo): number {
   if (command === "summary") {
     const rows = summarizeContracts({ dir });
     if (rows.length === 0) {
-      io.err("contract-fixtures summary: no fixtures found under provider/, consumer/ or tables/ (wrong directory?)");
+      io.err(`${TOOL} summary: no fixtures found under provider/, consumer/ or tables/ (wrong directory?)`);
       return 1;
     }
     io.out(formatSummary(rows));
@@ -84,6 +96,7 @@ export function runCli(argv: readonly string[], io: CliIo): number {
   }
   if (command === "reset") {
     resetLedger({ dir, side: side as Side });
+    io.out(`${TOOL} reset (${side} side): OK (no entries in .ledger/${side}.jsonl)`);
     return 0;
   }
   const result = checkContracts({ dir, side: side as Side });

@@ -12,6 +12,14 @@ export function loadCases<T>(file: string): T[] {
   return parsed.cases;
 }
 
+/** The text of the help in spec/fixtures/cli.json, with {tool} for the name of the executable. */
+export function loadHelp(): string {
+  const parsed = JSON.parse(fs.readFileSync(path.join(SPEC_FIXTURES, "cli.json"), "utf8")) as {
+    help: string;
+  };
+  return parsed.help;
+}
+
 export function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "contract-fixtures-"));
 }

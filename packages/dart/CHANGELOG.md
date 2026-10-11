@@ -2,9 +2,9 @@
 
 Both packages are versioned together.
 
-## 0.1.0
+## 0.1.0 (unreleased)
 
-First release.
+First version.
 
 - Fixture format 1: provider fixtures, consumer fixtures, tables, volatile paths, secret
   paths and placeholders, ledger (`spec/format.md`, JSON Schemas in `spec/schema/`).
@@ -27,8 +27,9 @@ First release.
     names, and a string or an array of strings (a header that is sent more than once, such as
     `set-cookie`) as the value;
   - `resolvePlaceholders` to put real values back on the reading side;
-  - a `check` command that fails for unverified, unread and malformed fixtures, per side, and a
-    `reset` command;
+  - a `check` command that fails for unverified, unread and invalid fixtures, per side, and a
+    `reset` command. Both end in one line of the form `<tool> <command> (<side> side): OK (...)`
+    when nothing is wrong;
   - hints in the report of a failing `check`, from the state of the ledger: it is missing or
     empty, only the other side has one, a part of the tests ran, or it names files that are
     gone. The problems and the exit code do not depend on them;
@@ -37,12 +38,17 @@ First release.
     fixture starts with;
   - a `summary` command (`summarizeContracts`, `formatSummary`) that prints one line per
     fixture, with the status and the keys of the response body, to compare fixtures side by
-    side.
+    side;
+  - `-h, --help` and `-v, --version`, and the exit codes `0` (no problems), `1` (problems
+    found; for `summary`, no fixtures) and `2` (wrong usage). The executable is
+    `contract-fixtures` in the TypeScript package and `contract_fixtures` in the Dart package,
+    and that name is the only difference between what the two print.
 - TypeScript only, on the standard `fetch` types and without a dependency: `toFetchResponse`
   (a `Response` from a fixture), `requestFromFetch` (the request behind the arguments of
   `fetch` or a `Request`), and `exchangeFromTestResponse` (the request and the response
   behind the response object of an HTTP test client; headers by name only).
-- Shared cases in `spec/fixtures/` that both packages run, including the text of the hints,
+- Shared cases in `spec/fixtures/` that both packages run, including the text of the command
+  line (its help, its messages and its exit codes), of the report and the hints of the check,
   of the summary and of the coverage messages.
 - An adoption guide (`docs/adoption.md`) and an example with an HTTP server, an app in Dart and
   a web client in TypeScript, each client with a contracts directory of its own.

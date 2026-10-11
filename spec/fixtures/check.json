@@ -1,5 +1,5 @@
 {
-  "description": "Cases for the check. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, write `ledger` to .ledger/<side>.jsonl (write no such file when `noLedger` is true) and `otherLedger` to the other side's ledger, then check `side`. Every implementation must report exactly these problems, in this order, and exactly these hints, word for word.",
+  "description": "Cases for the check. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, write `ledger` to .ledger/<side>.jsonl (write no such file when `noLedger` is true) and `otherLedger` to the other side's ledger, then check `side`. Every implementation must report exactly these problems, in this order, and exactly these hints, word for word. `report` is the whole text the check command prints for the case, character for character (to standard output when there are no problems, to standard error otherwise); in it, {tool} stands for the name of the executable (contract-fixtures in the TypeScript package, contract_fixtures in the Dart package).",
   "cases": [
     {
       "case": "provider side: everything verified or read",
@@ -12,7 +12,8 @@
       ],
       "fixtures": 4,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): OK (4 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "consumer side: everything verified or read",
@@ -25,7 +26,8 @@
       ],
       "fixtures": 4,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): OK (4 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "repeated and reordered lines are fine",
@@ -42,7 +44,8 @@
       ],
       "fixtures": 4,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): OK (4 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "provider side: nothing ran",
@@ -69,7 +72,8 @@
       ],
       "hints": [
         ".ledger/provider.jsonl has no entries. Did the provider side's tests run, and do they use this contracts directory?"
-      ]
+      ],
+      "report": "{tool} check (provider side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - provider/order.out-of-stock.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - consumer/create-order.request.json: not read by the provider side's tests (add a test that feeds it to the real code)\n  - tables/order-total.json: not read by the provider side's tests (add a test that feeds it to the real code)\nHint: .ledger/provider.jsonl has no entries. Did the provider side's tests run, and do they use this contracts directory?\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "consumer side: nothing ran",
@@ -96,7 +100,8 @@
       ],
       "hints": [
         ".ledger/consumer.jsonl has no entries. Did the consumer side's tests run, and do they use this contracts directory?"
-      ]
+      ],
+      "report": "{tool} check (consumer side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nHint: .ledger/consumer.jsonl has no entries. Did the consumer side's tests run, and do they use this contracts directory?\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "the other side's ledger does not count",
@@ -129,7 +134,8 @@
       ],
       "hints": [
         ".ledger/consumer.jsonl has no entries, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?"
-      ]
+      ],
+      "report": "{tool} check (consumer side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nHint: .ledger/consumer.jsonl has no entries, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "reading is not verifying, verifying is not reading",
@@ -151,7 +157,8 @@
           "code": "unverified"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 2 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "a stale fixture: its test is gone",
@@ -168,7 +175,8 @@
           "code": "unverified"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): 1 problem(s) in 4 fixture(s)\n  - provider/order.out-of-stock.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "a new fixture nobody reads yet",
@@ -189,7 +197,8 @@
           "code": "unread"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 1 problem(s) in 5 fixture(s)\n  - provider/order.cancelled.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "an invalid fixture is reported once per issue, and not as unread",
@@ -219,7 +228,8 @@
           "code": "invalid"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 3 problem(s) in 6 fixture(s)\n  - provider/broken.json: invalid fixture: format must be 1 (this is the only format this version reads)\n  - provider/broken.json: invalid fixture: response.status must be an integer from 100 to 599\n  - tables/not-json.json: invalid fixture: (root) is not valid JSON\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "files that are not fixtures are ignored",
@@ -238,7 +248,8 @@
       },
       "fixtures": 4,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): OK (4 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "ledger entries for files that no longer exist are ignored",
@@ -252,7 +263,8 @@
       ],
       "fixtures": 4,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): OK (4 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "ledger lines that are not entries of this side",
@@ -282,7 +294,8 @@
           "code": "ledger"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): 3 problem(s) in 4 fixture(s)\n  - .ledger/provider.jsonl: line 5 is not a ledger entry of the provider side\n  - .ledger/provider.jsonl: line 6 is not a ledger entry of the provider side\n  - .ledger/provider.jsonl: line 7 is not a ledger entry of the provider side\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "no fixtures at all",
@@ -296,7 +309,8 @@
           "code": "empty"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): 1 problem(s) in 0 fixture(s)\n  - no fixtures found under provider/, consumer/ or tables/ (wrong directory?)\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "a fixture that starts with a byte order mark is a fixture",
@@ -317,7 +331,8 @@
           "code": "unread"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 1 problem(s) in 5 fixture(s)\n  - tables/with-bom.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "secret: a fixture with a secret path is an ordinary fixture",
@@ -334,7 +349,8 @@
       },
       "fixtures": 5,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): OK (5 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "secret: a stored value that is not its placeholder is invalid",
@@ -355,7 +371,8 @@
           "code": "invalid"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 1 problem(s) in 5 fixture(s)\n  - provider/session.created.json: invalid fixture: response.body.access_token is listed in secret, so it must be a string that is stored as <token:session-1> (found another string)\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "token: a stored token is invalid, for either side",
@@ -377,7 +394,8 @@
           "code": "invalid"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 1 problem(s) in 5 fixture(s)\n  - provider/session.created.json: invalid fixture: response.body.access_token contains what looks like a JSON Web Token (list this path in secret, so that a placeholder is stored instead)\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "headers: a fixture with response headers is read by the consumer side",
@@ -394,7 +412,8 @@
       },
       "fixtures": 5,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): OK (5 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "headers: a stored response header with an upper-case name is invalid",
@@ -415,7 +434,8 @@
           "code": "invalid"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 1 problem(s) in 5 fixture(s)\n  - provider/receipt.downloaded.json: invalid fixture: response.headers.Content-Type header names must be non-empty and lower case\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "hint: there is no ledger file",
@@ -443,7 +463,8 @@
       ],
       "hints": [
         ".ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?"
-      ]
+      ],
+      "report": "{tool} check (provider side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - provider/order.out-of-stock.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - consumer/create-order.request.json: not read by the provider side's tests (add a test that feeds it to the real code)\n  - tables/order-total.json: not read by the provider side's tests (add a test that feeds it to the real code)\nHint: .ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "hint: no ledger file, and the other side has one",
@@ -474,7 +495,8 @@
       ],
       "hints": [
         ".ledger/provider.jsonl does not exist, but .ledger/consumer.jsonl has some. Did the provider side's tests run, and is provider the side to check?"
-      ]
+      ],
+      "report": "{tool} check (provider side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - provider/order.out-of-stock.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - consumer/create-order.request.json: not read by the provider side's tests (add a test that feeds it to the real code)\n  - tables/order-total.json: not read by the provider side's tests (add a test that feeds it to the real code)\nHint: .ledger/provider.jsonl does not exist, but .ledger/consumer.jsonl has some. Did the provider side's tests run, and is provider the side to check?\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "hint: the ledger names only files of another directory",
@@ -505,7 +527,8 @@
       "hints": [
         ".ledger/provider.jsonl has 2 entries, but none that this check asks for. Did the provider side's tests run since the fixtures changed?",
         ".ledger/provider.jsonl names 2 file(s) that are not in this directory. It may be left from an earlier run: run the reset before the tests."
-      ]
+      ],
+      "report": "{tool} check (provider side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - provider/order.out-of-stock.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - consumer/create-order.request.json: not read by the provider side's tests (add a test that feeds it to the real code)\n  - tables/order-total.json: not read by the provider side's tests (add a test that feeds it to the real code)\nHint: .ledger/provider.jsonl has 2 entries, but none that this check asks for. Did the provider side's tests run since the fixtures changed?\nHint: .ledger/provider.jsonl names 2 file(s) that are not in this directory. It may be left from an earlier run: run the reset before the tests.\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "hint: one entry, and not one this check asks for",
@@ -534,7 +557,8 @@
       ],
       "hints": [
         ".ledger/consumer.jsonl has 1 entry, but none that this check asks for. Did the consumer side's tests run since the fixtures changed?"
-      ]
+      ],
+      "report": "{tool} check (consumer side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nHint: .ledger/consumer.jsonl has 1 entry, but none that this check asks for. Did the consumer side's tests run since the fixtures changed?\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "hint: most fixtures were not touched",
@@ -559,7 +583,8 @@
       ],
       "hints": [
         "Only 1 of the 4 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
-      ]
+      ],
+      "report": "{tool} check (consumer side): 3 problem(s) in 4 fixture(s)\n  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nHint: Only 1 of the 4 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "hint: half of the fixtures were not touched, which is not most",
@@ -579,7 +604,8 @@
           "code": "unread"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (consumer side): 2 problem(s) in 4 fixture(s)\n  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "hint: the ledger also names a file that is gone",
@@ -600,7 +626,8 @@
       ],
       "hints": [
         ".ledger/provider.jsonl names 1 file(s) that are not in this directory. It may be left from an earlier run: run the reset before the tests."
-      ]
+      ],
+      "report": "{tool} check (provider side): 1 problem(s) in 4 fixture(s)\n  - provider/order.out-of-stock.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\nHint: .ledger/provider.jsonl names 1 file(s) that are not in this directory. It may be left from an earlier run: run the reset before the tests.\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "hint: an invalid fixture is not counted among those the check asks for",
@@ -628,7 +655,8 @@
       ],
       "hints": [
         "Only 1 of the 3 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
-      ]
+      ],
+      "report": "{tool} check (consumer side): 3 problem(s) in 4 fixture(s)\n  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - consumer/create-order.request.json: invalid fixture: (root) is not valid JSON\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nHint: Only 1 of the 3 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "ledger: a byte order mark at the start is not a part of the first line",
@@ -641,7 +669,8 @@
       ],
       "fixtures": 4,
       "problems": [],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): OK (4 fixture(s), all verified or read by this side's tests)"
     },
     {
       "case": "ledger: a line of spaces, tabs and a carriage return is blank; a line with another white space character is not",
@@ -661,7 +690,8 @@
           "code": "ledger"
         }
       ],
-      "hints": []
+      "hints": [],
+      "report": "{tool} check (provider side): 1 problem(s) in 4 fixture(s)\n  - .ledger/provider.jsonl: line 4 is not a ledger entry of the provider side\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "hint: a ledger with lines but without entries",
@@ -694,7 +724,8 @@
       ],
       "hints": [
         ".ledger/provider.jsonl has no entries. Did the provider side's tests run, and do they use this contracts directory?"
-      ]
+      ],
+      "report": "{tool} check (provider side): 5 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - provider/order.out-of-stock.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)\n  - consumer/create-order.request.json: not read by the provider side's tests (add a test that feeds it to the real code)\n  - tables/order-total.json: not read by the provider side's tests (add a test that feeds it to the real code)\n  - .ledger/provider.jsonl: line 1 is not a ledger entry of the provider side\nHint: .ledger/provider.jsonl has no entries. Did the provider side's tests run, and do they use this contracts directory?\nRun `{tool} reset` and the provider side's tests before this check."
     }
   ]
 }

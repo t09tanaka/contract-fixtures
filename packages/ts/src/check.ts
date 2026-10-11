@@ -178,17 +178,20 @@ function checkHints(state: {
   return hints;
 }
 
+/** The name of the executable, the first word of what the commands print. */
+export const TOOL = "contract-fixtures";
+
 /** The report the `check` command prints. */
 export function formatCheckResult(result: CheckResult): string {
-  const head = `contract-fixtures check (${result.side} side)`;
+  const head = `${TOOL} check (${result.side} side)`;
   if (result.problems.length === 0) {
-    return `${head}: ${result.fixtures} fixture(s), all verified or read by this side's tests.`;
+    return `${head}: OK (${result.fixtures} fixture(s), all verified or read by this side's tests)`;
   }
   const lines = result.problems.map((p) => `  - ${p.file === "" ? "" : `${p.file}: `}${p.message}`);
   return [
     `${head}: ${result.problems.length} problem(s) in ${result.fixtures} fixture(s)`,
     ...lines,
     ...result.hints.map((hint) => `Hint: ${hint}`),
-    `Run \`contract-fixtures reset\` and the ${result.side} side's tests before this check.`,
+    `Run \`${TOOL} reset\` and the ${result.side} side's tests before this check.`,
   ].join("\n");
 }
