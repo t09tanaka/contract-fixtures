@@ -55,7 +55,8 @@ contracts/
 | `tables/*.json` | **read**: run the rows through the server's calculation | **read**: run the rows through the client's calculation |
 
 Values that change on every run (ids, timestamps) are stored as they really were and listed
-under `volatile`; the verifying side compares only their type. Secrets are never stored: the
+under `volatile`, preferably with the shape they keep (see
+[Values that change](#values-that-change)). Secrets are never stored: the
 test lists their paths under `secret`, and the file holds placeholders such as
 `<token:customer-1>` in their place (see [Secrets](#secrets)). Everything else is compared
 exactly, after parsing, so a formatter may rewrite the files.
@@ -131,6 +132,40 @@ over it, and call `assertCovers` with its keys. A new fixture then fails the rea
 somebody writes down what should happen for it, and a deleted fixture fails until its
 expectation is removed. Whether the expectation is meaningful remains the job of code review.
 
+### Values that change
+
+An id, a timestamp or an order number is new on every run. Such a value is stored as it really
+was, and the test lists where it is under `volatile`:
+
+```ts
+volatile: [
+  { path: "response.body.id", pattern: "^ord_[a-z0-9]+$" },
+  { path: "response.body.**.created_at", pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" },
+],
+```
+
+- An entry with a `pattern` says what the value looks like. The value may change, but it must
+  be a string that matches the pattern as a whole, in the stored file and in every run. A
+  response that starts to return `"81f3"` instead of `"ord_81f3"` fails the provider's test:
+  `response.body.id: "ord_81f3" -> "81f3" (volatile: does not match ^ord_[a-z0-9]+$)`.
+- An entry that is only a path (`"response.body.note"`) compares the JSON type and nothing
+  else. Use it when there is nothing to say about the shape.
+- `*` stands for one key or index. `**` stands for any number of them, so
+  `response.body.**.created_at` names every `created_at` in the body, at any depth.
+- **Name the value, not its surroundings.** It is tempting to write
+  `response.body.customer.**` to get rid of one timestamp inside `customer`; that also stops
+  comparing the customer's status, its plan and every other value there. Name the key and give
+  it a pattern instead. A path that ends in `**` (same keys and types below, values free) is
+  for a subtree that really is arbitrary.
+- When an id is a part of the path of a request, make the path volatile with a pattern:
+  `{ path: "request.path", pattern: "^/orders/ord_[a-z0-9]+/receipt$" }`.
+
+Patterns are a small, documented subset of ECMAScript regular expressions (character classes,
+repetition, groups, choice, `^` and `$`; no look-around, no back references, no flags). Both
+packages match them with the same algorithm of their own, so a pattern means the same in every
+language and cannot make a test hang. The exact syntax is in
+[`spec/format.md`](./spec/format.md#patterns).
+
 ### Response headers
 
 Part of an agreement is often in the headers of the response: the file name of a download
@@ -173,7 +208,7 @@ contract.verifyResponse({
   description: "Starting the payment of an order returns the key that confirms it",
   request,
   response: { status: response.status, body: response.body },
-  volatile: ["response.body.id"],
+  volatile: [{ path: "response.body.id", pattern: "^pay_[a-z0-9]+$" }],
   secret: { "response.body.confirm_key": "<key:payment-1>" },
 });
 ```
@@ -257,6 +292,9 @@ should also be triggered by changes to the contracts directory.
   the stub, not the gateway.
 - **Old clients in the field.** The fixtures describe the code in the repository. A released app
   that users have not updated is not checked against a new API.
+- **Query strings as parameters.** The path of a request, query string included, is one string.
+  The side that builds a request does so in a fixed way, so comparing the string (or giving it
+  a pattern) is enough; the order or encoding of parameters is not interpreted.
 - **Bodies that are not JSON.** A fixture is a JSON document that both sides parse and compare
   value by value; a PDF, a CSV file or an image has no place in it. For such a response, record
   the status and the headers (`content-type`, `content-disposition`) and leave the body out.

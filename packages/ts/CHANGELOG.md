@@ -19,6 +19,10 @@ First release.
     responses;
   - a refusal to write, and an `invalid` from the check for, a fixture that contains a string
     of the shape of a JSON Web Token;
+  - volatile entries with a pattern (`{ path, pattern }`): the value may change but must match
+    a pattern, written in a documented subset of ECMAScript regular expressions that both
+    packages match with the same algorithm; `**` in the middle of a path
+    (`response.body.**.created_at`); a pattern on `request.path` for ids in a path;
   - response headers next to request headers, with the same rules for both: lower-case
     names, and a string or an array of strings (a header that is sent more than once, such as
     `set-cookie`) as the value;

@@ -30,3 +30,4 @@ export type {
 } from "./types.js";
 export { validateFixture, validateFixtureFile, validateFixtureValue } from "./validate.js";
 export type { FormatIssue } from "./validate.js";
+export type { VolatileEntry } from "./volatile.js";

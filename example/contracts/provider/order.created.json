@@ -16,15 +16,21 @@
   "response": {
     "status": 201,
     "body": {
-      "id": "ord_mv3878vp1",
+      "id": "ord_mv3svalt1",
       "customer": "customer-1",
       "status": "confirmed",
       "total_minor": 1200,
-      "created_at": "2026-10-11T02:50:36.085Z"
+      "created_at": "2026-10-11T12:29:10.385Z"
     }
   },
   "volatile": [
-    "response.body.id",
-    "response.body.created_at"
+    {
+      "path": "response.body.id",
+      "pattern": "^ord_[a-z0-9]+$"
+    },
+    {
+      "path": "response.body.**.created_at",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    }
   ]
 }

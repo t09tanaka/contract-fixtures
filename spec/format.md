@@ -167,17 +167,43 @@ as they really were (so the reading side parses a real sample), and the fixture 
 locations in `volatile`.
 Values that must not be stored at all are a different matter: see [Secrets](#secrets).
 
+```json
+"volatile": [
+  { "path": "response.body.id", "pattern": "^ord_[a-z0-9]+$" },
+  { "path": "response.body.**.created_at", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" },
+  "response.body.note"
+]
+```
+
+An entry of `volatile` is
+
+- a **path** (a string): the value at that path may change, its JSON type may not; or
+- an object with exactly the keys **`path`** and **`pattern`** (both strings): the value at that
+  path may change, but it is always a string that matches the pattern as a whole. See
+  [Patterns](#patterns).
+
+Prefer the second form. A plain path says "anything of the same type"; a pattern keeps a check
+on the value, so a response that starts to return something else in that place is noticed.
+
+### Paths
+
 A path is a list of segments separated by `.`, starting at the fixture root:
 `response.body.items.0.id`.
 
 - A segment is an object key or an array index.
 - `*` matches exactly one segment (any key or any index).
-- `**` is allowed only as the last segment. It matches the node before it and everything below.
+- `**` matches any number of segments, none included. It may appear once in a path.
+  - In the middle (`response.body.**.created_at`), the path names every node that the segments
+    after `**` lead to, at any depth below the segments before it: `response.body.created_at`,
+    `response.body.lines.0.created_at`, `response.body.customer.profile.created_at`.
+  - As the last segment (`response.body.meta.**`), it names the node before it and everything
+    below, and these nodes are compared in a different way (see the table).
 - `*` is special only as a whole segment; a segment such as `a*b` is not allowed.
 - The first segment is `request` or `response` (`request` only in a consumer fixture), and the
-  second names one of its keys literally (`response.body`, `request.headers`, ...). A path that
-  covers the whole request or response (`response`, `response.*`, `response.**`) is rejected,
-  because it would switch the comparison off **(beyond the schema)**.
+  second names one of its keys literally (`response.body`, `request.headers`, `request.path`,
+  ...). A path that could cover the whole request or response (`response`, `response.*`,
+  `response.**`, `response.**.id`) is rejected, because it would switch the comparison off
+  **(beyond the schema)**.
 - Every path must match at least one node of the stored fixture **(beyond the schema)**; a path
   that matches nothing is a mistake.
 - Keys that contain `.` cannot be addressed: `a.b` always means the key `b` inside `a`. A path
@@ -188,18 +214,95 @@ How the verifying side compares:
 
 | The node is | Comparison |
 |---|---|
-| matched by a path without `**` | The JSON type must be equal (`null`, `boolean`, `number`, `string`, `array`, `object`). Nothing below the node is compared. |
+| named by a path that does not end in `**` | The JSON type must be equal (`null`, `boolean`, `number`, `string`, `array`, `object`). If the entry has a pattern, the value must be a string that matches it. Nothing below the node is compared. |
 | at or below a path ending in `**` | Same type; objects have the same keys; arrays have the same length; scalar values are not compared. |
 | anything else | Exactly equal. |
 
 A key that is present on one side and absent on the other is a difference when the key itself is
-the volatile node, and anywhere at or below a `**` path. Below a node matched by a path without
-`**`, nothing is compared, keys included. When both rules apply to a node, the first one wins.
+the volatile node, and anywhere at or below a path that ends in `**`. Below a node named by a
+path that does not end in `**`, nothing is compared, keys included.
 
-Keep volatile paths as narrow as the value that really changes: `response.body` alone reduces
-the check of the body to "it is still an object".
+When several entries apply to one node, the order of the entries does not matter:
+
+- A path that names the node wins over a path that ends in `**` and merely contains it.
+- Every pattern among the entries that name the node applies; the value must match all of
+  them. A plain path for the same node adds nothing and takes nothing away.
+
+Keep volatile paths as narrow as the value that really changes. `response.body` alone reduces
+the check of the body to "it is still an object", and `response.body.customer.**` gives up every
+value below `customer` to hide one timestamp. Name the key instead, wherever it is, and say what
+it looks like: `{ "path": "response.body.**.created_at", "pattern": "..." }`.
+
+The path of a request can be volatile as well. When an id is a part of it, give it a pattern:
+
+```json
+{ "path": "request.path", "pattern": "^/orders/ord_[a-z0-9]+/receipt$" }
+```
+
+A query string stays a part of that one string. It is not taken apart into parameters: the side
+that builds a request does so in a fixed way, so comparing the string (or its pattern) is enough.
 
 The reading side ignores `volatile`.
+
+### Patterns
+
+A pattern is a regular expression in ECMAScript syntax, without flags, restricted to the
+constructs below. The value must match **as a whole**: the pattern behaves as if it were written
+`^(?:pattern)$`, so `confirmed|cancelled` does not match `confirmed late`, with or without
+anchors of its own.
+
+| Construct | Meaning |
+|---|---|
+| any other character | itself (letters are compared as they are; upper and lower case differ) |
+| `.` | one UTF-16 code unit, except line feed, carriage return, U+2028 and U+2029 |
+| `\d` `\w` `\s` | `0`–`9`; `A`–`Z`, `a`–`z`, `0`–`9`, `_`; white space as ECMAScript defines it (tab, line feed, vertical tab, form feed, carriage return, space, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF) |
+| `\D` `\W` `\S` | everything else |
+| `\n` `\r` `\t` | line feed, carriage return, tab |
+| `\` before one of `^ $ \ . * + ? ( ) [ ] { } \| / -` | that character |
+| `[...]`, `[^...]` | one code unit that is (not) in the class: single characters, ranges `a-z`, and the escapes above. `-` is a character at the start or the end of the class. A class is not empty. |
+| `(...)`, `(?:...)` | a group (the two forms mean the same) |
+| `a\|b` | either side |
+| `*` `+` `?` `{n}` `{n,}` `{n,m}` | repetition of the character, class or group before it |
+| `^` `$` | the start and the end of the value (not of a line) |
+
+Everything else is not a pattern of this format and makes the fixture invalid (issue code
+`pattern`): lazy repetitions (`*?`), a repetition of a repetition (`a{2}{3}`), `^*`, look-ahead
+and look-behind, named groups, back references, `\b`, `\u`, `\x`, `\p{...}`, every other escape that is not in the
+table (`\_`, `\1`, `\a`), `\d`, `\w` or `\s` as one end of a range in a class, an unescaped `{`, `}` or `]` that is not part of a construct above, and
+characters beyond U+FFFF (a value may contain them; each counts as two code units).
+
+Limits, so that a fixture cannot make a test run away: a pattern is at most 1000 code units
+long, a repetition count has at most 5 digits, and the *size* of a pattern is at most 10000,
+where the size of a character, class or anchor is 1, of a sequence the sum of its parts, of a
+choice the sum of its branches plus one less than their number, of `x{n,m}` (also `?`) `m` times
+the size of `x` plus `m − n`, and of `x{n,}` (also `*`, `+`) `n + 1` times the size of `x`
+plus 1. In a repetition the size of `x` counts as at least 1, also when `x` is empty.
+
+The packages do not hand a pattern to the regular expression engine of their language. They
+match it themselves, in time proportional to the length of the value times the size of the
+pattern, so `(a+)+b` cannot stall a test, and so that the result is the same in every
+implementation. The cases in `fixtures/patterns.json` pin the syntax and the results, and both
+packages also compare them with the engine of their language.
+
+A pattern cannot be combined with a path that ends in `**`. A node that a `secret` path matches
+cannot be volatile, with or without a pattern.
+
+**(beyond the schema)** A stored fixture is invalid when
+
+| Code | |
+|---|---|
+| `volatile` | an entry is neither a path nor an object with exactly `path` and `pattern`, the path does not follow the rules above, or an entry with a pattern has a path that ends in `**`. |
+| `pattern` | the pattern of an entry is not one (reported at `volatile.<index>.pattern`). |
+| `volatile-unmatched` | a path matches no node of the fixture. |
+| `volatile-pattern` | a node named by an entry with a pattern is not a string, or does not match the pattern. |
+
+What a verifying side produced is held to the same rules, with one difference: a value that
+does not match the pattern of its entry is reported as a **difference** from the stored fixture
+(`response.body.id: "ord_81f3" -> "81f3" (volatile: does not match ^ord_[a-z0-9]+$)`), like any
+other change of a response. Such a fixture is never written: in update mode the verify fails
+with `volatile-pattern` instead, whether or not there is a stored fixture. The same error is
+given, outside update mode too, when such a value lies below another volatile node and is for
+that reason not compared (`response.body.order` and a pattern for `response.body.order.id`).
 
 ## Secrets
 
@@ -346,6 +449,8 @@ response.body.note: (absent) -> "gift"
 response.body.status: "confirmed" -> (absent)
 response.body.items: array length 2 -> 3
 response.body.id: type string -> number (volatile: only the type is compared)
+response.body.id: "ord_81f3" -> "81f3" (volatile: does not match ^ord_[a-z0-9]+$)
+response.body.id: type string -> number (volatile: must be a string that matches ^ord_[a-z0-9]+$)
 response.headers.cache-control: "private, no-store" -> (absent)
 response.headers.set-cookie: array length 2 -> 1
 ```
@@ -375,7 +480,8 @@ verify writes the fixture instead:
 Fixtures are written as JSON with two-space indentation, a trailing newline, and the key order
 `format`, `name`, `description`, `request`, `response`, `volatile`, `secret` (inside a request:
 `method`, `path`, `headers`, `body`; inside a response: `status`, `headers`, `body`). An empty
-`volatile` or `secret` is left out. Inside a body and inside `secret`, keys keep the
+`volatile` or `secret` is left out. The entries of `volatile` keep the order the side gave
+them; an entry with a pattern is written with the keys `path`, `pattern`. Inside a body and inside `secret`, keys keep the
 order the side produced them in, except that keys that are array indexes (`"0"`, `"10"`) come
 first in ascending order, as in a JavaScript object. Integer-valued numbers are written without
 a fraction (`1`, not `1.0`). Characters are written as they are; only characters below U+0020,

@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'differences.dart';
 import 'json.dart';
+import 'pattern.dart';
 import 'placeholders.dart';
 import 'secrets.dart';
 import 'types.dart';
+import 'volatile.dart';
 
 /// One way in which a file does not follow the fixture format.
 class FormatIssue {
@@ -13,7 +14,7 @@ class FormatIssue {
 
   /// A stable identifier, the same in every implementation: `json`, `root`, `format`,
   /// `name`, `description`, `unknown-key`, `request`, `method`, `path`, `headers`, `body`,
-  /// `response`, `status`, `volatile`, `volatile-unmatched`, `secret`, `secret-unmatched`,
+  /// `response`, `status`, `volatile`, `volatile-unmatched`, `volatile-pattern`, `pattern`, `secret`, `secret-unmatched`,
   /// `secret-value`, `secret-volatile`, `jwt`, `rows` or `number`. One more code is not a
   /// fault of a file: `secret-removed`, when update mode was asked to drop a secret path.
   final String code;
@@ -189,23 +190,51 @@ void _validateResponse(List<FormatIssue> issues, Object? response) {
   }
 }
 
-/// Whether a volatile path matches at least one node of the fixture.
-bool _matchesSomething(Object? root, List<String> pattern) {
-  bool walk(Object? node, List<String> segments) {
-    if (volatileMode([pattern], segments) != null) return true;
+class _Matched {
+  const _Matched(this.segments, this.value);
+  final List<String> segments;
+  final Object? value;
+}
+
+/// The nodes of the fixture that a rule matches, those below a path that ends in `**`
+/// included.
+List<_Matched> _matchedNodes(Object? root, VolatileRule rule) {
+  final out = <_Matched>[];
+  void walk(Object? node, List<String> segments) {
+    if (rule.match(segments) != null) out.add(_Matched(segments, node));
     if (node is List) {
       for (var i = 0; i < node.length; i++) {
-        if (walk(node[i], [...segments, '$i'])) return true;
+        walk(node[i], [...segments, '$i']);
       }
-      return false;
+    } else if (node is Map<String, dynamic>) {
+      for (final key in sortedKeys(node)) {
+        walk(node[key], [...segments, key]);
+      }
     }
-    if (node is Map<String, dynamic>) {
-      return sortedKeys(node).any((key) => walk(node[key], [...segments, key]));
-    }
-    return false;
   }
 
-  return walk(root, const []);
+  walk(root, const []);
+  return out;
+}
+
+/// Why [path] cannot be a volatile path, or `null` when it can.
+String? _volatilePathProblem(String path, List<String> roots) {
+  final segments = path.split('.');
+  if (segments.any((s) => s.isEmpty)) return 'must not contain empty segments';
+  if (segments.any((s) => s.contains('*') && s != '*' && s != '**')) {
+    return '* is allowed only as a whole segment (* or **)';
+  }
+  if (segments.where((s) => s == '**').length > 1) {
+    return '** is allowed only once in a path';
+  }
+  if (!roots.contains(segments.first)) {
+    return 'must start with ${roots.join(' or ')}';
+  }
+  if (segments.length < 2 || segments[1] == '*' || segments[1] == '**') {
+    return 'must name a key of ${segments.first} (a path that covers the whole '
+        '${segments.first} would switch the comparison off)';
+  }
+  return null;
 }
 
 void _validateVolatile(
@@ -215,64 +244,76 @@ void _validateVolatile(
 ) {
   final volatile = fixture['volatile'];
   if (volatile is! List) {
-    issues.add(
-      const FormatIssue('volatile', 'volatile', 'must be an array of strings'),
-    );
+    issues.add(const FormatIssue('volatile', 'volatile', 'must be an array'));
     return;
   }
   for (var i = 0; i < volatile.length; i++) {
-    final entry = volatile[i] as Object?;
     final path = 'volatile.$i';
-    if (entry is! String) {
-      issues.add(FormatIssue('volatile', path, 'must be a string'));
-      continue;
-    }
-    final segments = entry.split('.');
-    if (segments.any((s) => s.isEmpty)) {
-      issues.add(
-        FormatIssue('volatile', path, 'must not contain empty segments'),
-      );
-      continue;
-    }
-    if (segments.sublist(0, segments.length - 1).contains('**')) {
-      issues.add(
-        FormatIssue('volatile', path, '** is allowed only as the last segment'),
-      );
-      continue;
-    }
-    if (segments.any((s) => s.contains('*') && s != '*' && s != '**')) {
+    final parts = entryParts(volatile[i] as Object?);
+    if (parts == null) {
       issues.add(
         FormatIssue(
           'volatile',
           path,
-          '* is allowed only as a whole segment (* or **)',
+          'must be a path, or an object with exactly the keys path and pattern '
+              '(both strings)',
         ),
       );
       continue;
     }
-    if (!roots.contains(segments.first)) {
-      issues.add(
-        FormatIssue('volatile', path, 'must start with ${roots.join(' or ')}'),
-      );
+    final problem = _volatilePathProblem(parts.path, roots);
+    if (problem != null) {
+      issues.add(FormatIssue('volatile', path, problem));
       continue;
     }
-    if (segments.length < 2 || segments[1] == '*' || segments[1] == '**') {
+    if (parts.pattern != null && parts.path.endsWith('.**')) {
       issues.add(
         FormatIssue(
           'volatile',
           path,
-          'must name a key of ${segments.first} (a path that covers the whole '
-              '${segments.first} would switch the comparison off)',
+          'a path that ends in ** cannot have a pattern (a pattern is for one '
+              'string)',
         ),
       );
       continue;
     }
-    if (!_matchesSomething(fixture, segments)) {
+    final VolatileRule rule;
+    try {
+      rule = VolatileRule(parts.path, parts.pattern);
+    } on PatternException catch (error) {
+      issues.add(
+        FormatIssue(
+          'pattern',
+          '$path.pattern',
+          'is not a pattern this format supports: ${error.message}',
+        ),
+      );
+      continue;
+    }
+    final nodes = _matchedNodes(fixture, rule);
+    if (nodes.isEmpty) {
       issues.add(
         FormatIssue(
           'volatile-unmatched',
           path,
-          '$entry matches nothing in this fixture',
+          '${parts.path} matches nothing in this fixture',
+        ),
+      );
+      continue;
+    }
+    final matcher = rule.matcher;
+    if (matcher == null) continue;
+    for (final node in nodes) {
+      final value = node.value;
+      if (value is String && matcher.test(value)) continue;
+      issues.add(
+        FormatIssue(
+          'volatile-pattern',
+          node.segments.join('.'),
+          value is String
+              ? 'does not match the pattern ${rule.source} of $path'
+              : 'must be a string that matches the pattern ${rule.source} of '
+                  '$path (found ${jsonType(value)})',
         ),
       );
     }
@@ -321,12 +362,7 @@ void _validateSecret(
     );
     return;
   }
-  final listed = fixture['volatile'];
-  final volatile = [
-    if (listed is List)
-      for (final entry in listed)
-        if (entry is String) entry.split('.'),
-  ];
+  final volatile = lenientRules(fixture['volatile']);
   for (final key in sortedKeys(secret)) {
     final path = 'secret.$key';
     final problem = secretPathProblem(key, roots);
@@ -370,7 +406,8 @@ void _validateSecret(
         ),
       );
     }
-    if (nodes.any((node) => volatileMode(volatile, node.segments) != null)) {
+    if (nodes
+        .any((node) => volatileMode(volatile, node.segments).mode != null)) {
       issues.add(
         FormatIssue(
           'secret-volatile',

@@ -1,3 +1,5 @@
+import type { VolatileEntry } from "./volatile.js";
+
 /** The format version this package reads and writes. */
 export const FORMAT_VERSION = 1;
 
@@ -39,7 +41,7 @@ export interface ProviderFixture {
   description: string;
   request: ExchangeRequest;
   response: ExchangeResponse;
-  volatile?: string[];
+  volatile?: VolatileEntry[];
   /** Path -> placeholder: what is stored in place of the real value at that path. */
   secret?: Record<string, string>;
 }
@@ -50,7 +52,7 @@ export interface ConsumerFixture {
   name: string;
   description: string;
   request: ExchangeRequest;
-  volatile?: string[];
+  volatile?: VolatileEntry[];
   /** Path -> placeholder: what is stored in place of the real value at that path. */
   secret?: Record<string, string>;
 }

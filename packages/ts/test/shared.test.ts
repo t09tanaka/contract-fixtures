@@ -23,7 +23,9 @@ import {
   type ObservedRequest,
   type ObservedResponse,
   type Side,
+  type VolatileEntry,
 } from "../src/index.js";
+import { compilePattern, PatternError } from "../src/pattern.js";
 import {
   copyOfContracts,
   everyFileIn,
@@ -38,7 +40,7 @@ describe("spec/fixtures/differences.json", () => {
     case: string;
     expected: unknown;
     actual: unknown;
-    volatile: string[];
+    volatile: VolatileEntry[];
     differences: { path: string; kind: string; text: string }[];
   }
   for (const c of loadCases<Case>("differences.json")) {
@@ -99,6 +101,32 @@ describe("spec/fixtures/placeholders.json", () => {
   for (const c of loadCases<Case>("placeholders.json")) {
     it(JSON.stringify(c.value), () => {
       assert.deepEqual(parsePlaceholder(c.value), c.placeholder);
+    });
+  }
+});
+
+describe("spec/fixtures/patterns.json", () => {
+  interface Case {
+    case: string;
+    pattern: string;
+    valid: boolean;
+    matches?: string[];
+    rejects?: string[];
+    native?: boolean;
+  }
+  for (const c of loadCases<Case>("patterns.json")) {
+    it(c.case, () => {
+      if (!c.valid) {
+        assert.throws(() => compilePattern(c.pattern), PatternError);
+        return;
+      }
+      const pattern = compilePattern(c.pattern);
+      for (const value of c.matches ?? []) assert.equal(pattern.test(value), true, JSON.stringify(value));
+      for (const value of c.rejects ?? []) assert.equal(pattern.test(value), false, JSON.stringify(value));
+      if (c.native === false) return;
+      const native = new RegExp(`^(?:${c.pattern})$`);
+      for (const value of c.matches ?? []) assert.equal(native.test(value), true, `RegExp: ${JSON.stringify(value)}`);
+      for (const value of c.rejects ?? []) assert.equal(native.test(value), false, `RegExp: ${JSON.stringify(value)}`);
     });
   }
 });

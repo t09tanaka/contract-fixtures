@@ -48,7 +48,7 @@ const paymentExpectations = <String, String>{
 
 /// The same for the receipt, where the response headers are a part of the agreement.
 const receiptExpectations = <String, String>{
-  'receipt.downloaded': 'save receipt-ord_demo1.json, total 1200',
+  'receipt.downloaded': 'save receipt-<order id>.json, total 1200',
 };
 
 void main() {
@@ -74,10 +74,13 @@ void main() {
         final result =
             readReceiptResponse(response.status, headers, response.body);
 
+        // The id is the one of the order the provider's test happened to place.
+        final orderId = (response.body as Map<String, dynamic>)['order_id'];
         expect(
           switch (result) {
             ReceiptReady(:final fileName, :final totalMinor) =>
-              'save $fileName, total $totalMinor',
+              'save ${fileName.replaceFirst('$orderId', '<order id>')}, '
+                  'total $totalMinor',
             ReceiptFailed() => 'failed',
           },
           entry.value,

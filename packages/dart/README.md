@@ -99,7 +99,11 @@ contract.verifyResponse(
   description: 'An order is accepted',
   request: request,
   response: ExchangeResponse(status: response.statusCode, body: jsonDecode(response.body)),
-  volatile: ['response.body.id', 'response.body.created_at'],
+  // Values that change, each with the shape it keeps.
+  volatile: [
+    VolatilePattern('response.body.id', r'^ord_[a-z0-9]+$'),
+    VolatilePattern('response.body.**.created_at', r'^\d{4}-\d{2}-\d{2}T[0-9:.]+Z$'),
+  ],
 );
 
 // A response with a secret in it: the file gets the placeholder, never the real value.
@@ -136,6 +140,16 @@ fixture throws `ContractFixtureException`.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
   is refused when `CI` is set.
+- `volatile` lists the values that change between runs. An entry is a path
+  (`'response.body.note'`: only the JSON type is compared) or a
+  `VolatilePattern(path, pattern)` (a string that must match the pattern as a whole). In a
+  path, `*` is one key or index and `**` any number of them: `response.body.**.created_at`. A
+  path that ends in `**` compares keys and types of everything below and cannot have a
+  pattern. `request.path` can be volatile too:
+  `VolatilePattern('request.path', r'^/orders/ord_[a-z0-9]+/receipt$')`. Patterns are a subset
+  of ECMAScript regular expressions that the package matches itself (not with `RegExp`); see
+  `spec/format.md`. A value that does not match is a difference, and is never written in
+  update mode.
 - `secret` maps paths to placeholders, for example
   `{'response.body.access_token': '<token:session-1>'}`. The string at each path is replaced
   by its placeholder before anything is compared, printed or written, so the real value is not

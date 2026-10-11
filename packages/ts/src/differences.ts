@@ -1,6 +1,13 @@
 import { compactJson, isObject, jsonType, sortedKeys } from "./json.js";
+import {
+  entryParts,
+  failedPattern,
+  volatileMode,
+  volatileRule,
+  type VolatileEntry,
+} from "./volatile.js";
 
-export type DifferenceKind = "value" | "type" | "missing" | "unexpected" | "length";
+export type DifferenceKind = "value" | "type" | "pattern" | "missing" | "unexpected" | "length";
 
 /** One place where what was observed differs from the stored fixture. */
 export interface Difference {
@@ -11,48 +18,29 @@ export interface Difference {
   text: string;
 }
 
-type Match = "exact" | "subtree" | null;
-
-function matchPattern(pattern: string[], segments: string[]): Match {
-  const deep = pattern[pattern.length - 1] === "**";
-  const head = deep ? pattern.slice(0, -1) : pattern;
-  if (segments.length < head.length) return null;
-  if (!deep && segments.length !== head.length) return null;
-  for (let i = 0; i < head.length; i++) {
-    if (head[i] !== "*" && head[i] !== segments[i]) return null;
-  }
-  return deep ? "subtree" : "exact";
-}
-
-/** How a node is compared, given the volatile paths. A path without `**` wins. */
-export function volatileMode(patterns: string[][], segments: string[]): Match {
-  let mode: Match = null;
-  for (const pattern of patterns) {
-    const match = matchPattern(pattern, segments);
-    if (match === "exact") return "exact";
-    if (match === "subtree") mode = "subtree";
-  }
-  return mode;
-}
-
 /**
  * Differences between a stored value and an observed one. Empty when they agree.
  *
  * `volatile` lists paths that are compared loosely: a plain path compares the JSON type of
  * that node only; a path ending in `**` compares types, object keys and array lengths of the
- * whole subtree. Everything else must be equal.
+ * whole subtree; an entry `{ path, pattern }` requires a string that matches the pattern as a
+ * whole. Everything else must be equal. Throws for an entry that is not one.
  */
 export function differences(
   expected: unknown,
   actual: unknown,
-  volatile: readonly string[] = [],
+  volatile: readonly VolatileEntry[] = [],
 ): Difference[] {
-  const patterns = volatile.map((path) => path.split("."));
+  const rules = volatile.map((entry) => {
+    const parts = entryParts(entry);
+    if (parts === null) throw new TypeError("a volatile entry is a path or { path, pattern }");
+    return volatileRule(parts.path, parts.pattern);
+  });
   const out: Difference[] = [];
 
   const walk = (e: unknown, a: unknown, segments: string[]): void => {
     const path = segments.length === 0 ? "(root)" : segments.join(".");
-    const mode = volatileMode(patterns, segments);
+    const { mode, patterns } = volatileMode(rules, segments);
     const typeE = jsonType(e);
     const typeA = jsonType(a);
 
@@ -63,12 +51,26 @@ export function differences(
           : {
               path,
               kind: "type",
-              text: `${path}: type ${typeE} -> ${typeA} (volatile: only the type is compared)`,
+              text:
+                `${path}: type ${typeE} -> ${typeA} ` +
+                (patterns.length > 0
+                  ? `(volatile: must be a string that matches ${patterns[0]!.source})`
+                  : "(volatile: only the type is compared)"),
             },
       );
       return;
     }
-    if (mode === "exact") return;
+    if (mode === "exact") {
+      const failed = failedPattern(patterns, a);
+      if (failed !== null) {
+        out.push({
+          path,
+          kind: "pattern",
+          text: `${path}: ${compactJson(e)} -> ${compactJson(a)} (volatile: does not match ${failed.source})`,
+        });
+      }
+      return;
+    }
 
     if (Array.isArray(e) && Array.isArray(a)) {
       if (e.length !== a.length) {

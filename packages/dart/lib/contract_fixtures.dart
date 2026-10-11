@@ -21,6 +21,7 @@ export 'src/ledger.dart' show LedgerAction, resetLedger;
 export 'src/placeholders.dart'
     show Placeholder, parsePlaceholder, resolvePlaceholders;
 export 'src/types.dart';
+export 'src/volatile.dart' show VolatilePattern;
 export 'src/validate.dart'
     show
         FixtureValidation,

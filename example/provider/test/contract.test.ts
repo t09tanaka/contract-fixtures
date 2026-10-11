@@ -11,7 +11,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { contractFixtures, resolvePlaceholders } from "@t09tanaka/contract-fixtures";
+import {
+  contractFixtures,
+  resolvePlaceholders,
+  type VolatileEntry,
+} from "@t09tanaka/contract-fixtures";
 
 import { createApp, orderTotalMinor, type HttpRequest } from "../src/orders.js";
 
@@ -29,7 +33,7 @@ interface Scenario {
   name: string;
   description: string;
   request: HttpRequest;
-  volatile?: string[];
+  volatile?: VolatileEntry[];
   /** Where the response holds a secret, and the placeholder the fixture stores instead. */
   secret?: Record<string, string>;
 }
@@ -41,11 +45,23 @@ const order = (body: unknown, headers: Record<string, string> = authorized): Htt
   body,
 });
 
+/**
+ * Values that change on every run. Each one is named as narrowly as possible, with the shape
+ * it must keep, so that everything around it is still compared exactly.
+ */
+const ORDER_ID = "^ord_[a-z0-9]+$";
+const anOrderId = { path: "response.body.id", pattern: ORDER_ID };
+/** Wherever a `created_at` appears in the body, at any depth. */
+const anyCreatedAt = {
+  path: "response.body.**.created_at",
+  pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+};
+
 const startPayment: Scenario = {
   name: "payment.started",
   description: "Starting the payment of an order returns the key that confirms it",
   request: { method: "POST", path: "/payments", headers: authorized, body: { order_id: "ord_demo1" } },
-  volatile: ["response.body.id"],
+  volatile: [{ path: "response.body.id", pattern: "^pay_[a-z0-9]+$" }],
   secret: { "response.body.confirm_key": "<key:payment-1>" },
 };
 
@@ -54,13 +70,13 @@ const scenarios: Scenario[] = [
     name: "order.created",
     description: "An order is accepted",
     request: order({ sku: "tea-100", quantity: 2 }),
-    volatile: ["response.body.id", "response.body.created_at"],
+    volatile: [anOrderId, anyCreatedAt],
   },
   {
     name: "order.created-with-coupon",
     description: "An order with a valid coupon is accepted at the discounted total",
     request: order({ sku: "tin-300", quantity: 1, coupon: "SAVE10" }),
-    volatile: ["response.body.id", "response.body.created_at"],
+    volatile: [anOrderId, anyCreatedAt],
   },
   {
     name: "order.out-of-stock",
@@ -83,11 +99,6 @@ const scenarios: Scenario[] = [
     request: order({ sku: "tea-100", quantity: 1 }, { authorization: "Bearer expired" }),
   },
   startPayment,
-  {
-    name: "receipt.downloaded",
-    description: "The receipt of an order is a download with a file name",
-    request: { method: "GET", path: "/orders/ord_demo1/receipt", headers: authorized },
-  },
 ];
 
 describe("provider fixtures: real responses", () => {
@@ -105,6 +116,29 @@ describe("provider fixtures: real responses", () => {
       });
     });
   }
+
+  it("receipt.downloaded", () => {
+    // The id of the order is new on every run, and it is a part of the path of the request.
+    const api = app();
+    const placed = api.handle(withSecrets(order({ sku: "tea-100", quantity: 2 })));
+    const orderId = (placed.body as { id: string }).id;
+    const request: HttpRequest = { method: "GET", path: `/orders/${orderId}/receipt`, headers: authorized };
+
+    contract.verifyResponse({
+      name: "receipt.downloaded",
+      description: "The receipt of an order is a download with a file name",
+      request,
+      response: api.handle(withSecrets(request)),
+      volatile: [
+        { path: "request.path", pattern: "^/orders/ord_[a-z0-9]+/receipt$" },
+        { path: "response.body.order_id", pattern: ORDER_ID },
+        {
+          path: "response.headers.content-disposition",
+          pattern: '^attachment; filename="receipt-ord_[a-z0-9]+\\.json"$',
+        },
+      ],
+    });
+  });
 
   it("payment.started: the key the API really returned is in no file of the contracts directory", () => {
     const response = app().handle(withSecrets(startPayment.request));

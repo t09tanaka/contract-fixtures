@@ -10,9 +10,11 @@ import {
   ContractMismatchError,
   ContractUsageError,
   contractFixtures,
+  differences,
   resetLedger,
   resolvePlaceholders,
 } from "../src/index.js";
+import { compilePattern, PatternError } from "../src/pattern.js";
 import { JWT_PATTERN } from "../src/secrets.js";
 import { copyOfContracts, everyFileIn, ledgerLines, tempDir, writeFile } from "./helpers.js";
 
@@ -500,5 +502,60 @@ describe("response headers", () => {
     provider.verifyResponse(signIn(["a=1", "b=2"]));
     assert.throws(() => provider.verifyResponse(signIn(["b=2", "a=1"])), ContractMismatchError);
     assert.throws(() => provider.verifyResponse(signIn("a=1")), ContractMismatchError);
+  });
+});
+
+describe("volatile entries with a pattern", () => {
+  const created = (id: unknown) => ({
+    name: "order.created",
+    description: "An order is accepted",
+    request: { method: "POST", path: "/orders", body: { sku: "tea-100", quantity: 2 } },
+    response: { status: 201, body: { id, lines: [{ created_at: "2026-01-15T09:30:00Z" }] } },
+    volatile: [
+      { path: "response.body.id", pattern: "^ord_[a-z0-9]+$" },
+      "response.body.**.created_at",
+    ],
+  });
+
+  it("are stored as given and come back to the reading side", () => {
+    const dir = tempDir();
+    contractFixtures({ side: "provider", dir, update: true }).verifyResponse(created("ord_81f3"));
+
+    const fixture = contractFixtures({ side: "consumer", dir }).readResponse("order.created");
+
+    assert.deepEqual(fixture.volatile, created("").volatile);
+  });
+
+  it("let the value change, but not its shape", () => {
+    const dir = tempDir();
+    contractFixtures({ side: "provider", dir, update: true }).verifyResponse(created("ord_81f3"));
+    const provider = contractFixtures({ side: "provider", dir, update: false });
+
+    provider.verifyResponse(created("ord_zz9"));
+    assert.throws(() => provider.verifyResponse(created("zz9")), ContractMismatchError);
+    assert.throws(() => provider.verifyResponse(created(9)), ContractMismatchError);
+  });
+
+  it("are never written with a value that does not match", () => {
+    const dir = tempDir();
+    const update = contractFixtures({ side: "provider", dir, update: true });
+
+    assert.throws(() => update.verifyResponse(created("zz9")), ContractFixtureError);
+    assert.deepEqual(everyFileIn(dir), []);
+  });
+
+  it("the comparison refuses an entry that is not one", () => {
+    assert.throws(() => differences({}, {}, [{ path: "a" } as never]), TypeError);
+    assert.throws(() => differences({}, {}, [{ path: "a", pattern: "(" }]), PatternError);
+  });
+
+  it("a pattern that would stall a backtracking engine is answered at once", () => {
+    const pattern = compilePattern("(a+)+b|(a|aa)*c|(a?){200}a{200}");
+    const long = "a".repeat(20000);
+
+    assert.equal(pattern.test(long), false);
+    assert.equal(pattern.test(`${long}b`), true);
+    assert.equal(pattern.test(`${long}c`), true);
+    assert.equal(pattern.test("a".repeat(300)), true);
   });
 });

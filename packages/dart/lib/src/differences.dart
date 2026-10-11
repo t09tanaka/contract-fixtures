@@ -1,6 +1,7 @@
 import 'json.dart';
+import 'volatile.dart';
 
-enum DifferenceKind { value, type, missing, unexpected, length }
+enum DifferenceKind { value, type, pattern, missing, unexpected, length }
 
 /// One place where what was observed differs from the stored fixture.
 class Difference {
@@ -17,46 +18,36 @@ class Difference {
   String toString() => text;
 }
 
-enum VolatileMode { exact, subtree }
-
-VolatileMode? _matchPattern(List<String> pattern, List<String> segments) {
-  final deep = pattern.last == '**';
-  final head = deep ? pattern.sublist(0, pattern.length - 1) : pattern;
-  if (segments.length < head.length) return null;
-  if (!deep && segments.length != head.length) return null;
-  for (var i = 0; i < head.length; i++) {
-    if (head[i] != '*' && head[i] != segments[i]) return null;
-  }
-  return deep ? VolatileMode.subtree : VolatileMode.exact;
-}
-
-/// How a node is compared, given the volatile paths. A path without `**` wins.
-VolatileMode? volatileMode(List<List<String>> patterns, List<String> segments) {
-  VolatileMode? mode;
-  for (final pattern in patterns) {
-    final match = _matchPattern(pattern, segments);
-    if (match == VolatileMode.exact) return VolatileMode.exact;
-    if (match == VolatileMode.subtree) mode = VolatileMode.subtree;
-  }
-  return mode;
-}
-
 /// Differences between a stored value and an observed one. Empty when they agree.
 ///
 /// [volatile] lists paths that are compared loosely: a plain path compares the JSON type of
 /// that node only; a path ending in `**` compares types, object keys and array lengths of
-/// the whole subtree. Everything else must be equal.
+/// the whole subtree; an entry with a pattern ([VolatilePattern], or a decoded
+/// `{path, pattern}`) requires a string that matches the pattern as a whole. Everything else
+/// must be equal. Throws for an entry that is not one.
 List<Difference> differences(
   Object? expected,
   Object? actual, [
-  List<String> volatile = const [],
+  List<Object?> volatile = const [],
 ]) {
-  final patterns = [for (final path in volatile) path.split('.')];
+  final rules = [
+    for (final entry in volatile)
+      switch (entryParts(
+        entry is VolatilePattern ? entry.toJson() : entry,
+      )) {
+        null => throw ArgumentError.value(
+            entry,
+            'volatile',
+            'a volatile entry is a path or {path, pattern}',
+          ),
+        final parts => VolatileRule(parts.path, parts.pattern),
+      },
+  ];
   final out = <Difference>[];
 
   void walk(Object? e, Object? a, List<String> segments) {
     final path = segments.isEmpty ? '(root)' : segments.join('.');
-    final mode = volatileMode(patterns, segments);
+    final VolatileMatch(:mode, :patterns) = volatileMode(rules, segments);
     final typeE = jsonType(e);
     final typeA = jsonType(a);
 
@@ -71,12 +62,25 @@ List<Difference> differences(
             : Difference(
                 path,
                 DifferenceKind.type,
-                '$path: type $typeE -> $typeA (volatile: only the type is compared)',
+                '$path: type $typeE -> $typeA ${patterns.isNotEmpty ? '(volatile: must be a string that matches ${patterns.first.source})' : '(volatile: only the type is compared)'}',
               ),
       );
       return;
     }
-    if (mode == VolatileMode.exact) return;
+    if (mode == VolatileMode.exact) {
+      final failed = failedPattern(patterns, a);
+      if (failed != null) {
+        out.add(
+          Difference(
+            path,
+            DifferenceKind.pattern,
+            '$path: ${compactJson(e)} -> ${compactJson(a)} '
+            '(volatile: does not match ${failed.source})',
+          ),
+        );
+      }
+      return;
+    }
 
     if (e is List && a is List) {
       if (e.length != a.length) {
