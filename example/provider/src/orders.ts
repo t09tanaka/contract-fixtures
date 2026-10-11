@@ -13,6 +13,7 @@ export interface HttpRequest {
 
 export interface HttpResponse {
   status: number;
+  headers?: Record<string, string>;
   body?: unknown;
 }
 
@@ -54,14 +55,37 @@ export function createApp(options: {
 
   return {
     handle(request) {
-      const known = request.path === "/orders" || request.path === "/payments";
-      if (request.method !== "POST" || !known) {
+      const receiptOf = /^\/orders\/([a-z0-9_]+)\/receipt$/.exec(request.path)?.[1];
+      const known =
+        receiptOf === undefined
+          ? request.method === "POST" && (request.path === "/orders" || request.path === "/payments")
+          : request.method === "GET";
+      if (!known) {
         return { status: 404, body: { error: "not_found" } };
       }
       const token = /^Bearer (.+)$/.exec(request.headers.authorization ?? "")?.[1];
       const customer = token === undefined ? undefined : options.tokens[token];
       if (customer === undefined) {
         return { status: 401, body: { error: "token_invalid" } };
+      }
+
+      if (receiptOf !== undefined) {
+        // The example keeps no orders: every receipt is for two packs of tea.
+        const line = { sku: "tea-100", quantity: 2 };
+        return {
+          status: 200,
+          // Part of the agreement: the client saves the receipt under this file name.
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Disposition": `attachment; filename="receipt-${receiptOf}.json"`,
+            "Cache-Control": "private, no-store",
+          },
+          body: {
+            order_id: receiptOf,
+            lines: [line],
+            total_minor: orderTotalMinor(PRODUCTS[line.sku]!.unitPriceMinor, line.quantity, 0),
+          },
+        };
       }
 
       if (request.path === "/payments") {

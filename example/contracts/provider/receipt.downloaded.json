@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "receipt.downloaded",
+  "description": "The receipt of an order is a download with a file name",
+  "request": {
+    "method": "GET",
+    "path": "/orders/ord_demo1/receipt",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json",
+      "content-disposition": "attachment; filename=\"receipt-ord_demo1.json\"",
+      "cache-control": "private, no-store"
+    },
+    "body": {
+      "order_id": "ord_demo1",
+      "lines": [
+        {
+          "sku": "tea-100",
+          "quantity": 2
+        }
+      ],
+      "total_minor": 1200
+    }
+  }
+}

@@ -1,7 +1,7 @@
 /// The client of the tiny order API: how it builds a request and what it makes of a
 /// response. There is no HTTP here; a real client would send [ApiRequest] with its HTTP
 /// library and pass the status and decoded body to [readCreateOrderResponse] or
-/// [readStartPaymentResponse].
+/// [readStartPaymentResponse], and the response headers as well to [readReceiptResponse].
 library;
 
 class ApiRequest {
@@ -111,6 +111,42 @@ OrderOutcome readCreateOrderResponse(int status, Object? body) {
     default:
       return const OrderFailed();
   }
+}
+
+/// What the app does after it asked for the receipt of an order.
+sealed class ReceiptOutcome {
+  const ReceiptOutcome();
+}
+
+/// Save the receipt under the file name the API gave.
+class ReceiptReady extends ReceiptOutcome {
+  const ReceiptReady(this.fileName, this.totalMinor);
+  final String fileName;
+  final int totalMinor;
+}
+
+/// Show a generic error.
+class ReceiptFailed extends ReceiptOutcome {
+  const ReceiptFailed();
+}
+
+final RegExp _attachment = RegExp(r'^attachment;\s*filename="([^"/\\]+)"$');
+
+/// [headers] are the response headers with lower-case names, as an HTTP library gives them.
+ReceiptOutcome readReceiptResponse(
+  int status,
+  Map<String, String> headers,
+  Object? body,
+) {
+  final fileName =
+      _attachment.firstMatch(headers['content-disposition'] ?? '')?.group(1);
+  if (status != 200 ||
+      fileName == null ||
+      headers['content-type'] != 'application/json' ||
+      body is! Map<String, dynamic>) {
+    return const ReceiptFailed();
+  }
+  return ReceiptReady(fileName, body['total_minor'] as int);
 }
 
 /// The total the app shows before the order is placed. It must agree with what the API

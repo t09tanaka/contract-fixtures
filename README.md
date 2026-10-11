@@ -131,6 +131,34 @@ over it, and call `assertCovers` with its keys. A new fixture then fails the rea
 somebody writes down what should happen for it, and a deleted fixture fails until its
 expectation is removed. Whether the expectation is meaningful remains the job of code review.
 
+### Response headers
+
+Part of an agreement is often in the headers of the response: the file name of a download
+(`content-disposition`), `content-type`, `cache-control`, `retry-after`, the cookies a sign-in
+sets and a sign-out clears. A test passes the headers that matter, and only those:
+
+```ts
+contract.verifyResponse({
+  name: "receipt.downloaded",
+  description: "The receipt of an order is a download with a file name",
+  request,
+  response: {
+    status: response.status,
+    headers: {
+      "content-type": response.headers["content-type"],
+      "content-disposition": response.headers["content-disposition"],
+    },
+    body: response.body,
+  },
+});
+```
+
+Header names are stored in lower case, whatever case the test passes. A header that is sent
+more than once is an array, and its order is compared:
+`"set-cookie": ["<cookie:session-1>", "theme=dark; Path=/"]`. Request headers follow the same
+rules. Paths reach into the array (`response.headers.set-cookie.0`), so one cookie can be
+`secret` and another one `volatile`.
+
 ### Secrets
 
 Fixtures are committed, so a real credential must never end up in one. That concerns requests
@@ -160,7 +188,9 @@ that is compared exactly on every run, although the API returns a new key each t
 - A path replaces a whole value; `*` stands for one key or index (`response.body.codes.*.code`),
   `**` is not allowed. A secret that is only a part of a string cannot be addressed: for
   `authorization: Bearer ...` or a `cookie` header, make the whole header value the secret
-  (`"request.headers.authorization": "<token:customer-1>"`).
+  (`"request.headers.authorization": "<token:customer-1>"`). A cookie the API sets is a secret
+  as a whole too, attributes included; with several `set-cookie` headers, name each one by its
+  index (`"response.headers.set-cookie.0": "<cookie:session-1>"`).
 - A secret path that matches nothing, or a value there that is not a string, fails the test: a
   secret that disappears from a response is a change the other side needs to hear about.
 - Update mode never drops a secret path. When the stored fixture lists a path that the test
@@ -227,6 +257,9 @@ should also be triggered by changes to the contracts directory.
   the stub, not the gateway.
 - **Old clients in the field.** The fixtures describe the code in the repository. A released app
   that users have not updated is not checked against a new API.
+- **Bodies that are not JSON.** A fixture is a JSON document that both sides parse and compare
+  value by value; a PDF, a CSV file or an image has no place in it. For such a response, record
+  the status and the headers (`content-type`, `content-disposition`) and leave the body out.
 - **Tests that read without asserting.** See "Keeping reading tests honest".
 - **Secrets nobody listed.** Apart from the token shape described under "Secrets", a value is
   only kept out of a fixture when its path is under `secret`. Review new fixtures for it.

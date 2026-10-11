@@ -46,7 +46,44 @@ const paymentExpectations = <String, String>{
   'payment.started': 'confirm with the key of payment-1',
 };
 
+/// The same for the receipt, where the response headers are a part of the agreement.
+const receiptExpectations = <String, String>{
+  'receipt.downloaded': 'save receipt-ord_demo1.json, total 1200',
+};
+
 void main() {
+  group('provider fixtures: a response whose headers matter', () {
+    test('every receipt fixture has an expectation here', () {
+      contract.assertCovers(
+        FixtureKind.provider,
+        receiptExpectations.keys,
+        prefix: 'receipt.',
+      );
+    });
+
+    for (final entry in receiptExpectations.entries) {
+      test(entry.key, () {
+        final response = contract.readResponse(entry.key).response;
+        final headers = {
+          for (final name in response.headers?.keys ?? const <String>[])
+            name: response.headerValues(name).join(', '),
+        };
+
+        final result =
+            readReceiptResponse(response.status, headers, response.body);
+
+        expect(
+          switch (result) {
+            ReceiptReady(:final fileName, :final totalMinor) =>
+              'save $fileName, total $totalMinor',
+            ReceiptFailed() => 'failed',
+          },
+          entry.value,
+        );
+      });
+    }
+  });
+
   group('provider fixtures: a response with a secret in it', () {
     test('every payment fixture has an expectation here', () {
       contract.assertCovers(
