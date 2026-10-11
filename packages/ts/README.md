@@ -105,7 +105,9 @@ throws `ContractFixtureError`.
   in the file, in a difference, in an error message or in the ledger. A path replaces a whole
   value (`*` for one key or index, no `**`); for a secret inside a string, such as
   `Bearer ...` or a cookie, make the whole header value the secret. A path that matches
-  nothing, or a value that is not a string, throws `ContractFixtureError`.
+  nothing, or a value that is not a string, throws `ContractFixtureError`. So does update mode
+  when the stored fixture lists a secret path that the test does not pass: remove the path
+  from the stored file by hand if it is no longer a secret.
 - A fixture that contains a string of the shape of a JSON Web Token is not written (in update
   mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
   recognised.

@@ -163,6 +163,9 @@ that is compared exactly on every run, although the API returns a new key each t
   (`"request.headers.authorization": "<token:customer-1>"`).
 - A secret path that matches nothing, or a value there that is not a string, fails the test: a
   secret that disappears from a response is a change the other side needs to hear about.
+- Update mode never drops a secret path. When the stored fixture lists a path that the test
+  no longer passes, the fixture is not rewritten (the real value would end up in the file).
+  Pass the path again, or remove it from the stored file by hand.
 - For a request, a test may also pass the placeholder itself and send the real value to the
   code under test, as in the provider example above. Listing the path under `secret` as well
   makes the fixture say so.

@@ -29,6 +29,8 @@ export interface FormatIssue {
     | "secret-unmatched"
     | "secret-value"
     | "secret-volatile"
+    /** Not a fault of a file: update mode was asked to drop a secret path (see contract.ts). */
+    | "secret-removed"
     | "jwt"
     | "rows"
     | "number";

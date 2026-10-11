@@ -14,7 +14,8 @@ class FormatIssue {
   /// A stable identifier, the same in every implementation: `json`, `root`, `format`,
   /// `name`, `description`, `unknown-key`, `request`, `method`, `path`, `headers`, `body`,
   /// `response`, `status`, `volatile`, `volatile-unmatched`, `secret`, `secret-unmatched`,
-  /// `secret-value`, `secret-volatile`, `jwt`, `rows` or `number`.
+  /// `secret-value`, `secret-volatile`, `jwt`, `rows` or `number`. One more code is not a
+  /// fault of a file: `secret-removed`, when update mode was asked to drop a secret path.
   final String code;
 
   /// Where in the file, as a dot separated path (`(root)` for the file itself).

@@ -9,7 +9,14 @@ import {
   ContractMismatchError,
   ContractUsageError,
 } from "./errors.js";
-import { asciiLowerCase, canonicalJson, isObject, jsonRoundTrip, NotJsonError } from "./json.js";
+import {
+  asciiLowerCase,
+  canonicalJson,
+  isObject,
+  jsonRoundTrip,
+  NotJsonError,
+  sortedKeys,
+} from "./json.js";
 import { appendLedger } from "./ledger.js";
 import { replaceSecrets } from "./secrets.js";
 import {
@@ -24,6 +31,7 @@ import {
 } from "./types.js";
 import {
   formatIssues,
+  type FormatIssue,
   NAME_PATTERN,
   validateFixtureFile,
   validateFixtureValue,
@@ -148,14 +156,39 @@ function candidate(file: string, observed: object): Record<string, unknown> {
  * of `secret`) without printing a value that used to be kept out of the file.
  */
 function comparable(produced: Record<string, unknown>, stored: unknown): unknown {
-  const storedSecret = isObject(stored) ? stored.secret : undefined;
-  const own = isObject(produced.secret) ? produced.secret : {};
-  if (!isObject(storedSecret) || Object.keys(storedSecret).every((p) => Object.hasOwn(own, p))) {
-    return produced;
-  }
+  const removed = removedSecretPaths(produced, stored);
+  if (removed.length === 0) return produced;
   const copy = jsonRoundTrip(produced);
-  replaceSecrets(copy, storedSecret, "everything", (p) => Object.hasOwn(own, p));
+  replaceSecrets(copy, (stored as { secret: unknown }).secret, "everything", (p) => !removed.includes(p));
   return copy;
+}
+
+/** The secret paths of the stored fixture that what this side produced does not list. */
+function removedSecretPaths(produced: Record<string, unknown>, stored: unknown): string[] {
+  const storedSecret = isObject(stored) ? stored.secret : undefined;
+  if (!isObject(storedSecret)) return [];
+  const own = isObject(produced.secret) ? produced.secret : {};
+  return sortedKeys(storedSecret).filter((p) => !Object.hasOwn(own, p));
+}
+
+/**
+ * Update mode never drops a secret path: the value behind it would be written as it really
+ * is. Whoever wants the path gone removes it from the stored file by hand.
+ */
+function refuseToRemoveSecrets(file: string, produced: Record<string, unknown>, stored: unknown): void {
+  const issues: FormatIssue[] = removedSecretPaths(produced, stored).map((p) => ({
+    code: "secret-removed",
+    path: `secret.${p}`,
+    message: "is a secret path of the stored fixture, but this test does not pass it",
+  }));
+  if (issues.length === 0) return;
+  throw new ContractFixtureError(
+    `contract fixture ${file} is not updated, because that would drop a secret path:\n` +
+      `${formatIssues(issues)}\n` +
+      "Pass the path as `secret` in this test, or remove it from the stored file by hand.",
+    file,
+    issues,
+  );
 }
 
 /** Update mode as the environment asks for it. Refused in CI, where it would hide every change. */
@@ -231,6 +264,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       write();
     } else {
       const stored = validateFixtureFile(kind, name, filePath);
+      if (update) refuseToRemoveSecrets(file, produced, stored.value);
       if (stored.issues.length > 0) {
         if (!update) {
           throw new ContractFixtureError(

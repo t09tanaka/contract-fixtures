@@ -173,8 +173,9 @@ describe("spec/fixtures/verify.json", () => {
           outcome = "usage";
         } else if (error instanceof ContractFixtureError) {
           issues = error.issues.map((i) => ({ code: i.code, path: i.path }));
-          outcome =
-            c.storedText === null && !c.update && error.issues.length === 0
+          outcome = error.issues.some((i) => i.code === "secret-removed")
+            ? "refused"
+            : c.storedText === null && !c.update && error.issues.length === 0
               ? "missing"
               : error.message.includes("what this side produced")
                 ? "invalid-observed"

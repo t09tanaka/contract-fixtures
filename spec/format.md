@@ -227,8 +227,7 @@ equal on every run, and `secret` itself is compared too.
   placeholders are an error.
 - A path that only the *stored* fixture lists (the test no longer passes it) is covered before
   differences are printed as well: the difference names `secret`, and the value at that path
-  is not shown. In update mode the fixture is then written as the test describes it, without
-  that path; the check for tokens below still applies.
+  is not shown. Update mode refuses to write such a fixture; see [Update mode](#update-mode).
 
 **(beyond the schema)** A stored fixture is invalid when
 
@@ -318,6 +317,12 @@ verify writes the fixture instead:
 
 - A missing fixture is created.
 - A fixture that differs is replaced.
+- A stored fixture is **not** replaced when it lists a secret path that the test does not pass
+  (the same path as a key of `secret`; the placeholder may be another one). Writing it would
+  put the real value into the file. The verify fails with the name of the fixture and the
+  paths (issue code `secret-removed`), without a value. Either pass the path as `secret` in
+  the test, or remove it from the stored file by hand. This holds whether or not the stored
+  fixture follows the format otherwise.
 - A fixture that already agrees (volatile paths considered) is left untouched, so volatile values
   do not churn.
 

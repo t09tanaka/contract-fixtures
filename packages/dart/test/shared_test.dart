@@ -171,8 +171,11 @@ void main() {
           issues = [
             for (final i in error.issues) {'code': i.code, 'path': i.path},
           ];
-          outcome =
-              storedText == null && c['update'] == false && error.issues.isEmpty
+          outcome = error.issues.any((i) => i.code == 'secret-removed')
+              ? 'refused'
+              : storedText == null &&
+                      c['update'] == false &&
+                      error.issues.isEmpty
                   ? 'missing'
                   : error.message.contains('what this side produced')
                       ? 'invalid-observed'

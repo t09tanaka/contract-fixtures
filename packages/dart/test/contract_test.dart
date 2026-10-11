@@ -629,6 +629,54 @@ void main() {
       expect(everyFileIn(dir), isEmpty);
     });
 
+    test(
+        'update mode does not drop a secret path, and says which one without '
+        'the value', () {
+      final dir = tempDir();
+      verifySession(provider(dir, update: true), 'opaque-value-5',
+          secret: secret);
+      final before = everythingIn(dir);
+
+      final error = thrownBy<ContractFixtureException>(
+        () => verifySession(provider(dir, update: true), 'opaque-value-6'),
+      );
+
+      expect(
+        error.message,
+        'contract fixture provider/session.created.json is not updated, because that would drop a secret path:\n'
+        '  secret.response.body.access_token: is a secret path of the stored fixture, but this test does not pass it\n'
+        'Pass the path as `secret` in this test, or remove it from the stored file by hand.',
+      );
+      expect(everythingIn(dir), before);
+      expect(before, isNot(contains('opaque-value')));
+    });
+
+    test(
+        'a number that is not JSON is reported before a header that is given '
+        'twice', () {
+      final consumer = ContractFixtures(
+        side: ContractSide.consumer,
+        dir: tempDir(),
+        update: true,
+      );
+      void verify(Object body) => consumer.verifyRequest(
+            name: 'create-order.request',
+            description: 'The request the client sends to place an order',
+            request: ExchangeRequest(
+              method: 'POST',
+              path: '/orders',
+              headers: const {'Accept': 'a', 'accept': 'b'},
+              body: body,
+            ),
+          );
+
+      expect(
+        () => verify({'n': double.nan}),
+        throwsA(isA<ContractFixtureException>()),
+      );
+      expect(() => verify({'n': 1}), throwsA(isA<ContractUsageException>()));
+    });
+
     test('does not change what the test passed in', () {
       final token = issueToken();
       final body = {'access_token': token, 'expires_in': 3600};

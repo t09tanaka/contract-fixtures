@@ -400,6 +400,37 @@ describe("secret paths", () => {
     assert.deepEqual(everyFileIn(provider.dir), []);
   });
 
+  it("update mode does not drop a secret path, and says which one without the value", () => {
+    const dir = tempDir();
+    const update = contractFixtures({ side: "provider", dir, update: true });
+    update.verifyResponse({ ...signInExchange("opaque-value-5"), secret });
+    const before = everythingIn(dir);
+
+    const error = thrownBy(() => update.verifyResponse(signInExchange("opaque-value-6")));
+
+    assert.ok(error instanceof ContractFixtureError);
+    assert.equal(
+      error.message,
+      "contract fixture provider/session.created.json is not updated, because that would drop a secret path:\n" +
+        "  secret.response.body.access_token: is a secret path of the stored fixture, but this test does not pass it\n" +
+        "Pass the path as `secret` in this test, or remove it from the stored file by hand.",
+    );
+    assert.equal(everythingIn(dir), before);
+    assert.ok(!before.includes("opaque-value"));
+  });
+
+  it("a number that is not JSON is reported before a header that is given twice", () => {
+    const consumer = contractFixtures({ side: "consumer", dir: tempDir(), update: true });
+    const request = (body: unknown) => ({
+      name: "create-order.request",
+      description: "The request the client sends to place an order",
+      request: { method: "POST", path: "/orders", headers: { Accept: "a", accept: "b" }, body },
+    });
+
+    assert.ok(thrownBy(() => consumer.verifyRequest(request({ n: NaN }))) instanceof ContractFixtureError);
+    assert.ok(thrownBy(() => consumer.verifyRequest(request({ n: 1 }))) instanceof ContractUsageError);
+  });
+
   it("does not change what the test passed in", () => {
     const provider = contractFixtures({ side: "provider", dir: tempDir(), update: true });
     const token = issueToken();
