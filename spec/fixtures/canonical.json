@@ -1,0 +1,29 @@
+{
+  "description": "`input` is JSON text. `pretty` is how it is written to a fixture file; `compact` is how it is printed inside a difference.",
+  "cases": [
+    {
+      "case": "integer-valued numbers have no fraction",
+      "input": "{\"a\":1.0,\"b\":2.50,\"c\":-0.5,\"d\":1e3}",
+      "pretty": "{\n  \"a\": 1,\n  \"b\": 2.5,\n  \"c\": -0.5,\n  \"d\": 1000\n}\n",
+      "compact": "{\"a\":1,\"b\":2.5,\"c\":-0.5,\"d\":1000}"
+    },
+    {
+      "case": "key order is kept when writing, sorted when printing a difference",
+      "input": "{\"b\":1,\"a\":{\"d\":[],\"c\":{}}}",
+      "pretty": "{\n  \"b\": 1,\n  \"a\": {\n    \"d\": [],\n    \"c\": {}\n  }\n}\n",
+      "compact": "{\"a\":{\"c\":{},\"d\":[]},\"b\":1}"
+    },
+    {
+      "case": "strings",
+      "input": "[\"紅茶\",\"line\\nbreak\\ttab\",\"quote\\\"back\\\\slash\",\"\\u0001\",\"a/b\"]",
+      "pretty": "[\n  \"紅茶\",\n  \"line\\nbreak\\ttab\",\n  \"quote\\\"back\\\\slash\",\n  \"\\u0001\",\n  \"a/b\"\n]\n",
+      "compact": "[\"紅茶\",\"line\\nbreak\\ttab\",\"quote\\\"back\\\\slash\",\"\\u0001\",\"a/b\"]"
+    },
+    {
+      "case": "scalars",
+      "input": "[null,true,false,0,\"\"]",
+      "pretty": "[\n  null,\n  true,\n  false,\n  0,\n  \"\"\n]\n",
+      "compact": "[null,true,false,0,\"\"]"
+    }
+  ]
+}

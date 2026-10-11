@@ -1,0 +1,633 @@
+{
+  "description": "Cases for the comparison. Every implementation must produce exactly these differences, in this order.",
+  "cases": [
+    {
+      "case": "equal values",
+      "expected": {
+        "a": 1,
+        "b": [
+          1,
+          "x",
+          null,
+          true
+        ]
+      },
+      "actual": {
+        "a": 1,
+        "b": [
+          1,
+          "x",
+          null,
+          true
+        ]
+      },
+      "volatile": [],
+      "differences": []
+    },
+    {
+      "case": "key order does not matter",
+      "expected": {
+        "a": 1,
+        "b": 2
+      },
+      "actual": {
+        "b": 2,
+        "a": 1
+      },
+      "volatile": [],
+      "differences": []
+    },
+    {
+      "case": "changed scalar",
+      "expected": {
+        "response": {
+          "body": {
+            "total_minor": 1200
+          }
+        }
+      },
+      "actual": {
+        "response": {
+          "body": {
+            "total_minor": 1250
+          }
+        }
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "response.body.total_minor",
+          "kind": "value",
+          "text": "response.body.total_minor: 1200 -> 1250"
+        }
+      ]
+    },
+    {
+      "case": "changed spelling of a string",
+      "expected": {
+        "error": "out_of_stock"
+      },
+      "actual": {
+        "error": "out-of-stock"
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "error",
+          "kind": "value",
+          "text": "error: \"out_of_stock\" -> \"out-of-stock\""
+        }
+      ]
+    },
+    {
+      "case": "changed type",
+      "expected": {
+        "quantity": 2
+      },
+      "actual": {
+        "quantity": "2"
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "quantity",
+          "kind": "value",
+          "text": "quantity: 2 -> \"2\""
+        }
+      ]
+    },
+    {
+      "case": "null is a type of its own",
+      "expected": {
+        "coupon": null
+      },
+      "actual": {
+        "coupon": ""
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "coupon",
+          "kind": "value",
+          "text": "coupon: null -> \"\""
+        }
+      ]
+    },
+    {
+      "case": "missing and unexpected keys, in code unit order",
+      "expected": {
+        "b": 1,
+        "a": {
+          "y": 1,
+          "x": 2
+        },
+        "Z": 0
+      },
+      "actual": {
+        "c": {
+          "k": 2,
+          "j": 1
+        },
+        "a": {
+          "x": 2
+        },
+        "Z": 0
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "a.y",
+          "kind": "missing",
+          "text": "a.y: 1 -> (absent)"
+        },
+        {
+          "path": "b",
+          "kind": "missing",
+          "text": "b: 1 -> (absent)"
+        },
+        {
+          "path": "c",
+          "kind": "unexpected",
+          "text": "c: (absent) -> {\"j\":1,\"k\":2}"
+        }
+      ]
+    },
+    {
+      "case": "array length",
+      "expected": {
+        "lines": [
+          1,
+          2
+        ]
+      },
+      "actual": {
+        "lines": [
+          1,
+          2,
+          3
+        ]
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "lines",
+          "kind": "length",
+          "text": "lines: array length 2 -> 3"
+        }
+      ]
+    },
+    {
+      "case": "array element",
+      "expected": {
+        "lines": [
+          {
+            "sku": "a"
+          },
+          {
+            "sku": "b"
+          }
+        ]
+      },
+      "actual": {
+        "lines": [
+          {
+            "sku": "a"
+          },
+          {
+            "sku": "c"
+          }
+        ]
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "lines.1.sku",
+          "kind": "value",
+          "text": "lines.1.sku: \"b\" -> \"c\""
+        }
+      ]
+    },
+    {
+      "case": "object replaced by array",
+      "expected": {
+        "body": {
+          "a": 1
+        }
+      },
+      "actual": {
+        "body": [
+          1
+        ]
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "body",
+          "kind": "value",
+          "text": "body: {\"a\":1} -> [1]"
+        }
+      ]
+    },
+    {
+      "case": "root values differ",
+      "expected": 1,
+      "actual": 2,
+      "volatile": [],
+      "differences": [
+        {
+          "path": "(root)",
+          "kind": "value",
+          "text": "(root): 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "volatile path: value may change",
+      "expected": {
+        "id": "ord_1",
+        "status": "ok"
+      },
+      "actual": {
+        "id": "ord_2",
+        "status": "ok"
+      },
+      "volatile": [
+        "id"
+      ],
+      "differences": []
+    },
+    {
+      "case": "volatile path: type must stay",
+      "expected": {
+        "id": "ord_1"
+      },
+      "actual": {
+        "id": 17
+      },
+      "volatile": [
+        "id"
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "type",
+          "text": "id: type string -> number (volatile: only the type is compared)"
+        }
+      ]
+    },
+    {
+      "case": "volatile path: nothing below the node is compared",
+      "expected": {
+        "meta": {
+          "a": 1,
+          "b": [
+            1
+          ]
+        }
+      },
+      "actual": {
+        "meta": {
+          "c": "x"
+        }
+      },
+      "volatile": [
+        "meta"
+      ],
+      "differences": []
+    },
+    {
+      "case": "volatile path: an absent key is still a difference",
+      "expected": {
+        "id": "ord_1",
+        "at": "t"
+      },
+      "actual": {
+        "at": "u"
+      },
+      "volatile": [
+        "id",
+        "at"
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "missing",
+          "text": "id: \"ord_1\" -> (absent)"
+        }
+      ]
+    },
+    {
+      "case": "volatile path: an unexpected key is still a difference",
+      "expected": {
+        "at": "t"
+      },
+      "actual": {
+        "at": "u",
+        "id": "x"
+      },
+      "volatile": [
+        "id",
+        "at"
+      ],
+      "differences": [
+        {
+          "path": "id",
+          "kind": "unexpected",
+          "text": "id: (absent) -> \"x\""
+        }
+      ]
+    },
+    {
+      "case": "star matches exactly one segment",
+      "expected": {
+        "lines": [
+          {
+            "id": "a",
+            "n": 1
+          },
+          {
+            "id": "b",
+            "n": 2
+          }
+        ],
+        "deep": {
+          "x": {
+            "id": "q"
+          }
+        }
+      },
+      "actual": {
+        "lines": [
+          {
+            "id": "c",
+            "n": 1
+          },
+          {
+            "id": "d",
+            "n": 3
+          }
+        ],
+        "deep": {
+          "x": {
+            "id": "r"
+          }
+        }
+      },
+      "volatile": [
+        "lines.*.id"
+      ],
+      "differences": [
+        {
+          "path": "deep.x.id",
+          "kind": "value",
+          "text": "deep.x.id: \"q\" -> \"r\""
+        },
+        {
+          "path": "lines.1.n",
+          "kind": "value",
+          "text": "lines.1.n: 2 -> 3"
+        }
+      ]
+    },
+    {
+      "case": "star does not match two segments",
+      "expected": {
+        "a": {
+          "b": {
+            "id": 1
+          }
+        }
+      },
+      "actual": {
+        "a": {
+          "b": {
+            "id": 2
+          }
+        }
+      },
+      "volatile": [
+        "*.id"
+      ],
+      "differences": [
+        {
+          "path": "a.b.id",
+          "kind": "value",
+          "text": "a.b.id: 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "star matches object keys too",
+      "expected": {
+        "by_sku": {
+          "tea": {
+            "stock": 3
+          },
+          "mug": {
+            "stock": 0
+          }
+        }
+      },
+      "actual": {
+        "by_sku": {
+          "tea": {
+            "stock": 9
+          },
+          "mug": {
+            "stock": 1
+          }
+        }
+      },
+      "volatile": [
+        "by_sku.*.stock"
+      ],
+      "differences": []
+    },
+    {
+      "case": "subtree: values may change, keys and types may not",
+      "expected": {
+        "sub": {
+          "id": "a",
+          "n": 1,
+          "tags": [
+            "x"
+          ],
+          "inner": {
+            "k": true
+          }
+        }
+      },
+      "actual": {
+        "sub": {
+          "id": "b",
+          "n": "1",
+          "tags": [
+            "y"
+          ],
+          "inner": {
+            "j": false
+          }
+        }
+      },
+      "volatile": [
+        "sub.**"
+      ],
+      "differences": [
+        {
+          "path": "sub.inner.j",
+          "kind": "unexpected",
+          "text": "sub.inner.j: (absent) -> false"
+        },
+        {
+          "path": "sub.inner.k",
+          "kind": "missing",
+          "text": "sub.inner.k: true -> (absent)"
+        },
+        {
+          "path": "sub.n",
+          "kind": "type",
+          "text": "sub.n: type number -> string (volatile: only the type is compared)"
+        }
+      ]
+    },
+    {
+      "case": "subtree: array length is compared",
+      "expected": {
+        "sub": {
+          "tags": [
+            "x"
+          ]
+        }
+      },
+      "actual": {
+        "sub": {
+          "tags": [
+            "x",
+            "y"
+          ]
+        }
+      },
+      "volatile": [
+        "sub.**"
+      ],
+      "differences": [
+        {
+          "path": "sub.tags",
+          "kind": "length",
+          "text": "sub.tags: array length 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "subtree: includes the node itself",
+      "expected": {
+        "sub": {
+          "a": 1
+        }
+      },
+      "actual": {
+        "sub": [
+          1
+        ]
+      },
+      "volatile": [
+        "sub.**"
+      ],
+      "differences": [
+        {
+          "path": "sub",
+          "kind": "type",
+          "text": "sub: type object -> array (volatile: only the type is compared)"
+        }
+      ]
+    },
+    {
+      "case": "subtree at the root",
+      "expected": {
+        "a": 1,
+        "b": "x"
+      },
+      "actual": {
+        "a": 2,
+        "b": "y"
+      },
+      "volatile": [
+        "**"
+      ],
+      "differences": []
+    },
+    {
+      "case": "a plain path wins over a subtree path",
+      "expected": {
+        "sub": {
+          "free": {
+            "a": 1
+          },
+          "n": 1
+        }
+      },
+      "actual": {
+        "sub": {
+          "free": {
+            "b": "x"
+          },
+          "n": 2
+        }
+      },
+      "volatile": [
+        "sub.**",
+        "sub.free"
+      ],
+      "differences": []
+    },
+    {
+      "case": "a volatile path that matches nothing changes nothing",
+      "expected": {
+        "a": 1
+      },
+      "actual": {
+        "a": 2
+      },
+      "volatile": [
+        "b"
+      ],
+      "differences": [
+        {
+          "path": "a",
+          "kind": "value",
+          "text": "a: 1 -> 2"
+        }
+      ]
+    },
+    {
+      "case": "1 and 1.0 are the same number",
+      "expected": {
+        "n": 1,
+        "m": 2.5
+      },
+      "actual": {
+      "n": 1.0,
+      "m": 2.5
+    },
+      "volatile": [],
+      "differences": []
+    },
+    {
+      "case": "non-ASCII strings",
+      "expected": {
+        "name": "紅茶"
+      },
+      "actual": {
+        "name": "緑茶"
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "name",
+          "kind": "value",
+          "text": "name: \"紅茶\" -> \"緑茶\""
+        }
+      ]
+    }
+  ]
+}

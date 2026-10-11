@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/t09tanaka/contract-fixtures/blob/main/spec/schema/ledger-line.schema.json",
+  "title": "contract-fixtures ledger line (format 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "side",
+    "action",
+    "file"
+  ],
+  "properties": {
+    "side": {
+      "enum": [
+        "provider",
+        "consumer"
+      ]
+    },
+    "action": {
+      "enum": [
+        "verified",
+        "read"
+      ]
+    },
+    "file": {
+      "type": "string",
+      "pattern": "^(provider|consumer|tables)/[A-Za-z0-9][A-Za-z0-9._-]*\\.json$"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "description": "Which strings are secret placeholders.",
+  "cases": [
+    {
+      "value": "<token:customer-1>",
+      "placeholder": {
+        "kind": "token",
+        "name": "customer-1"
+      }
+    },
+    {
+      "value": "<api-key:svc.a_b>",
+      "placeholder": {
+        "kind": "api-key",
+        "name": "svc.a_b"
+      }
+    },
+    {
+      "value": "Bearer <token:customer-1>",
+      "placeholder": null
+    },
+    {
+      "value": "<token:>",
+      "placeholder": null
+    },
+    {
+      "value": "<Token:a>",
+      "placeholder": null
+    },
+    {
+      "value": "<token:a b>",
+      "placeholder": null
+    },
+    {
+      "value": "token:a",
+      "placeholder": null
+    },
+    {
+      "value": "<token:a>\n",
+      "placeholder": null
+    }
+  ]
+}

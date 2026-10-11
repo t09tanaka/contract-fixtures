@@ -1,0 +1,947 @@
+{
+  "description": "Cases for format validation. `value` is the parsed file (or `text` its raw text); `name` is the file name without .json. Every implementation must report exactly these issues, in this order.",
+  "cases": [
+    {
+      "case": "valid provider fixture",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "total_minor": 1200,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "valid provider fixture without headers, body or volatile",
+      "kind": "provider",
+      "name": "ping",
+      "value": {
+        "format": 1,
+        "name": "ping",
+        "description": "Health check",
+        "request": {
+          "method": "GET",
+          "path": "/ping?verbose=1"
+        },
+        "response": {
+          "status": 204
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "valid consumer fixture",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "content-type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "valid consumer fixture with a volatile request value",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "content-type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2,
+            "nonce": "n1"
+          }
+        },
+        "volatile": [
+          "request.body.nonce"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "valid table",
+      "kind": "tables",
+      "name": "order-total",
+      "value": {
+        "format": 1,
+        "name": "order-total",
+        "description": "Total in minor units. The discount is rounded half up before it is subtracted.",
+        "rows": [
+          {
+            "case": "no discount",
+            "unit_price_minor": 600,
+            "quantity": 2,
+            "discount_percent": 0,
+            "expected_minor": 1200
+          },
+          {
+            "case": "10 percent",
+            "unit_price_minor": 999,
+            "quantity": 1,
+            "discount_percent": 10,
+            "expected_minor": 899
+          }
+        ]
+      },
+      "issues": []
+    },
+    {
+      "case": "not JSON",
+      "kind": "provider",
+      "name": "x",
+      "text": "{ not json",
+      "issues": [
+        {
+          "code": "json",
+          "path": "(root)"
+        }
+      ]
+    },
+    {
+      "case": "root is an array",
+      "kind": "provider",
+      "name": "x",
+      "value": [],
+      "issues": [
+        {
+          "code": "root",
+          "path": "(root)"
+        }
+      ]
+    },
+    {
+      "case": "root is null",
+      "kind": "tables",
+      "name": "x",
+      "value": null,
+      "issues": [
+        {
+          "code": "root",
+          "path": "(root)"
+        }
+      ]
+    },
+    {
+      "case": "unsupported format",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 2,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "total_minor": 1200,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "issues": [
+        {
+          "code": "format",
+          "path": "format"
+        }
+      ]
+    },
+    {
+      "case": "format as a string",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": "1",
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "total_minor": 1200,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "issues": [
+        {
+          "code": "format",
+          "path": "format"
+        }
+      ]
+    },
+    {
+      "case": "name differs from the file name",
+      "kind": "provider",
+      "name": "order.accepted",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "status": "confirmed",
+            "total_minor": 1200,
+            "created_at": "2026-01-15T09:30:00Z",
+            "lines": [
+              {
+                "sku": "tea-100",
+                "quantity": 2,
+                "line_id": "ln_1"
+              }
+            ]
+          }
+        },
+        "volatile": [
+          "response.body.id",
+          "response.body.created_at",
+          "response.body.lines.*.line_id"
+        ]
+      },
+      "issues": [
+        {
+          "code": "name",
+          "path": "name"
+        }
+      ]
+    },
+    {
+      "case": "name with a path separator",
+      "kind": "provider",
+      "name": "a/b",
+      "value": {
+        "format": 1,
+        "name": "a/b",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "name",
+          "path": "name"
+        }
+      ]
+    },
+    {
+      "case": "empty description",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "description",
+          "path": "description"
+        }
+      ]
+    },
+    {
+      "case": "everything missing",
+      "kind": "provider",
+      "name": "x",
+      "value": {},
+      "issues": [
+        {
+          "code": "format",
+          "path": "format"
+        },
+        {
+          "code": "name",
+          "path": "name"
+        },
+        {
+          "code": "description",
+          "path": "description"
+        },
+        {
+          "code": "request",
+          "path": "request"
+        },
+        {
+          "code": "response",
+          "path": "response"
+        }
+      ]
+    },
+    {
+      "case": "unknown keys at every level",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          },
+          "query": {}
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          },
+          "headers": {}
+        },
+        "note": "x"
+      },
+      "issues": [
+        {
+          "code": "unknown-key",
+          "path": "note"
+        },
+        {
+          "code": "unknown-key",
+          "path": "request.query"
+        },
+        {
+          "code": "unknown-key",
+          "path": "response.headers"
+        }
+      ]
+    },
+    {
+      "case": "response in a consumer fixture",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "content-type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 200
+        }
+      },
+      "issues": [
+        {
+          "code": "unknown-key",
+          "path": "response"
+        }
+      ]
+    },
+    {
+      "case": "lower-case method",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "post",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "method",
+          "path": "request.method"
+        }
+      ]
+    },
+    {
+      "case": "path without a leading slash",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "content-type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "path",
+          "path": "request.path"
+        }
+      ]
+    },
+    {
+      "case": "header name with upper case, header value not a string",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "Authorization": "<token:customer-1>",
+            "x-retries": 3
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "headers",
+          "path": "request.headers.Authorization"
+        },
+        {
+          "code": "headers",
+          "path": "request.headers.x-retries"
+        }
+      ]
+    },
+    {
+      "case": "headers not an object",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": [],
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "headers",
+          "path": "request.headers"
+        }
+      ]
+    },
+    {
+      "case": "null bodies",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 409,
+          "body": null
+        }
+      },
+      "issues": [
+        {
+          "code": "body",
+          "path": "request.body"
+        },
+        {
+          "code": "body",
+          "path": "response.body"
+        }
+      ]
+    },
+    {
+      "case": "status out of range",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 99,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "status",
+          "path": "response.status"
+        }
+      ]
+    },
+    {
+      "case": "status not an integer",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 200.5,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "status",
+          "path": "response.status"
+        }
+      ]
+    },
+    {
+      "case": "status as a string",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": "409",
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "status",
+          "path": "response.status"
+        }
+      ]
+    },
+    {
+      "case": "volatile not an array",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        },
+        "volatile": "response.body.error"
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile"
+        }
+      ]
+    },
+    {
+      "case": "volatile entries of every wrong shape",
+      "kind": "provider",
+      "name": "order.out-of-stock",
+      "value": {
+        "format": 1,
+        "name": "order.out-of-stock",
+        "description": "The item is out of stock",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>"
+          },
+          "body": {
+            "sku": "mug-200",
+            "quantity": 1
+          }
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        },
+        "volatile": [
+          7,
+          "response..body",
+          "response.**.error",
+          "body.error",
+          "response.body.id",
+          "response.body.error.x.**",
+          "response.body.**",
+          "response.body.*",
+          "request.**"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.1"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.2"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.3"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.4"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.5"
+        }
+      ]
+    },
+    {
+      "case": "volatile path into the response of a consumer fixture",
+      "kind": "consumer",
+      "name": "create-order.request",
+      "value": {
+        "format": 1,
+        "name": "create-order.request",
+        "description": "The request the client sends to place an order",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "<token:customer-1>",
+            "content-type": "application/json"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "volatile": [
+          "response.body.id"
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ]
+    },
+    {
+      "case": "table without rows",
+      "kind": "tables",
+      "name": "order-total",
+      "value": {
+        "format": 1,
+        "name": "order-total",
+        "description": "Total in minor units. The discount is rounded half up before it is subtracted.",
+        "rows": []
+      },
+      "issues": [
+        {
+          "code": "rows",
+          "path": "rows"
+        }
+      ]
+    },
+    {
+      "case": "table rows that are not objects",
+      "kind": "tables",
+      "name": "order-total",
+      "value": {
+        "format": 1,
+        "name": "order-total",
+        "description": "Total in minor units. The discount is rounded half up before it is subtracted.",
+        "rows": [
+          {
+            "a": 1
+          },
+          [
+            1
+          ]
+        ]
+      },
+      "issues": [
+        {
+          "code": "rows",
+          "path": "rows.1"
+        }
+      ]
+    },
+    {
+      "case": "table with a request",
+      "kind": "tables",
+      "name": "order-total",
+      "value": {
+        "format": 1,
+        "name": "order-total",
+        "description": "Total in minor units. The discount is rounded half up before it is subtracted.",
+        "rows": [
+          {
+            "case": "no discount",
+            "unit_price_minor": 600,
+            "quantity": 2,
+            "discount_percent": 0,
+            "expected_minor": 1200
+          },
+          {
+            "case": "10 percent",
+            "unit_price_minor": 999,
+            "quantity": 1,
+            "discount_percent": 10,
+            "expected_minor": 899
+          }
+        ],
+        "request": {
+          "method": "GET",
+          "path": "/"
+        }
+      },
+      "issues": [
+        {
+          "code": "unknown-key",
+          "path": "request"
+        }
+      ]
+    }
+  ]
+}

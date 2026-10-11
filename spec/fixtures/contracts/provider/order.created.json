@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "order.created",
+  "description": "An order is accepted",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    },
+    "body": {
+      "sku": "tea-100",
+      "quantity": 2
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "id": "ord_81f3",
+      "status": "confirmed",
+      "total_minor": 1200,
+      "created_at": "2026-01-15T09:30:00Z",
+      "lines": [
+        {
+          "sku": "tea-100",
+          "quantity": 2,
+          "line_id": "ln_1"
+        }
+      ]
+    }
+  },
+  "volatile": [
+    "response.body.id",
+    "response.body.created_at",
+    "response.body.lines.*.line_id"
+  ]
+}

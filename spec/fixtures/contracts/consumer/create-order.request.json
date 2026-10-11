@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "create-order.request",
+  "description": "The request the client sends to place an order",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>",
+      "content-type": "application/json"
+    },
+    "body": {
+      "sku": "tea-100",
+      "quantity": 2
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "order.out-of-stock",
+  "description": "The item is out of stock",
+  "request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "authorization": "<token:customer-1>"
+    },
+    "body": {
+      "sku": "mug-200",
+      "quantity": 1
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": "out_of_stock"
+    }
+  }
+}
