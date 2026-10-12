@@ -31,7 +31,7 @@ First version.
     is shown; a secret path that the test stopped passing does not get the advice to rerun
     in update mode, which would refuse;
   - differences that stay readable: the status of a response comes first, and a value longer
-    than 200 characters is cut; a note on standard error when update mode writes a 5xx over
+    than 200 UTF-16 code units is cut; a note on standard error when update mode writes a 5xx over
     a response that was none;
   - an optional `config.json` in the contracts directory with `forbidden` patterns: a string
     in which one of them matches is not written, and a stored one is `invalid`, as for a

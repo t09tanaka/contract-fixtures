@@ -337,7 +337,12 @@ class ContractFixtures {
       // from the deployed one, and nothing else would say so.
       final before = _statusOf(stored?.value);
       final after = _statusOf(produced);
-      if (before is num && after is num && before < 500 && after >= 500) {
+      if (before is num &&
+          after is num &&
+          before.isFinite &&
+          after.isFinite &&
+          before < 500 &&
+          after >= 500) {
         _warn(
           'contract fixture $file was updated from status ${compactJson(before)} '
           'to ${compactJson(after)}. '
@@ -428,6 +433,8 @@ class ContractFixtures {
     final before = _statusOf(stored);
     final after = _statusOf(produced);
     if (before is! num || after is! num || before == after) return '';
+    // A stored file may hold `1e400`, which is no status to print.
+    if (!before.isFinite || !after.isFinite) return '';
     return '\nThe status of the response is not the stored one either: '
         '${compactJson(before)} -> ${compactJson(after)}';
   }

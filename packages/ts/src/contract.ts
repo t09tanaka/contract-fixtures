@@ -197,6 +197,11 @@ function removedSecretPaths(produced: Record<string, unknown>, stored: unknown):
   return sortedKeys(storedSecret).filter((p) => !Object.hasOwn(own, p));
 }
 
+/** Whether a value is a number that can be printed as a status (a stored file may hold `1e400`). */
+function isStatus(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 /** The status of the response of a fixture, if it has one. */
 function statusOf(fixture: unknown): unknown {
   return isObject(fixture) && isObject(fixture.response) ? fixture.response.status : undefined;
@@ -211,7 +216,7 @@ function statusOf(fixture: unknown): unknown {
 function statusChange(stored: unknown, produced: Record<string, unknown>): string {
   const before = statusOf(stored);
   const after = statusOf(produced);
-  if (typeof before !== "number" || typeof after !== "number" || before === after) return "";
+  if (!isStatus(before) || !isStatus(after) || before === after) return "";
   return `\nThe status of the response is not the stored one either: ${compactJson(before)} -> ${compactJson(after)}`;
 }
 
@@ -340,7 +345,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       // the deployed one, and nothing else would say so.
       const before = statusOf(stored?.value);
       const after = statusOf(produced);
-      if (typeof before === "number" && typeof after === "number" && before < 500 && after >= 500) {
+      if (isStatus(before) && isStatus(after) && before < 500 && after >= 500) {
         warn(
           `contract fixture ${file} was updated from status ${compactJson(before)} to ${compactJson(after)}. ` +
             "A fixture with a 5xx is rarely what the deployed API answers: before committing it, " +

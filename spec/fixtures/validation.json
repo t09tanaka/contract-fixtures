@@ -4995,19 +4995,19 @@
       ],
       "messages": [
         "must be a string that matches the pattern ^zz9$ of volatile.1 (found number)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
         "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
         "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
         "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
         "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
         "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
-        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)"
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)"
       ]
     },
     {
@@ -5037,11 +5037,106 @@
         }
       ],
       "messages": [
-        "contains what looks like a JSON Web Token (no secret path can name this place: change the text itself)",
+        "contains what looks like a JSON Web Token (no secret path can name this place: change the text itself, or what the test passes)",
         "contains what looks like a JSON Web Token (list this path in secret, so that a placeholder is stored instead)"
       ],
       "absent": [
         "eyJhbGciOiJIUzI1NiIsImtpZCI6"
+      ]
+    },
+    {
+      "case": "forbidden: a value below a key that no path can hold is not one for secret",
+      "kind": "provider",
+      "name": "order.created",
+      "forbidden": [
+        "zz9"
+      ],
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "": "zz9",
+            "a.b": "zz9",
+            "a*b": {
+              "c": "zz9"
+            },
+            "*": "zz9",
+            "ok": [
+              "zz9"
+            ]
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "response.body."
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.*"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.a*b.c"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.a.b"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.ok.0"
+        }
+      ],
+      "messages": [
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself, or what the test passes)",
+        "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)"
+      ]
+    },
+    {
+      "case": "volatile: a long value that misses its pattern is cut in the message",
+      "kind": "provider",
+      "name": "order.created",
+      "value": {
+        "format": 1,
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "pattern": "^ord_[0-9]+$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        }
+      ],
+      "messages": [
+        "\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx... (102 more) does not match the pattern ^ord_[0-9]+$ of volatile.0"
       ]
     }
   ]

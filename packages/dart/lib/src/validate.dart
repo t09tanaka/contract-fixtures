@@ -445,41 +445,57 @@ void _validateSecret(
 /// What to do about a string that must not be stored, by where it is. A secret path names
 /// a value in headers or in a body, and nothing else: a description, a name, the path of a
 /// request or a pattern can only be worded differently.
-String _wayOut(String path) {
-  final segments = path.split('.');
+String _wayOut(List<String> segments) {
   final secretable = segments.length > 1 &&
       (segments[0] == 'request' || segments[0] == 'response') &&
-      (segments[1] == 'headers' || segments[1] == 'body');
+      (segments[1] == 'headers' || segments[1] == 'body') &&
+      // A key that is empty or holds `.` or `*` cannot be written in a path.
+      segments.every(
+        (segment) =>
+            segment.isNotEmpty &&
+            !segment.contains('.') &&
+            !segment.contains('*'),
+      );
   return secretable
       ? '(list this path in secret, so that a placeholder is stored instead)'
-      : '(no secret path can name this place: change the text itself)';
+      : '(no secret path can name this place: change the text itself, or what the '
+          'test passes)';
 }
 
-/// A token that was not replaced by a placeholder must not be written or stay stored.
-void _validateNoJwt(List<FormatIssue> issues, Object? root) {
-  void walk(Object? node, String path) {
+/// Every string of a fixture, with the keys and indexes that lead to it.
+void _eachString(
+  Object? root,
+  void Function(String value, List<String> segments) visit,
+) {
+  void walk(Object? node, List<String> segments) {
     if (node is String) {
-      if (jwtPattern.hasMatch(node)) {
-        issues.add(
-          FormatIssue(
-            'jwt',
-            path,
-            'contains what looks like a JSON Web Token ${_wayOut(path)}',
-          ),
-        );
-      }
+      visit(node, segments);
     } else if (node is List) {
       for (var i = 0; i < node.length; i++) {
-        walk(node[i], '$path.$i');
+        walk(node[i], [...segments, '$i']);
       }
     } else if (node is Map<String, dynamic>) {
       for (final key in sortedKeys(node)) {
-        walk(node[key], path.isEmpty ? key : '$path.$key');
+        walk(node[key], [...segments, key]);
       }
     }
   }
 
-  walk(root, '');
+  walk(root, const []);
+}
+
+/// A token that was not replaced by a placeholder must not be written or stay stored.
+void _validateNoJwt(List<FormatIssue> issues, Object? root) {
+  _eachString(root, (value, segments) {
+    if (!jwtPattern.hasMatch(value)) return;
+    issues.add(
+      FormatIssue(
+        'jwt',
+        segments.join('.'),
+        'contains what looks like a JSON Web Token ${_wayOut(segments)}',
+      ),
+    );
+  });
 }
 
 /// A string that the configuration of the directory forbids must not be written or stay
@@ -490,32 +506,20 @@ void _validateNotForbidden(
   List<CompiledPattern> forbidden,
 ) {
   if (forbidden.isEmpty) return;
-  void walk(Object? node, String path) {
-    if (node is String) {
-      for (var i = 0; i < forbidden.length; i++) {
-        if (!forbidden[i].search(node)) continue;
-        // The value itself is never printed: it may be the secret.
-        issues.add(
-          FormatIssue(
-            'forbidden',
-            path,
-            'contains what forbidden.$i of config.json describes '
-                '${_wayOut(path)}',
-          ),
-        );
-      }
-    } else if (node is List) {
-      for (var i = 0; i < node.length; i++) {
-        walk(node[i], '$path.$i');
-      }
-    } else if (node is Map<String, dynamic>) {
-      for (final key in sortedKeys(node)) {
-        walk(node[key], path.isEmpty ? key : '$path.$key');
-      }
+  _eachString(root, (value, segments) {
+    for (var i = 0; i < forbidden.length; i++) {
+      if (!forbidden[i].search(value)) continue;
+      // The value itself is never printed: it may be the secret.
+      issues.add(
+        FormatIssue(
+          'forbidden',
+          segments.join('.'),
+          'contains what forbidden.$i of config.json describes '
+              '${_wayOut(segments)}',
+        ),
+      );
     }
-  }
-
-  walk(root, '');
+  });
 }
 
 /// Checks a decoded fixture against format 1. [name] is the file name without `.json`.

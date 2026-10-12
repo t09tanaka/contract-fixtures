@@ -4530,6 +4530,75 @@
       ],
       "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.status: 200 -> 500\n  response.body.error: (absent) -> \"internal\"\n  response.body.report: {\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx... (111 more) -> (absent)\nIf the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.",
       "written": null
+    },
+    {
+      "case": "update mode: a stored file that does not follow the format but has a status is replaced, with the note",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"ok\": true\n    }\n  },\n  \"extra\": 1\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n",
+      "warnings": [
+        "contract fixture provider/order.created.json was updated from status 200 to 500. A fixture with a 5xx is rarely what the deployed API answers: before committing it, check how this test assembles the application (docs/adoption.md, \"Which tests verify\")."
+      ]
+    },
+    {
+      "case": "update mode: a stored response that is not an object has no status, so no note",
+      "kind": "provider",
+      "storedText": "{ \"format\": 1, \"name\": \"order.created\", \"response\": [200] }",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "update mode: a stored status that is no finite number gives no note",
+      "kind": "provider",
+      "storedText": "{ \"format\": 1, \"name\": \"order.created\", \"response\": { \"status\": -1e400 } }",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n"
     }
   ]
 }

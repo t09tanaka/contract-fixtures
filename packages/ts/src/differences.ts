@@ -1,4 +1,4 @@
-import { isObject, jsonType, shownJson, sortedKeys } from "./json.js";
+import { isObject, jsonType, shownJson, shownPair, sortedKeys } from "./json.js";
 import {
   entryParts,
   failedPattern,
@@ -56,7 +56,7 @@ export function differences(
             ? {
                 path,
                 kind: "pattern",
-                text: `${path}: ${shownJson(e)} -> ${shownJson(a)} (volatile: does not match ${failed.source})`,
+                text: `${path}: ${shownPair(e, a).join(" -> ")} (volatile: does not match ${failed.source})`,
               }
             : { path, kind: "type", text: `${path}: type ${typeE} -> ${typeA} (volatile: ${requirement(failed)})` },
         );
@@ -69,7 +69,7 @@ export function differences(
     if (typeE !== typeA) {
       out.push(
         mode === null
-          ? { path, kind: "value", text: `${path}: ${shownJson(e)} -> ${shownJson(a)}` }
+          ? { path, kind: "value", text: `${path}: ${shownPair(e, a).join(" -> ")}` }
           : {
               path,
               kind: "type",
@@ -114,7 +114,7 @@ export function differences(
       return;
     }
     if (mode === null && e !== a) {
-      out.push({ path, kind: "value", text: `${path}: ${shownJson(e)} -> ${shownJson(a)}` });
+      out.push({ path, kind: "value", text: `${path}: ${shownPair(e, a).join(" -> ")}` });
     }
   };
 

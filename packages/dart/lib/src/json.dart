@@ -77,8 +77,9 @@ const int maxShownLength = 200;
 /// [compactJson], cut after [maxShownLength] code units (one less when that would split a
 /// surrogate pair) and followed by `... (<n> more)`, n being the code units left out. A
 /// line of a difference stays readable that way; the whole value is in the fixture file.
-String shownJson(Object? value) {
-  final text = compactJson(value);
+String shownJson(Object? value) => _cutText(compactJson(value));
+
+String _cutText(String text) {
   if (text.length <= maxShownLength) return text;
   final last = text.codeUnitAt(maxShownLength - 1);
   final cut =
@@ -95,3 +96,33 @@ String canonicalJson(Object? value) =>
 
 /// What [value] looks like after it went over the wire as JSON.
 Object? jsonRoundTrip(Object? value) => jsonDecode(jsonEncode(value));
+
+/// How much of what two long values have in common is kept before the place where they
+/// part.
+const int _shownContext = 20;
+
+/// The two sides of a difference, as [shownJson] prints them, joined by ` -> `. When both
+/// are longer than [maxShownLength] and equal that far, cutting each would print the same
+/// text twice; both then start 20 code units before the first one that differs, after
+/// `(<n> the same) ... `, n being the code units left out at the start.
+String shownPair(Object? stored, Object? observed) {
+  final s = compactJson(stored);
+  final o = compactJson(observed);
+  var same = 0;
+  while (same < s.length &&
+      same < o.length &&
+      s.codeUnitAt(same) == o.codeUnitAt(same)) {
+    same++;
+  }
+  if (s.length <= maxShownLength ||
+      o.length <= maxShownLength ||
+      same < maxShownLength) {
+    return '${_cutText(s)} -> ${_cutText(o)}';
+  }
+  var skip = same - _shownContext;
+  final first = s.codeUnitAt(skip);
+  if (first >= 0xdc00 && first <= 0xdfff) skip--;
+  final lead = '($skip the same) ... ';
+  return '$lead${_cutText(s.substring(skip))} -> '
+      '$lead${_cutText(o.substring(skip))}';
+}

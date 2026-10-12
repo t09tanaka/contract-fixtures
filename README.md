@@ -49,8 +49,9 @@ npx contract-fixtures --version
 ```
 
 After packing again without a new version number, run that `npm install --save-dev` line
-again: the file has the same name, and `package-lock.json` holds the checksum of the earlier
-one, so a plain `npm install` or `npm ci` keeps installing what the lockfile describes.
+again: the file has the same name, and `package-lock.json` still holds the checksum of the
+earlier one. A plain `npm install` or `npm ci` then either installs the earlier content again
+from npm's cache, or stops with `EINTEGRITY` where there is no such cache.
 
 Dart: name the repository and the directory of the package in `pubspec.yaml`,
 
@@ -415,7 +416,7 @@ A reviewer sees the changed fixture in the diff, next to the code on both sides.
 
 When the response is another one altogether (an error where the order used to be), the test
 shows that too: the status first, then the keys that went and the keys that came (a long
-value is cut after 200 characters), and after them the volatile paths of the test that match
+value is cut after 200 UTF-16 code units), and after them the volatile paths of the test that match
 nothing any more. Update mode does not write such a fixture. Where it does write a 5xx over a
 response that was none, it says so in one line on standard error, because that is more often
 a test application that differs from the deployed one than a change of the API. [`example/`](./example/README.md#break-it) has the output, under (h).

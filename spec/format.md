@@ -512,8 +512,8 @@ that the net for tokens does not know. It works like that net:
 
   | The string is | The message ends with |
   |---|---|
-  | a value in `request.headers`, `request.body`, `response.headers` or `response.body`, at any depth | `(list this path in secret, so that a placeholder is stored instead)` |
-  | anywhere else: `name`, `description`, `request.method`, `request.path`, a path or a `pattern` in `volatile`, a placeholder in `secret` | `(no secret path can name this place: change the text itself)` |
+  | a value in `request.headers`, `request.body`, `response.headers` or `response.body`, at any depth, reached through keys that a path can hold | `(list this path in secret, so that a placeholder is stored instead)` |
+  | anywhere else: `name`, `description`, `request.method`, `request.path`, a path or a `pattern` in `volatile`, a placeholder in `secret`, and a value below a key that is empty or contains `.` or `*` | `(no secret path can name this place: change the text itself, or what the test passes)` |
 - A pattern that matches the empty string would forbid every string, so it is not accepted.
 
 **(beyond the schema)** A configuration is invalid when
@@ -590,7 +590,16 @@ response.body.report: {"text":"xxxxxxxxxx... (111 more) -> (absent)
 ```
 
 (the line is shortened here; the cases have it in full). The stored side and the observed side
-of a line are cut each for itself, so both ends of `->` stay readable. The whole value is in
+of a line are cut each for itself, so both ends of `->` stay readable. One case needs more:
+when both sides are longer than 200 code units and their first 200 are the same, the cut
+would print the same text twice. Both sides then start 20 code units before the first one in
+which they differ (one more when that would split a surrogate pair), after
+`(<n> the same) ... `, n being the code units left out at the start; from there each is cut
+as above:
+
+```
+a: (280 the same) ... xxxxxxxxxxxxxxxxxxxxx" -> (280 the same) ... xxxxxxxxxxxxxxxxxxxxy"
+``` The whole value is in
 the fixture file and in the real response. The same limit holds for the value in the message
 of a `volatile-pattern` issue. Values are printed as compact JSON with keys in the same order. A key that contains
 `.` is printed as it is, so its path can look like the path of a nested key.

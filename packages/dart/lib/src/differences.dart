@@ -63,7 +63,7 @@ List<Difference> differences(
               ? Difference(
                   path,
                   DifferenceKind.pattern,
-                  '$path: ${shownJson(e)} -> ${shownJson(a)} '
+                  '$path: ${shownPair(e, a)} '
                   '(volatile: does not match ${failed.source})',
                 )
               : Difference(
@@ -92,7 +92,7 @@ List<Difference> differences(
             ? Difference(
                 path,
                 DifferenceKind.value,
-                '$path: ${shownJson(e)} -> ${shownJson(a)}',
+                '$path: ${shownPair(e, a)}',
               )
             : Difference(
                 path,
@@ -153,7 +153,7 @@ List<Difference> differences(
         Difference(
           path,
           DifferenceKind.value,
-          '$path: ${shownJson(e)} -> ${shownJson(a)}',
+          '$path: ${shownPair(e, a)}',
         ),
       );
     }

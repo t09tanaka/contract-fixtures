@@ -119,7 +119,7 @@ throws `ContractFixtureError`.
   update mode wrote a fixture with a 5xx over one that held another status, which is more
   often a test application that differs from the deployed one than a change of the API. By
   default the note is one line on standard error.
-- A line of a difference shows at most 200 characters of a value (`... (<n> more)` after
+- A line of a difference shows at most 200 UTF-16 code units of a value (`... (<n> more)` after
   that), and the difference of the status of a response comes first.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
