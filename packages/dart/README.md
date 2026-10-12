@@ -430,6 +430,51 @@ consumer/create-order.request  POST /orders  -       -
 tables/order-total             -             -       2 row(s)
 ```
 
+### Starting the commands faster
+
+`dart run contract_fixtures` looks at the dependencies of the project and starts the Dart VM on
+every call, which takes far longer than the command itself. Where the commands run often (a
+script that watches files, a hook before every commit, several contracts directories), compile
+them once into an executable of the project. A file of three lines is the entry point:
+
+```dart
+// tool/contract_fixtures.dart
+import 'dart:io';
+
+import 'package:contract_fixtures/contract_fixtures.dart';
+
+void main(List<String> arguments) {
+  exitCode = runCli(arguments, out: stdout.writeln, err: stderr.writeln);
+}
+```
+
+```sh
+mkdir -p build
+dart compile exe tool/contract_fixtures.dart -o build/contract_fixtures
+build/contract_fixtures reset --side consumer --dir ../contracts
+dart test
+build/contract_fixtures check --side consumer --dir ../contracts
+```
+
+The commands, their output and their exit codes are the same; only the start is shorter.
+
+- **The executable is the version it was built from.** It is compiled from the project, so
+  that is the version in `pubspec.lock` at that moment, not the one after the next
+  `dart pub upgrade`. Build it again whenever the lock file is newer, for instance at the top
+  of the script that runs the tests:
+  `test build/contract_fixtures -nt pubspec.lock || { mkdir -p build && dart compile exe tool/contract_fixtures.dart -o build/contract_fixtures; }`.
+  `build/contract_fixtures --version` says what it is. The lock file changes with the version
+  of a dependency from pub.dev or from git; with a `path` dependency it does not change when
+  the source of the package does, so build again after changing that. Do not commit the
+  executable: put `build/` into `.gitignore`.
+- **In CI, stay with `dart run`.** A job runs `reset` once and `check` once; compiling takes
+  longer than the two starts it saves. The compiled executable pays off from a handful of
+  calls on.
+- **`dart pub global activate contract_fixtures` is not the same thing.** It installs a version
+  of its own, outside the project. The helpers in the tests then come from `pubspec.lock` and
+  the commands from somewhere else, and a difference between the two versions shows up as a
+  `check` that disagrees with the tests. Use the executable of the project, or `dart run`.
+
 The environment variables (`CONTRACT_FIXTURES_DIR`, `CONTRACT_FIXTURES_UPDATE`, `CI`) are in
 one table in the
 [repository README](https://github.com/t09tanaka/contract-fixtures#environment-variables).
