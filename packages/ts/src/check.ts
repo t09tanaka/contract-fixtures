@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { CONFIG_FILE, readConfig } from "./configuration.js";
 import { readLedger, type LedgerAction } from "./ledger.js";
 import { KINDS, SIDES, type Kind, type Side } from "./types.js";
 import { validateFixtureFile } from "./validate.js";
 
 export interface CheckProblem {
-  /** `<kind>/<name>.json`, `.ledger/<side>.jsonl`, or `""` for the directory as a whole. */
+  /** `<kind>/<name>.json`, `config.json`, `.ledger/<side>.jsonl`, or `""` for the directory as a whole. */
   file: string;
   code: "invalid" | "unverified" | "unread" | "ledger" | "empty";
   message: string;
@@ -22,6 +23,11 @@ export interface CheckResult {
    * problems. Guesses, worded as such; they never change `problems`.
    */
   hints: string[];
+  /**
+   * Whether this side's ledger has no entries, so that none of the fixtures that follow the
+   * format was verified or read. The report then gives their number instead of one line each.
+   */
+  untouched: boolean;
 }
 
 /** What one side has to do with each kind of fixture. */
@@ -37,7 +43,7 @@ function isFile(filePath: string): boolean {
 /** Names (file names without `.json`) of the fixtures of one kind, sorted. */
 export function listFixtureNames(dir: string, kind: Kind): string[] {
   const kindDir = path.join(dir, kind);
-  if (!fs.existsSync(kindDir)) return [];
+  if (!(fs.statSync(kindDir, { throwIfNoEntry: false })?.isDirectory() ?? false)) return [];
   return fs
     .readdirSync(kindDir)
     .filter((file) => file.endsWith(".json") && isFile(path.join(kindDir, file)))
@@ -58,13 +64,23 @@ export function checkContracts(options: { dir: string; side: Side }): CheckResul
   let fixtures = 0;
   let asked = 0;
   let missing = 0;
+  // A configuration that is not valid is a problem of its own; the fixtures are then
+  // checked as if there were none.
+  const { config, issues: configIssues } = readConfig(dir);
+  for (const issue of configIssues) {
+    problems.push({
+      file: CONFIG_FILE,
+      code: "invalid",
+      message: `invalid configuration: ${issue.path} ${issue.message}`,
+    });
+  }
 
   for (const kind of KINDS) {
     for (const name of listFixtureNames(dir, kind)) {
       fixtures++;
       const file = `${kind}/${name}.json`;
       onDisk.add(file);
-      const { issues } = validateFixtureFile(kind, name, path.join(dir, kind, `${name}.json`));
+      const { issues } = validateFixtureFile(kind, name, path.join(dir, kind, `${name}.json`), config);
       if (issues.length > 0) {
         for (const issue of issues) {
           problems.push({
@@ -121,10 +137,19 @@ export function checkContracts(options: { dir: string; side: Side }): CheckResul
     missing,
     ledgerExists: ledger.exists,
     lines: ledger.entries.length,
-    otherLines: missing > 0 ? readLedger(dir, other).entries.length : 0,
+    otherLines: missing > 0 ? otherEntries(dir, other) : 0,
     gone: new Set(ledger.entries.map((e) => e.file).filter((file) => !onDisk.has(file))).size,
   });
-  return { side, fixtures, problems, hints };
+  return { side, fixtures, problems, hints, untouched: ledger.entries.length === 0 && asked > 0 };
+}
+
+/** The entries in the other side's ledger: only a hint depends on them, so a ledger that cannot be read has none. */
+function otherEntries(dir: string, other: Side): number {
+  try {
+    return readLedger(dir, other).entries.length;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -187,7 +212,18 @@ export function formatCheckResult(result: CheckResult): string {
   if (result.problems.length === 0) {
     return `${head}: OK (${result.fixtures} fixture(s), all verified or read by this side's tests)`;
   }
-  const lines = result.problems.map((p) => `  - ${p.file === "" ? "" : `${p.file}: `}${p.message}`);
+  const untouched = (p: CheckProblem): boolean =>
+    result.untouched && (p.code === "unverified" || p.code === "unread");
+  const count = result.problems.filter(untouched).length;
+  const lines = result.problems
+    // One line in the place of the first of them, when all were left alone.
+    .filter((p, i) => !untouched(p) || result.problems.findIndex(untouched) === i)
+    .map((p) =>
+      untouched(p)
+        ? `  - none of the ${count} fixture(s) that follow the format was verified or read by the ` +
+          `${result.side} side's tests (they are not listed one by one)`
+        : `  - ${p.file === "" ? "" : `${p.file}: `}${p.message}`,
+    );
   return [
     `${head}: ${result.problems.length} problem(s) in ${result.fixtures} fixture(s)`,
     ...lines,

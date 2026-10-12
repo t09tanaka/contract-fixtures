@@ -97,6 +97,7 @@ contracts/
   provider/   one request and the provider's real response to it, per file
   consumer/   one request the consumer really builds, per file
   tables/     rows of input and expected output for a calculation both sides implement
+  config.json optional: patterns of strings that must never be stored (see Secrets)
   .ledger/    written during test runs; ignored by version control
 ```
 
@@ -236,7 +237,7 @@ so they fit any HTTP library. Where the values come from in practice:
 
 - **A Dart client on `package:http` or dio.** The Dart package has no HTTP dependency; its
   README shows the few lines that put a fixture behind a `MockClient` or an
-  `HttpClientAdapter`.
+  `HttpClientAdapter`, and how to answer several requests of one test in order.
 
 These helpers record what a test hands them and nothing else, like the rest of the tool:
 response headers by name only, and real credentials replaced through `secret`. See the
@@ -261,6 +262,14 @@ volatile: [
   `response.body.id: "ord_81f3" -> "81f3" (volatile: does not match ^ord_[a-z0-9]+$)`.
 - An entry that is only a path (`"response.body.note"`) compares the JSON type and nothing
   else. Use it when there is nothing to say about the shape.
+- A value that is a string in one place and `null` in another (the time something was closed, in
+  a list of which some rows are closed and some are not) gets `nullable: true` next to its
+  pattern:
+  `{ path: "response.body.**.closed_at", pattern: "^\\d{4}-\\d{2}-\\d{2}T[0-9:.]+Z$", nullable: true }`.
+  Each such value is then a string of that shape or `null`, and which of the two it is may
+  change between runs. Without `nullable`, a `null` where a pattern applies is not accepted,
+  so the key says so only where it is meant. It needs a pattern, and an absent key is still
+  not `null`.
 - `*` stands for one key or index. `**` stands for any number of them, so
   `response.body.**.created_at` names every `created_at` in the body, at any depth.
 - **Name the value, not its surroundings.** It is tempting to write
@@ -348,7 +357,20 @@ that is compared exactly on every run, although the API returns a new key each t
 - As a safety net, a fixture that contains a string of the shape of a JSON Web Token (`eyJ...`
   in three dot-separated parts, also inside `Bearer eyJ...`) is not written, in update mode
   either, and a stored one fails `check` as `invalid`. Other kinds of secrets (opaque tokens,
-  API keys, cookies) have no recognisable shape; only a `secret` path keeps them out.
+  API keys, cookies) have no shape the tool knows; a `secret` path keeps them out.
+- A project can add shapes of its own. A file `config.json` in the contracts directory lists
+  patterns of strings that must never be in a fixture, for credentials that start with a
+  fixed prefix:
+
+  ```json
+  { "format": 1, "forbidden": ["sec_(live|test)_[A-Za-z0-9]+", "^hook_"] }
+  ```
+
+  The patterns are those of `volatile`, except that one matches when a part of the string
+  does (`Bearer sec_live_...` is found). A string that matches is not written, in update mode
+  either, and a stored one fails `check` as `invalid`; the message names the path and never
+  the value. The answer is the same as for a token: list the path under `secret`. Both sides
+  and both packages read the same file; without it nothing changes.
 
 ### Requests and calculations
 
@@ -380,6 +402,11 @@ The intended workflow keeps both sides in **one change** (one pull request):
 5. Fix the client (or reconsider the API change). Commit everything together.
 
 A reviewer sees the changed fixture in the diff, next to the code on both sides.
+
+When the response is another one altogether (an error where the order used to be), the test
+shows that too: the status, the keys that went and the keys that came, and after them the
+volatile paths of the test that match nothing any more. Update mode does not write such a
+fixture. [`example/`](./example/README.md#break-it) has the output, under (h).
 
 ## In CI
 
@@ -413,7 +440,19 @@ Run `contract_fixtures reset` and the consumer side's tests before this check.
 Other hints are given when the ledger is missing or has no entries (did the tests run, and on
 this directory? is `--side` right, if the other side has a ledger?), when none of its entries
 is for a fixture of this directory, and when it names files that are gone (was it reset?). A
-hint is a guess; the problems and the exit code do not depend on it. The
+hint is a guess; the problems and the exit code do not depend on it.
+
+When the ledger has no entries at all, the fixtures are not the cause, and the report does not
+list them one by one. From `example/provider`, after a `reset` and without the tests:
+
+```
+$ npx contract-fixtures check --side provider --dir ../contracts
+contract-fixtures check (provider side): 11 problem(s) in 11 fixture(s)
+  - none of the 11 fixture(s) that follow the format was verified or read by the provider side's tests (they are not listed one by one)
+Hint: .ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?
+Run `contract-fixtures reset` and the provider side's tests before this check.
+```
+ The
 [adoption guide](./docs/adoption.md#when-the-check-fails) has the usual cause of each.
 
 The exit codes of the commands are listed under [Command line](#command-line).
@@ -433,8 +472,8 @@ packages print the same text. For the example in this repository:
 $ npx contract-fixtures summary --dir example/contracts
 FIXTURE                                    REQUEST                            STATUS  RESPONSE BODY
 provider/order.coupon-unknown              POST /orders                       422     {error: string}
-provider/order.created                     POST /orders                       201     {created_at: string, customer: string, id: string, status: string, total_minor: number}
-provider/order.created-with-coupon         POST /orders                       201     {created_at: string, customer: string, id: string, status: string, total_minor: number}
+provider/order.created                     POST /orders                       201     {coupon_redeemed_at: null, created_at: string, customer: string, id: string, status: string, total_minor: number}
+provider/order.created-with-coupon         POST /orders                       201     {coupon_redeemed_at: string, created_at: string, customer: string, id: string, status: string, total_minor: number}
 provider/order.invalid-quantity            POST /orders                       422     {error: string, field: string}
 provider/order.out-of-stock                POST /orders                       409     {available: number, error: string}
 provider/order.token-invalid               POST /orders                       401     {error: string}
@@ -449,6 +488,17 @@ A fixture is one exchange, so a difference between exchanges is easy to miss in 
 error that is `{error: string}` on one route and `{code: string, message: string}` on another
 shows here as two lines that do not line up.
 
+The keys at the top are not always where the difference is. When every body is an envelope
+(`{data: object, ok: boolean}` on each line), `--depth 2` opens the objects inside it, and
+`--depth 3` those inside them (up to 9). Only objects are opened; an array inside the body
+stays `array`:
+
+```
+--depth 1   {data: object, ok: boolean}
+--depth 2   {data: {items: array, next: null, page: object}, ok: boolean}
+--depth 3   {data: {items: array, next: null, page: {cursor: object, "of all": number, size: number}}, ok: boolean}
+```
+
 ## Command line
 
 Both packages have the same three commands. The executable is `contract-fixtures` in the
@@ -460,7 +510,7 @@ messages, the two print the same text.
 |---|---|
 | `reset --side <provider\|consumer> [--dir <contracts>]` | Forgets what earlier test runs of this side did. Run it before the tests. |
 | `check --side <provider\|consumer> [--dir <contracts>]` | Fails unless this side's tests verified or read every fixture since the reset, and every fixture follows the format. Run it after all tests of this side. |
-| `summary [--dir <contracts>]` | Prints one line per fixture. Takes no `--side` and does not touch the ledger. |
+| `summary [--dir <contracts>] [--depth <n>]` | Prints one line per fixture. Takes no `--side` and does not touch the ledger. `--depth` (1 to 9, default 1) is the number of levels of objects in a response body that are opened. |
 
 `--dir` is the **contracts directory**: the one that holds `provider/`, `consumer/` and
 `tables/`. It is not the directory of a package, and it does not default to the current
@@ -470,8 +520,8 @@ exit with 2. `-h, --help` prints the help, `-v, --version` the version of the pa
 | Exit code | `reset` | `check` | `summary` |
 |---|---|---|---|
 | 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
-| 1 | Not used | At least one problem: a fixture is `invalid`, `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures | The directory holds no fixtures |
-| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, no contracts directory, or a `--dir` that is not a directory | The same | The same, or a `--side` |
+| 1 | The ledger could not be removed (it is not a file, or its directory cannot be written) | At least one problem: a fixture or `config.json` is `invalid`, a fixture is `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures. Also when the command could not finish (a ledger that is not a file, a fixture that cannot be read) | The directory holds no fixtures, or the command could not finish |
+| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, a `--depth`, no contracts directory, or a `--dir` that is not a directory | The same | The same, a `--side`, or a `--depth` that is not a whole number from 1 to 9 |
 
 A `reset`, and a `check` without problems, print one line to standard output. From
 `example/provider`:
@@ -491,7 +541,7 @@ one line that says what is wrong, an empty line and the help, to standard error.
 
 | Variable | Read by | Meaning |
 |---|---|---|
-| `CONTRACT_FIXTURES_DIR` | the helpers, the commands | The contracts directory, for a test that passes no `dir` and for a command without `--dir`. An empty value counts as not set. |
+| `CONTRACT_FIXTURES_DIR` | the helpers, the commands | The contracts directory, for a test that passes no `dir` and for a command without `--dir`. An empty value counts as not set. The helpers look it up when the directory is first used (a verify, a read, a list), not when the object is created, so a tool that only loads the test files does not need it. |
 | `CONTRACT_FIXTURES_UPDATE` | the helpers | `1` turns update mode on for a test that passes no `update`: a verify writes a missing or differing fixture instead of failing. Every other value leaves it off. |
 | `CI` | the helpers | With `true` or `1`, `CONTRACT_FIXTURES_UPDATE=1` is refused: the helpers throw a usage error before any test verifies. Update mode is for a developer's machine. |
 
@@ -509,9 +559,10 @@ instead.
 - **Tests that read without asserting.** The ledger shows that a fixture was loaded. A table
   of expectations with `assertCovers` closes most of the gap (see "Keeping reading tests
   honest"); the rest is code review.
-- **Secrets nobody listed.** Apart from the token shape described under "Secrets", a value is
-  only kept out of a fixture when its path is under `secret`, because other secrets have no
-  shape to recognise. Review new fixtures for it.
+- **Secrets nobody listed.** Apart from the token shape described under "Secrets" and the
+  patterns a project puts into `config.json`, a value is only kept out of a fixture when its
+  path is under `secret`. A secret without a shape (an opaque token, a password, a cookie)
+  cannot be recognised at all. Review new fixtures for it.
 - **Old clients in the field.** The fixtures describe the code in the repository. A released
   app that users have not updated is not checked against a new API.
 - **A test application that differs from the deployed one.** The tool records what the test
@@ -560,9 +611,9 @@ example/         a TypeScript API with two clients (Dart, TypeScript), each with
 docs/            the adoption guide
 ```
 
-`spec/fixtures/` holds language-independent cases (comparison, validation, file output, check
-with its report and hints, summary, coverage, and the command line with its help, messages
-and exit codes). Both packages run them in their own tests; that is how "the two packages
+`spec/fixtures/` holds language-independent cases (comparison, validation, file output, the
+messages of a failing verify, the configuration of a directory, check with its report and
+hints, summary, coverage, and the command line with its help, messages and exit codes). Both packages run them in their own tests; that is how "the two packages
 treat a fixture the same way" is kept true.
 
 ## Development
@@ -595,7 +646,7 @@ Both packages have the same version. For a release:
 
 - [test-gates](https://github.com/t09tanaka/test-gates) (npm `@t09tanaka/test-gates`): gates for JavaScript and TypeScript. A list of the files that must not be wrong, each one pure, covered completely, guarded by a negative control and by a verdict on a mutation report.
 - [test_gates](https://github.com/t09tanaka/test-gates-dart) (pub.dev): the same gates for Dart and Flutter.
-- [dart_mutant](https://github.com/t09tanaka/dart_mutant) (pub.dev): mutation testing for Dart, the tool that writes the mutation report those gates judge.
+- [dart_mutant](https://github.com/t09tanaka/dart_mutant): mutation testing for Dart, the tool that writes the mutation report those gates judge.
 
 The gates and this tool guard different things. A gate guards one file: that the decisions
 made inside it are tested, and that the tests would notice a change. `contract-fixtures`

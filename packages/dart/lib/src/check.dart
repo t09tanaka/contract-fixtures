@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'configuration.dart';
+import 'errors.dart';
 import 'ledger.dart';
 import 'types.dart';
 import 'validate.dart';
@@ -8,7 +10,8 @@ import 'validate.dart';
 class CheckProblem {
   const CheckProblem(this.file, this.code, this.message);
 
-  /// `<kind>/<name>.json`, `.ledger/<side>.jsonl`, or `''` for the directory as a whole.
+  /// `<kind>/<name>.json`, `config.json`, `.ledger/<side>.jsonl`, or `''` for the
+  /// directory as a whole.
   final String file;
 
   /// `invalid`, `unverified`, `unread`, `ledger` or `empty`.
@@ -22,7 +25,15 @@ class CheckResult {
     this.fixtures,
     this.problems, [
     this.hints = const [],
-  ]);
+  ]) : untouched = false;
+
+  const CheckResult._(
+    this.side,
+    this.fixtures,
+    this.problems,
+    this.hints,
+    this.untouched,
+  );
 
   final ContractSide side;
 
@@ -33,6 +44,11 @@ class CheckResult {
   /// What the state of the ledger suggests about the cause of `unverified` and `unread`
   /// problems. Guesses, worded as such; they never change [problems].
   final List<String> hints;
+
+  /// Whether this side's ledger has no entries, so that none of the fixtures that follow
+  /// the format was verified or read. The report then gives their number instead of one
+  /// line each.
+  final bool untouched;
 }
 
 /// What one side has to do with each kind of fixture.
@@ -63,6 +79,18 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
   var fixtures = 0;
   var asked = 0;
   var missing = 0;
+  // A configuration that is not valid is a problem of its own; the fixtures are then
+  // checked as if there were none.
+  final configuration = readConfig(dir);
+  for (final issue in configuration.issues) {
+    problems.add(
+      CheckProblem(
+        configFile,
+        'invalid',
+        'invalid configuration: ${issue.path} ${issue.message}',
+      ),
+    );
+  }
 
   for (final kind in FixtureKind.values) {
     for (final name in listFixtureNames(dir, kind)) {
@@ -73,6 +101,7 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
         kind,
         name,
         File('$dir/${kind.name}/$name.json'),
+        configuration.config,
       ).issues;
       if (issues.isNotEmpty) {
         for (final issue in issues) {
@@ -136,10 +165,26 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
     missing: missing,
     ledgerExists: ledger.exists,
     lines: ledger.files.length,
-    otherLines: missing > 0 ? readLedger(dir, other).files.length : 0,
+    otherLines: missing > 0 ? _otherEntries(dir, other) : 0,
     gone: ledger.files.toSet().difference(onDisk).length,
   );
-  return CheckResult(side, fixtures, problems, hints);
+  return CheckResult._(
+    side,
+    fixtures,
+    problems,
+    hints,
+    ledger.files.isEmpty && asked > 0,
+  );
+}
+
+/// The entries in the other side's ledger: only a hint depends on them, so a ledger that
+/// cannot be read has none.
+int _otherEntries(String dir, ContractSide other) {
+  try {
+    return readLedger(dir, other).files.length;
+  } on ContractUsageException {
+    return 0;
+  }
 }
 
 /// Hints for a check with `unverified` or `unread` problems, from what the ledger looks
@@ -206,10 +251,19 @@ String formatCheckResult(CheckResult result) {
   if (result.problems.isEmpty) {
     return "$head: OK (${result.fixtures} fixture(s), all verified or read by this side's tests)";
   }
+  bool untouched(CheckProblem p) =>
+      result.untouched && (p.code == 'unverified' || p.code == 'unread');
+  final count = result.problems.where(untouched).length;
+  final first = result.problems.indexWhere(untouched);
   return [
     '$head: ${result.problems.length} problem(s) in ${result.fixtures} fixture(s)',
-    for (final p in result.problems)
-      '  - ${p.file.isEmpty ? '' : '${p.file}: '}${p.message}',
+    for (final (i, p) in result.problems.indexed)
+      // One line in the place of the first of them, when all were left alone.
+      if (!untouched(p))
+        '  - ${p.file.isEmpty ? '' : '${p.file}: '}${p.message}'
+      else if (i == first)
+        '  - none of the $count fixture(s) that follow the format was verified or read by '
+            "the ${result.side.name} side's tests (they are not listed one by one)",
     for (final hint in result.hints) 'Hint: $hint',
     "Run `$executable reset` and the ${result.side.name} side's tests before this check.",
   ].join('\n');

@@ -4,43 +4,63 @@ import 'pattern.dart';
 /// always matches [pattern] as a whole. Pass it to `verifyResponse` / `verifyRequest` next
 /// to plain paths: `volatile: ['response.body.note', VolatilePattern('response.body.id',
 /// r'^ord_[a-z0-9]+$')]`.
+///
+/// With [nullable], the value may also be `null`: for a date that is only there once
+/// something was closed, say.
 class VolatilePattern {
-  const VolatilePattern(this.path, this.pattern);
+  const VolatilePattern(this.path, this.pattern, {this.nullable = false});
 
   final String path;
 
   /// A pattern in the syntax of spec/format.md (a subset of ECMAScript regular expressions).
   final String pattern;
 
-  Map<String, dynamic> toJson() => {'path': path, 'pattern': pattern};
+  /// Whether `null` is accepted in the place of a string that matches [pattern].
+  final bool nullable;
+
+  Map<String, dynamic> toJson() => {
+        'path': path,
+        'pattern': pattern,
+        if (nullable) 'nullable': true,
+      };
 }
 
-/// The path and the pattern of an entry.
+/// The parts of an entry.
 class EntryParts {
-  const EntryParts(this.path, this.pattern);
+  const EntryParts(this.path, this.pattern, {this.nullable = false});
 
   final String path;
   final String? pattern;
+  final bool nullable;
 }
 
-/// The parts of a decoded entry, or `null` when it has neither shape.
+/// The parts of a decoded entry, or `null` when it has neither shape: a path, or a map with
+/// the keys `path` and `pattern` (both strings) and, optionally, `nullable` (only `true`).
 EntryParts? entryParts(Object? entry) {
   if (entry is String) return EntryParts(entry, null);
-  if (entry is! Map<String, dynamic> || entry.length != 2) return null;
+  if (entry is! Map<String, dynamic>) return null;
+  if (entry.keys
+      .any((key) => !const ['path', 'pattern', 'nullable'].contains(key))) {
+    return null;
+  }
   final path = entry['path'];
   final pattern = entry['pattern'];
   if (path is! String || pattern is! String) return null;
-  return EntryParts(path, pattern);
+  if (entry.containsKey('nullable') && entry['nullable'] != true) return null;
+  return EntryParts(path, pattern, nullable: entry['nullable'] == true);
 }
 
 enum VolatileMode { exact, subtree }
 
 /// A volatile entry, taken apart.
 class VolatileRule {
-  /// Throws [PatternException] when [source] is not a pattern.
-  VolatileRule(String path, this.source)
-      : segments = path.split('.'),
-        matcher = source == null ? null : compilePattern(source) {
+  /// Throws [PatternException] when the pattern of [parts] is not one.
+  VolatileRule(EntryParts parts)
+      : segments = parts.path.split('.'),
+        source = parts.pattern,
+        nullable = parts.nullable,
+        matcher =
+            parts.pattern == null ? null : compilePattern(parts.pattern!) {
     wildcard = segments.indexOf('**');
   }
 
@@ -52,6 +72,20 @@ class VolatileRule {
   /// The text of the pattern, or `null` for an entry without one.
   final String? source;
   final CompiledPattern? matcher;
+
+  /// Whether `null` is accepted in the place of a string that matches the pattern.
+  final bool nullable;
+
+  /// Whether [value] is what this rule (one with a pattern) asks for: a matching string, or
+  /// `null` if nullable.
+  bool satisfiedBy(Object? value) {
+    if (value == null) return nullable;
+    return value is String && matcher!.test(value);
+  }
+
+  /// What this rule (one with a pattern) asks for, as the text of a difference.
+  String get requirement =>
+      'must be a string that matches $source${nullable ? ', or null' : ''}';
 
   static bool _fits(String pattern, String segment) =>
       pattern == '*' || pattern == segment;
@@ -89,7 +123,7 @@ List<VolatileRule> lenientRules(Object? volatile) {
     final parts = entryParts(entry);
     if (parts == null) continue;
     try {
-      rules.add(VolatileRule(parts.path, parts.pattern));
+      rules.add(VolatileRule(parts));
     } on PatternException {
       // Not a pattern: reported by validation.
     }
@@ -123,10 +157,10 @@ VolatileMatch volatileMode(List<VolatileRule> rules, List<String> segments) {
   return VolatileMatch(mode, patterns);
 }
 
-/// The first of [patterns] that [value] does not match as a whole string, or `null`.
+/// The first of [patterns] that [value] does not satisfy, or `null`.
 VolatileRule? failedPattern(List<VolatileRule> patterns, Object? value) {
   for (final rule in patterns) {
-    if (value is! String || !rule.matcher!.test(value)) return rule;
+    if (!rule.satisfiedBy(value)) return rule;
   }
   return null;
 }

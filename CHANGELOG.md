@@ -23,24 +23,40 @@ First version.
     a pattern, written in a documented subset of ECMAScript regular expressions that both
     packages match with the same algorithm; `**` in the middle of a path
     (`response.body.**.created_at`); a pattern on `request.path` for ids in a path;
+    `nullable: true` next to a pattern, for a value that is a string in one place and `null`
+    in another;
+  - messages of a failing verify that show the cause first: when the response is another one
+    altogether, the differences (status, keys that went, keys that came) come before the
+    volatile paths that match nothing, in update mode too; a value that misses its pattern
+    is shown; a secret path that the test stopped passing does not get the advice to rerun
+    in update mode, which would refuse;
+  - an optional `config.json` in the contracts directory with `forbidden` patterns: a string
+    in which one of them matches is not written, and a stored one is `invalid`, as for a
+    token. For credentials with a shape of their own;
   - response headers next to request headers, with the same rules for both: lower-case
     names, and a string or an array of strings (a header that is sent more than once, such as
     `set-cookie`) as the value;
   - `resolvePlaceholders` to put real values back on the reading side;
+  - the contracts directory (`dir`, or `CONTRACT_FIXTURES_DIR`) is looked up at the first
+    verify, read or list, not when the object is created, so that a tool that only loads the
+    test files does not need it;
   - a `check` command that fails for unverified, unread and invalid fixtures, per side, and a
     `reset` command. Both end in one line of the form `<tool> <command> (<side> side): OK (...)`
     when nothing is wrong;
   - hints in the report of a failing `check`, from the state of the ledger: it is missing or
     empty, only the other side has one, a part of the tests ran, or it names files that are
-    gone. The problems and the exit code do not depend on them;
+    gone. The problems and the exit code do not depend on them. When the ledger has no
+    entries, one line gives the number of fixtures in the place of the whole list;
   - `assertPrefixesCover`, for tests that split their table of expectations by the prefix of
     the fixture names: it fails for a fixture that no prefix covers, and for a prefix that no
     fixture starts with;
   - a `summary` command (`summarizeContracts`, `formatSummary`) that prints one line per
     fixture, with the status and the keys of the response body, to compare fixtures side by
-    side;
+    side; `--depth <n>` opens the objects inside a body;
   - `-h, --help` and `-v, --version`, and the exit codes `0` (no problems), `1` (problems
-    found; for `summary`, no fixtures) and `2` (wrong usage). The executable is
+    found; for `summary`, no fixtures; or the command could not finish) and `2` (wrong
+    usage). A ledger that is not a file is reported in the same words by both packages, by
+    the commands and by the helpers. The executable is
     `contract-fixtures` in the TypeScript package and `contract_fixtures` in the Dart package,
     and that name is the only difference between what the two print.
 - TypeScript only, on the standard `fetch` types and without a dependency: `toFetchResponse`

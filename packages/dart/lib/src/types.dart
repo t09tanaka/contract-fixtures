@@ -103,7 +103,8 @@ class ProviderFixture {
   String get name => json['name'] as String;
   String get description => json['description'] as String;
 
-  /// The entries as they are stored: a path (`String`), or a map with `path` and `pattern`.
+  /// The entries as they are stored: a path (`String`), or a map with `path` and `pattern`
+  /// (and `nullable: true`, when the value may be `null`).
   List<Object> get volatile =>
       (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<Object>();
 
@@ -126,7 +127,8 @@ class ConsumerFixture {
   String get name => json['name'] as String;
   String get description => json['description'] as String;
 
-  /// The entries as they are stored: a path (`String`), or a map with `path` and `pattern`.
+  /// The entries as they are stored: a path (`String`), or a map with `path` and `pattern`
+  /// (and `nullable: true`, when the value may be `null`).
   List<Object> get volatile =>
       (json['volatile'] as List<dynamic>? ?? const <dynamic>[]).cast<Object>();
 

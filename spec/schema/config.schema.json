@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/t09tanaka/contract-fixtures/blob/main/spec/schema/config.schema.json",
+  "title": "contract-fixtures configuration of a contracts directory (format 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format"
+  ],
+  "properties": {
+    "format": {
+      "const": 1
+    },
+    "forbidden": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { checkContracts, formatCheckResult, TOOL } from "./check.js";
 import { DIR_ENV } from "./contract.js";
+import { ContractUsageError } from "./errors.js";
 import { resetLedger } from "./ledger.js";
 import { formatSummary, summarizeContracts } from "./summary.js";
 import type { Side } from "./types.js";
@@ -12,7 +13,7 @@ import { VERSION } from "./version.js";
 export const USAGE = `${TOOL} — shared request/response fixtures that keep an API and its clients in step
 
 Usage: ${TOOL} <reset|check> --side <provider|consumer> [--dir <contracts>]
-       ${TOOL} summary [--dir <contracts>]
+       ${TOOL} summary [--dir <contracts>] [--depth <n>]
 
 Commands:
   reset    Forget what earlier test runs of this side did. Run it before the tests.
@@ -26,10 +27,13 @@ Options:
   --dir <contracts>           The contracts directory: the one that holds provider/, consumer/
                               and tables/, not the directory of a package
                               (default: the environment variable ${DIR_ENV})
+  --depth <n>                 For summary: how many levels of objects in the response body
+                              to open, 1 to 9 (default: 1, the keys at the top)
   -h, --help                  Show this help
   -v, --version               Show the version
 
-Exit codes: 0 no problems, 1 problems found (summary: no fixtures), 2 wrong usage`;
+Exit codes: 0 no problems, 1 problems found (summary: no fixtures) or the command could
+not finish, 2 wrong usage`;
 
 export interface CliIo {
   out: (text: string) => void;
@@ -55,7 +59,7 @@ export function runCli(argv: readonly string[], io: CliIo): number {
       io.out(VERSION);
       return 0;
     }
-    const option = /^--(side|dir)(?:=(.*))?$/s.exec(arg);
+    const option = /^--(side|dir|depth)(?:=(.*))?$/s.exec(arg);
     if (option) {
       const value = option[2] ?? argv[++i];
       if (value === undefined) return usage(`--${option[1]} needs a value`);
@@ -75,8 +79,13 @@ export function runCli(argv: readonly string[], io: CliIo): number {
   const side = values.side;
   if (command === "summary") {
     if (side !== undefined) return usage("summary takes no --side");
+    if (values.depth !== undefined && !/^[1-9]$/.test(values.depth)) {
+      return usage("--depth must be a whole number from 1 to 9");
+    }
   } else if (side !== "provider" && side !== "consumer") {
     return usage("--side must be provider or consumer");
+  } else if (values.depth !== undefined) {
+    return usage("--depth is for summary only");
   }
   const given = values.dir ?? io.env[DIR_ENV];
   if (given === undefined || given === "") return usage(`pass --dir or set ${DIR_ENV}`);
@@ -85,26 +94,34 @@ export function runCli(argv: readonly string[], io: CliIo): number {
     return usage(`${given} is not a directory`);
   }
 
-  if (command === "summary") {
-    const rows = summarizeContracts({ dir });
-    if (rows.length === 0) {
-      io.err(`${TOOL} summary: no fixtures found under provider/, consumer/ or tables/ (wrong directory?)`);
+  try {
+    if (command === "summary") {
+      const rows = summarizeContracts({ dir, depth: Number(values.depth ?? "1") });
+      if (rows.length === 0) {
+        io.err(`${TOOL} summary: no fixtures found under provider/, consumer/ or tables/ (wrong directory?)`);
+        return 1;
+      }
+      io.out(formatSummary(rows));
+      return 0;
+    }
+    if (command === "reset") {
+      resetLedger({ dir, side: side as Side });
+      io.out(`${TOOL} reset (${side} side): OK (no entries in .ledger/${side}.jsonl)`);
+      return 0;
+    }
+    const result = checkContracts({ dir, side: side as Side });
+    const report = formatCheckResult(result);
+    if (result.problems.length > 0) {
+      io.err(report);
       return 1;
     }
-    io.out(formatSummary(rows));
+    io.out(report);
     return 0;
-  }
-  if (command === "reset") {
-    resetLedger({ dir, side: side as Side });
-    io.out(`${TOOL} reset (${side} side): OK (no entries in .ledger/${side}.jsonl)`);
-    return 0;
-  }
-  const result = checkContracts({ dir, side: side as Side });
-  const report = formatCheckResult(result);
-  if (result.problems.length > 0) {
-    io.err(report);
+  } catch (error) {
+    // A ledger that cannot be used says so in words of its own. Anything else is a failure
+    // of the file system; the first line is the same in every implementation.
+    if (error instanceof ContractUsageError) io.err(error.message);
+    else io.err(`${TOOL}: ${command} could not finish\n${String(error)}`);
     return 1;
   }
-  io.out(report);
-  return 0;
 }

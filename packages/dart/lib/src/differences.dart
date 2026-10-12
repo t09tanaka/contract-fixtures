@@ -23,8 +23,9 @@ class Difference {
 /// [volatile] lists paths that are compared loosely: a plain path compares the JSON type of
 /// that node only; a path ending in `**` compares types, object keys and array lengths of
 /// the whole subtree; an entry with a pattern ([VolatilePattern], or a decoded
-/// `{path, pattern}`) requires a string that matches the pattern as a whole. Everything else
-/// must be equal. Throws for an entry that is not one.
+/// `{path, pattern}`) requires a string that matches the pattern as a whole (or `null`, when
+/// the entry is nullable). Everything else must be equal. Throws for an entry that is not
+/// one.
 List<Difference> differences(
   Object? expected,
   Object? actual, [
@@ -38,9 +39,9 @@ List<Difference> differences(
         null => throw ArgumentError.value(
             entry,
             'volatile',
-            'a volatile entry is a path or {path, pattern}',
+            'a volatile entry is a path or {path, pattern, nullable}',
           ),
-        final parts => VolatileRule(parts.path, parts.pattern),
+        final parts => VolatileRule(parts),
       },
   ];
   final out = <Difference>[];
@@ -51,6 +52,40 @@ List<Difference> differences(
     final typeE = jsonType(e);
     final typeA = jsonType(a);
 
+    if (mode == VolatileMode.exact && patterns.isNotEmpty) {
+      // The stored value follows its entries (validation saw to that), so only the
+      // observed one is asked. With `nullable`, a string and null may stand in for each
+      // other.
+      final failed = failedPattern(patterns, a);
+      if (failed != null) {
+        out.add(
+          typeE == typeA || a is String
+              ? Difference(
+                  path,
+                  DifferenceKind.pattern,
+                  '$path: ${compactJson(e)} -> ${compactJson(a)} '
+                  '(volatile: does not match ${failed.source})',
+                )
+              : Difference(
+                  path,
+                  DifferenceKind.type,
+                  '$path: type $typeE -> $typeA (volatile: ${failed.requirement})',
+                ),
+        );
+      } else if (typeE != typeA) {
+        final rule = failedPattern(patterns, e);
+        if (rule != null) {
+          out.add(
+            Difference(
+              path,
+              DifferenceKind.type,
+              '$path: type $typeE -> $typeA (volatile: ${rule.requirement})',
+            ),
+          );
+        }
+      }
+      return;
+    }
     if (typeE != typeA) {
       out.add(
         mode == null
@@ -62,25 +97,12 @@ List<Difference> differences(
             : Difference(
                 path,
                 DifferenceKind.type,
-                '$path: type $typeE -> $typeA ${patterns.isNotEmpty ? '(volatile: must be a string that matches ${patterns.first.source})' : '(volatile: only the type is compared)'}',
+                '$path: type $typeE -> $typeA (volatile: only the type is compared)',
               ),
       );
       return;
     }
-    if (mode == VolatileMode.exact) {
-      final failed = failedPattern(patterns, a);
-      if (failed != null) {
-        out.add(
-          Difference(
-            path,
-            DifferenceKind.pattern,
-            '$path: ${compactJson(e)} -> ${compactJson(a)} '
-            '(volatile: does not match ${failed.source})',
-          ),
-        );
-      }
-      return;
-    }
+    if (mode == VolatileMode.exact) return;
 
     if (e is List && a is List) {
       if (e.length != a.length) {

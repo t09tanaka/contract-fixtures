@@ -1,15 +1,17 @@
 import fs from "node:fs";
 
-import { PatternError } from "./pattern.js";
+import type { ContractsConfig } from "./configuration.js";
+import { compilePattern, PatternError, type CompiledPattern } from "./pattern.js";
 import {
   entryParts,
   lenientRules,
   ruleMatch,
+  satisfies,
   volatileMode,
   volatileRule,
   type VolatileRule,
 } from "./volatile.js";
-import { isObject, isUnsafeNumber, jsonType, sortedKeys } from "./json.js";
+import { compactJson, isObject, isUnsafeNumber, jsonType, sortedKeys } from "./json.js";
 import { parsePlaceholder } from "./placeholders.js";
 import { JWT_PATTERN, secretNodes, secretPathProblem } from "./secrets.js";
 import { FORMAT_VERSION, type Kind } from "./types.js";
@@ -42,6 +44,7 @@ export interface FormatIssue {
     /** Not a fault of a file: update mode was asked to drop a secret path (see contract.ts). */
     | "secret-removed"
     | "jwt"
+    | "forbidden"
     | "rows"
     | "number";
   /** Where in the file, as a dot separated path (`(root)` for the file itself). */
@@ -193,12 +196,27 @@ function validateVolatile(
   issues: FormatIssue[],
   fixture: Record<string, unknown>,
   roots: readonly string[],
+  forbidden: readonly CompiledPattern[],
 ): void {
   const volatile = fixture.volatile;
   if (!Array.isArray(volatile)) {
     issues.push({ code: "volatile", path: "volatile", message: "must be an array" });
     return;
   }
+  // A value is shown, so that a pattern that misses can be corrected, unless it may be a
+  // secret: a node that a secret path names, a string of the shape of a token, or one that
+  // the configuration of the directory forbids.
+  const hidden = new Set<string>();
+  if (isObject(fixture.secret)) {
+    for (const key of sortedKeys(fixture.secret)) {
+      if (secretPathProblem(key, roots) !== null) continue;
+      for (const node of secretNodes(fixture, key.split("."))) hidden.add(node.segments.join("."));
+    }
+  }
+  const shown = (nodePath: string, value: string): string =>
+    hidden.has(nodePath) || JWT_PATTERN.test(value) || forbidden.some((pattern) => pattern.search(value))
+      ? ""
+      : `${compactJson(value)} `;
   volatile.forEach((entry: unknown, i: number) => {
     const path = `volatile.${i}`;
     const parts = entryParts(entry);
@@ -206,7 +224,8 @@ function validateVolatile(
       issues.push({
         code: "volatile",
         path,
-        message: "must be a path, or an object with exactly the keys path and pattern (both strings)",
+        message:
+          "must be a path, or an object with the keys path and pattern (both strings) and, optionally, nullable (true)",
       });
       return;
     }
@@ -225,7 +244,7 @@ function validateVolatile(
     }
     let rule: VolatileRule;
     try {
-      rule = volatileRule(parts.path, parts.pattern);
+      rule = volatileRule(parts);
     } catch (error) {
       if (!(error instanceof PatternError)) throw error;
       issues.push({
@@ -247,14 +266,14 @@ function validateVolatile(
     if (rule.matcher === null) return;
     for (const node of nodes) {
       if (ruleMatch(rule, node.path.split(".")) !== "exact") continue;
-      if (typeof node.value === "string" && rule.matcher.test(node.value)) continue;
+      if (satisfies(rule, node.value)) continue;
       issues.push({
         code: "volatile-pattern",
         path: node.path,
         message:
           typeof node.value === "string"
-            ? `does not match the pattern ${rule.source} of ${path}`
-            : `must be a string that matches the pattern ${rule.source} of ${path} (found ${jsonType(node.value)})`,
+            ? `${shown(node.path, node.value)}does not match the pattern ${rule.source} of ${path}`
+            : `must be a string that matches the pattern ${rule.source} of ${path}${rule.nullable ? ", or null" : ""} (found ${jsonType(node.value)})`,
       });
     }
   });
@@ -360,11 +379,43 @@ function validateNoJwt(issues: FormatIssue[], root: unknown): void {
   walk(root, "");
 }
 
+/** A string that the configuration of the directory forbids must not be written or stay stored. */
+function validateNotForbidden(issues: FormatIssue[], root: unknown, forbidden: readonly CompiledPattern[]): void {
+  if (forbidden.length === 0) return;
+  const walk = (node: unknown, path: string): void => {
+    if (typeof node === "string") {
+      forbidden.forEach((pattern, i) => {
+        if (!pattern.search(node)) return;
+        // The value itself is never printed: it may be the secret.
+        issues.push({
+          code: "forbidden",
+          path,
+          message:
+            `contains what forbidden.${i} of config.json describes ` +
+            "(keep it out of the fixture: for a value in headers or a body, list its path in secret)",
+        });
+      });
+    } else if (Array.isArray(node)) {
+      node.forEach((item, i) => walk(item, `${path}.${i}`));
+    } else if (isObject(node)) {
+      for (const key of sortedKeys(node)) walk(node[key], path === "" ? key : `${path}.${key}`);
+    }
+  };
+  walk(root, "");
+}
+
 /**
  * Checks a parsed fixture against format 1. `name` is the file name without `.json`.
+ * `config` is what the `config.json` of the contracts directory says (see `readConfig`).
  * Returns an empty array when the fixture is valid.
  */
-export function validateFixtureValue(kind: Kind, name: string, value: unknown): FormatIssue[] {
+export function validateFixtureValue(
+  kind: Kind,
+  name: string,
+  value: unknown,
+  config?: ContractsConfig,
+): FormatIssue[] {
+  const forbidden = (config?.forbidden ?? []).map(compilePattern);
   const issues: FormatIssue[] = [];
   if (!isObject(value)) {
     return [{ code: "root", path: "(root)", message: "must be a JSON object" }];
@@ -418,10 +469,11 @@ export function validateFixtureValue(kind: Kind, name: string, value: unknown): 
   validateRequest(issues, value.request);
   if (kind === "provider") validateResponse(issues, value.response);
   const roots = kind === "provider" ? ["request", "response"] : ["request"];
-  if (Object.hasOwn(value, "volatile")) validateVolatile(issues, value, roots);
+  if (Object.hasOwn(value, "volatile")) validateVolatile(issues, value, roots, forbidden);
   if (Object.hasOwn(value, "secret")) validateSecret(issues, value, roots);
   validateNumbers(issues, value);
   validateNoJwt(issues, value);
+  validateNotForbidden(issues, value, forbidden);
   return issues;
 }
 
@@ -430,6 +482,7 @@ export function validateFixture(
   kind: Kind,
   name: string,
   text: string,
+  config?: ContractsConfig,
 ): { value: unknown; issues: FormatIssue[] } {
   let value: unknown;
   try {
@@ -440,7 +493,7 @@ export function validateFixture(
       issues: [{ code: "json", path: "(root)", message: "is not valid JSON" }],
     };
   }
-  return { value, issues: validateFixtureValue(kind, name, value) };
+  return { value, issues: validateFixtureValue(kind, name, value, config) };
 }
 
 /**
@@ -451,6 +504,7 @@ export function validateFixtureFile(
   kind: Kind,
   name: string,
   filePath: string,
+  config?: ContractsConfig,
 ): { value: unknown; issues: FormatIssue[] } {
   let text: string;
   try {
@@ -462,7 +516,7 @@ export function validateFixtureFile(
       issues: [{ code: "json", path: "(root)", message: "is not valid UTF-8" }],
     };
   }
-  return validateFixture(kind, name, text);
+  return validateFixture(kind, name, text, config);
 }
 
 export function formatIssues(issues: readonly FormatIssue[]): string {

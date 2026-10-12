@@ -38,9 +38,13 @@ void main() {
       test(c['case'], () {
         final kind = FixtureKind.values.byName(c['kind'] as String);
         final name = c['name'] as String;
+        final config = ContractsConfig(
+          forbidden: (c['forbidden'] as List<dynamic>? ?? const <dynamic>[])
+              .cast<String>(),
+        );
         final issues = c.containsKey('text')
-            ? validateFixture(kind, name, c['text'] as String).issues
-            : validateFixtureValue(kind, name, c['value']);
+            ? validateFixture(kind, name, c['text'] as String, config).issues
+            : validateFixtureValue(kind, name, c['value'], config);
         expect(
           [
             for (final i in issues) {'code': i.code, 'path': i.path},
@@ -52,6 +56,25 @@ void main() {
           expect(issues.map((i) => i.message),
               everyElement(isNot(contains(text))));
         }
+        for (final text in c['shown'] as List<dynamic>? ?? const <dynamic>[]) {
+          expect(issues.map((i) => i.message), anyElement(contains(text)));
+        }
+      });
+    }
+  });
+
+  group('spec/fixtures/configuration.json', () {
+    for (final c in loadCases('configuration.json')) {
+      test(c['case'], () {
+        final result = validateConfig(c['text'] as String);
+        expect(
+          [
+            for (final i in result.issues) {'code': i.code, 'path': i.path},
+          ],
+          c['issues'],
+        );
+        expect(result.issues.map((i) => i.message), everyElement(isNotEmpty));
+        expect(result.config.forbidden, c['forbidden']);
       });
     }
   });
@@ -89,9 +112,19 @@ void main() {
               () => compilePattern(source), throwsA(isA<PatternException>()));
           return;
         }
-        final matches = (c['matches'] as List<dynamic>).cast<String>();
-        final rejects = (c['rejects'] as List<dynamic>).cast<String>();
+        List<String> strings(String key) =>
+            (c[key] as List<dynamic>? ?? const <dynamic>[]).cast<String>();
+        final matches = strings('matches');
+        final rejects = strings('rejects');
         final pattern = compilePattern(source);
+        for (final value in strings('finds')) {
+          expect(pattern.search(value), isTrue,
+              reason: 'search ${jsonEncode(value)}');
+        }
+        for (final value in strings('findsNot')) {
+          expect(pattern.search(value), isFalse,
+              reason: 'search ${jsonEncode(value)}');
+        }
         for (final value in matches) {
           expect(pattern.test(value), isTrue, reason: jsonEncode(value));
         }
@@ -106,6 +139,15 @@ void main() {
         }
         for (final value in rejects) {
           expect(native.hasMatch(value), isFalse,
+              reason: 'RegExp: ${jsonEncode(value)}');
+        }
+        final anywhere = RegExp(source);
+        for (final value in strings('finds')) {
+          expect(anywhere.hasMatch(value), isTrue,
+              reason: 'RegExp: ${jsonEncode(value)}');
+        }
+        for (final value in strings('findsNot')) {
+          expect(anywhere.hasMatch(value), isFalse,
               reason: 'RegExp: ${jsonEncode(value)}');
         }
       });
@@ -167,6 +209,11 @@ void main() {
             (entry.value as List<dynamic>).map((l) => '$l\n').join(),
           );
         }
+        final directories =
+            (c['ledgerDirectory'] as List<dynamic>? ?? const <dynamic>[]);
+        for (final side in directories) {
+          Directory('$dir/.ledger/$side.jsonl').createSync(recursive: true);
+        }
         String inDir(Object? text) => (text as String).replaceAll('{dir}', dir);
         String printed(Object? text) => inDir(text)
             .replaceAll('{help}', help)
@@ -191,6 +238,11 @@ void main() {
         final after = c['ledgerAfter'] as Map<String, dynamic>? ?? const {};
         for (final entry in after.entries) {
           final file = File('$dir/.ledger/${entry.key}.jsonl');
+          if (directories.contains(entry.key)) {
+            expect(Directory(file.path).existsSync(), isTrue,
+                reason: file.path);
+            continue;
+          }
           expect(file.existsSync(), entry.value != null, reason: file.path);
           if (entry.value != null) {
             expect(ledgerLines(dir, entry.key), entry.value);
@@ -209,7 +261,8 @@ void main() {
           writeFile(dir, entry.key, entry.value as String);
         }
 
-        final rows = summarizeContracts(dir: dir);
+        final rows =
+            summarizeContracts(dir: dir, depth: c['depth'] as int? ?? 1);
 
         expect(rows, hasLength(c['rows'] as int));
         expect(formatSummary(rows), c['text']);
@@ -266,6 +319,9 @@ void main() {
         final file = File('$dir/$relative');
         final storedText = c['storedText'] as String?;
         if (storedText != null) writeFile(dir, relative, storedText);
+        if (c.containsKey('config')) {
+          writeFile(dir, 'config.json', c['config'] as String);
+        }
         final contract = ContractFixtures(
           side: ContractSide.values.byName(kind),
           dir: dir,
@@ -321,15 +377,17 @@ void main() {
           issues = [
             for (final i in error.issues) {'code': i.code, 'path': i.path},
           ];
-          outcome = error.issues.any((i) => i.code == 'secret-removed')
-              ? 'refused'
-              : storedText == null &&
-                      c['update'] == false &&
-                      error.issues.isEmpty
-                  ? 'missing'
-                  : error.message.contains('what this side produced')
-                      ? 'invalid-observed'
-                      : 'invalid-stored';
+          outcome = error.file == 'config.json'
+              ? 'invalid-config'
+              : error.issues.any((i) => i.code == 'secret-removed')
+                  ? 'refused'
+                  : storedText == null &&
+                          c['update'] == false &&
+                          error.issues.isEmpty
+                      ? 'missing'
+                      : error.message.contains('what this side produced')
+                          ? 'invalid-observed'
+                          : 'invalid-stored';
         }
         final after = file.existsSync() ? file.readAsStringSync() : null;
         if (outcome == 'ok' && after != storedText) outcome = 'written';
@@ -337,6 +395,7 @@ void main() {
         expect(outcome, c['outcome']);
         if (c.containsKey('differences')) expect(lines, c['differences']);
         if (c.containsKey('issues')) expect(issues, c['issues']);
+        if (c.containsKey('message')) expect(message, c['message']);
         expect(after, c['written'] ?? storedText);
         final succeeded = c['outcome'] == 'ok' || c['outcome'] == 'written';
         expect(

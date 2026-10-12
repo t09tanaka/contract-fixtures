@@ -110,7 +110,11 @@ contract.verifyRequest({
 Calling a method from the wrong side throws `ContractUsageError`. A missing or invalid fixture
 throws `ContractFixtureError`.
 
-- `dir` defaults to the environment variable `CONTRACT_FIXTURES_DIR`.
+- `dir` defaults to the environment variable `CONTRACT_FIXTURES_DIR`. It is looked up when
+  the directory is first used (a verify, a read, `list`, `dir` itself), not by
+  `contractFixtures(...)`: a tool that only loads the test files, to collect other tests or
+  to run mutation tests on a part of them, does not need the variable. A missing directory
+  throws `ContractUsageError` at that first use.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
   is refused when `CI` is `true` or `1`.
@@ -122,7 +126,14 @@ throws `ContractFixtureError`.
   be volatile too: `{ path: "request.path", pattern: "^/orders/ord_[a-z0-9]+/receipt$" }`.
   Patterns are a subset of ECMAScript regular expressions that the package matches itself
   (not with `RegExp`); see `spec/format.md`. A value that does not match is a difference, and
-  is never written in update mode.
+  is never written in update mode. For a value that is a string in one place and `null` in
+  another, add `nullable: true` to the entry: `{ path: "response.body.**.closed_at", pattern:
+  "...", nullable: true }` accepts a string that matches or `null`, and which of the two it is
+  may change between runs. `nullable` needs a `pattern`, and `true` is its only value.
+- When a volatile path of the test matches nothing in what the test passes, the verify still
+  compares: the `ContractMismatchError` lists the differences first (the status and the keys
+  of a response that is another one altogether) and the paths after them, also as
+  `error.unmatched`. Such a fixture is never written.
 - `observed.secret` maps paths to placeholders, for example
   `{ "response.body.access_token": "<token:session-1>" }`. The string at each path is replaced
   by its placeholder before anything is compared, printed or written, so the real value is not
@@ -134,7 +145,10 @@ throws `ContractFixtureError`.
   from the stored file by hand if it is no longer a secret.
 - A fixture that contains a string of the shape of a JSON Web Token is not written (in update
   mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
-  recognised.
+  recognised, unless the contracts directory has a `config.json` that describes them:
+  `{ "format": 1, "forbidden": ["sec_live_[A-Za-z0-9]+"] }` refuses every string in which one
+  of the patterns matches, the same way. `readConfig(dir)` and `validateConfig(text)` return
+  what the file says and how it does not follow the format.
 - `response.headers` is recorded like `request.headers`: pass the headers that are part of the
   agreement. A value is a string, or an array of strings for a header that is sent more than
   once (`"set-cookie": [...]`, compared in order; `response.headers["set-cookie"]` of Node's
@@ -233,7 +247,7 @@ Also exported:
 ```sh
 npx contract-fixtures reset --side provider --dir ../contracts   # before the tests
 npx contract-fixtures check --side provider --dir ../contracts   # after the tests
-npx contract-fixtures summary --dir ../contracts                 # any time
+npx contract-fixtures summary --dir ../contracts                 # any time; --depth 2 looks one level deeper
 npx contract-fixtures --version                                  # also -v; --help or -h for the help
 ```
 
@@ -244,8 +258,8 @@ npx contract-fixtures --version                                  # also -v; --he
 | Exit code | `reset` | `check` | `summary` |
 |---|---|---|---|
 | 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
-| 1 | Not used | At least one problem: a fixture is `invalid`, `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures | The directory holds no fixtures |
-| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, no contracts directory, or a `--dir` that is not a directory | The same | The same, or a `--side` |
+| 1 | The ledger could not be removed (it is not a file, or its directory cannot be written) | At least one problem: a fixture or `config.json` is `invalid`, a fixture is `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures. Also when the command could not finish (a ledger that is not a file, a fixture that cannot be read) | The directory holds no fixtures, or the command could not finish |
+| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, a `--depth`, no contracts directory, or a `--dir` that is not a directory | The same | The same, a `--side`, or a `--depth` that is not a whole number from 1 to 9 |
 
 A `reset`, and a `check` without problems, print one line to standard output:
 
@@ -257,11 +271,13 @@ contract-fixtures check (provider side): OK (4 fixture(s), all verified or read 
 Run `check` after all tests of the side: it always looks at every fixture. With problems it
 prints a report to standard error. When the ledger suggests why fixtures were not touched (it
 is missing or empty, only the other side has one, a part of the tests ran, it names files that
-are gone), the report ends with a line that starts with `Hint:`.
+are gone), the report ends with a line that starts with `Hint:`. When the ledger has no
+entries at all, one line gives the number of fixtures in the place of the whole list.
 
 `summary` prints one line per fixture, to compare them side by side: the request, the status,
 and the keys of the response body with their types. It takes no `--side` and does not touch
-the ledger.
+the ledger. `--depth 2` opens the objects inside a body as well (`{data: object}` becomes
+`{data: {id: string, ...}}`), up to `--depth 9`; arrays are not opened.
 
 ```
 FIXTURE                        REQUEST       STATUS  RESPONSE BODY

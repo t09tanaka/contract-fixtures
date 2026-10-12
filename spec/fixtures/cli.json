@@ -1,6 +1,6 @@
 {
-  "description": "Cases for the command line. Start from a copy of contracts/ (or an empty directory when `empty` is true), write the lines of `ledger.<side>` to .ledger/<side>.jsonl, then run the command with `args` and the environment variables of `env` (and no others). `exit` is the exit code; `stdout` and `stderr` are what the command writes to standard output and to standard error, character for character, without the newline at the end. When a case has `ledgerAfter`, .ledger/<side>.jsonl must afterwards hold exactly the lines of `ledgerAfter.<side>`, or not exist when that is null. In `args`, `env`, `stdout` and `stderr`, {dir} stands for the directory. In `stdout` and `stderr`, {tool} stands for the name of the executable (contract-fixtures in the TypeScript package, contract_fixtures in the Dart package), {version} for the version of the package, and {help} for the text of `help`, in which {tool} stands for the same name.",
-  "help": "{tool} — shared request/response fixtures that keep an API and its clients in step\n\nUsage: {tool} <reset|check> --side <provider|consumer> [--dir <contracts>]\n       {tool} summary [--dir <contracts>]\n\nCommands:\n  reset    Forget what earlier test runs of this side did. Run it before the tests.\n  check    Fail unless this side's tests verified or read every fixture since the reset,\n           and every fixture follows the format. Run it after all tests of this side.\n  summary  Print one line per fixture: request, status, and the keys of the response body\n           with their types. Does not touch the ledger.\n\nOptions:\n  --side <provider|consumer>  The side whose tests ran. Not for summary\n  --dir <contracts>           The contracts directory: the one that holds provider/, consumer/\n                              and tables/, not the directory of a package\n                              (default: the environment variable CONTRACT_FIXTURES_DIR)\n  -h, --help                  Show this help\n  -v, --version               Show the version\n\nExit codes: 0 no problems, 1 problems found (summary: no fixtures), 2 wrong usage",
+  "description": "Cases for the command line. Start from a copy of contracts/ (or an empty directory when `empty` is true), write the lines of `ledger.<side>` to .ledger/<side>.jsonl, create a directory at .ledger/<side>.jsonl for every side in `ledgerDirectory` (it must still be a directory afterwards), then run the command with `args` and the environment variables of `env` (and no others). `exit` is the exit code; `stdout` and `stderr` are what the command writes to standard output and to standard error, character for character, without the newline at the end. When a case has `ledgerAfter`, .ledger/<side>.jsonl must afterwards hold exactly the lines of `ledgerAfter.<side>`, or not exist when that is null. In `args`, `env`, `stdout` and `stderr`, {dir} stands for the directory. In `stdout` and `stderr`, {tool} stands for the name of the executable (contract-fixtures in the TypeScript package, contract_fixtures in the Dart package), {version} for the version of the package, and {help} for the text of `help`, in which {tool} stands for the same name.",
+  "help": "{tool} — shared request/response fixtures that keep an API and its clients in step\n\nUsage: {tool} <reset|check> --side <provider|consumer> [--dir <contracts>]\n       {tool} summary [--dir <contracts>] [--depth <n>]\n\nCommands:\n  reset    Forget what earlier test runs of this side did. Run it before the tests.\n  check    Fail unless this side's tests verified or read every fixture since the reset,\n           and every fixture follows the format. Run it after all tests of this side.\n  summary  Print one line per fixture: request, status, and the keys of the response body\n           with their types. Does not touch the ledger.\n\nOptions:\n  --side <provider|consumer>  The side whose tests ran. Not for summary\n  --dir <contracts>           The contracts directory: the one that holds provider/, consumer/\n                              and tables/, not the directory of a package\n                              (default: the environment variable CONTRACT_FIXTURES_DIR)\n  --depth <n>                 For summary: how many levels of objects in the response body\n                              to open, 1 to 9 (default: 1, the keys at the top)\n  -h, --help                  Show this help\n  -v, --version               Show the version\n\nExit codes: 0 no problems, 1 problems found (summary: no fixtures) or the command could\nnot finish, 2 wrong usage",
   "cases": [
     {
       "case": "--help prints the help",
@@ -273,7 +273,7 @@
       },
       "exit": 1,
       "stdout": "",
-      "stderr": "{tool} check (consumer side): 4 problem(s) in 4 fixture(s)\n  - provider/order.created.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - consumer/create-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nHint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?\nRun `{tool} reset` and the consumer side's tests before this check."
+      "stderr": "{tool} check (consumer side): 4 problem(s) in 4 fixture(s)\n  - none of the 4 fixture(s) that follow the format was verified or read by the consumer side's tests (they are not listed one by one)\nHint: .ledger/consumer.jsonl does not exist, but .ledger/provider.jsonl has some. Did the consumer side's tests run, and is consumer the side to check?\nRun `{tool} reset` and the consumer side's tests before this check."
     },
     {
       "case": "check: one fixture is not verified",
@@ -499,6 +499,179 @@
       "exit": 2,
       "stdout": "",
       "stderr": "{tool}: pass --dir or set CONTRACT_FIXTURES_DIR\n\n{help}"
+    },
+    {
+      "case": "summary: --depth is accepted, and changes nothing where no object lies inside the body",
+      "args": [
+        "summary",
+        "--dir",
+        "{dir}",
+        "--depth",
+        "2"
+      ],
+      "exit": 0,
+      "stdout": "FIXTURE                        REQUEST       STATUS  RESPONSE BODY\nprovider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders  409     {error: string}\nconsumer/create-order.request  POST /orders  -       -\ntables/order-total             -             -       2 row(s)",
+      "stderr": ""
+    },
+    {
+      "case": "summary: --depth=1 is the default",
+      "args": [
+        "summary",
+        "--depth=1",
+        "--dir={dir}"
+      ],
+      "exit": 0,
+      "stdout": "FIXTURE                        REQUEST       STATUS  RESPONSE BODY\nprovider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders  409     {error: string}\nconsumer/create-order.request  POST /orders  -       -\ntables/order-total             -             -       2 row(s)",
+      "stderr": ""
+    },
+    {
+      "case": "wrong usage: a depth of 0",
+      "args": [
+        "summary",
+        "--dir",
+        "{dir}",
+        "--depth",
+        "0"
+      ],
+      "exit": 2,
+      "stdout": "",
+      "stderr": "{tool}: --depth must be a whole number from 1 to 9\n\n{help}"
+    },
+    {
+      "case": "wrong usage: a depth of two digits",
+      "args": [
+        "summary",
+        "--dir",
+        "{dir}",
+        "--depth=10"
+      ],
+      "exit": 2,
+      "stdout": "",
+      "stderr": "{tool}: --depth must be a whole number from 1 to 9\n\n{help}"
+    },
+    {
+      "case": "wrong usage: a depth that is not a number",
+      "args": [
+        "summary",
+        "--dir",
+        "{dir}",
+        "--depth",
+        "two"
+      ],
+      "exit": 2,
+      "stdout": "",
+      "stderr": "{tool}: --depth must be a whole number from 1 to 9\n\n{help}"
+    },
+    {
+      "case": "wrong usage: --depth without its value",
+      "args": [
+        "summary",
+        "--dir",
+        "{dir}",
+        "--depth"
+      ],
+      "exit": 2,
+      "stdout": "",
+      "stderr": "{tool}: --depth needs a value\n\n{help}"
+    },
+    {
+      "case": "wrong usage: --depth for check",
+      "args": [
+        "check",
+        "--side",
+        "provider",
+        "--dir",
+        "{dir}",
+        "--depth",
+        "2"
+      ],
+      "exit": 2,
+      "stdout": "",
+      "stderr": "{tool}: --depth is for summary only\n\n{help}"
+    },
+    {
+      "case": "wrong usage: --depth for reset",
+      "args": [
+        "reset",
+        "--side",
+        "provider",
+        "--dir",
+        "{dir}",
+        "--depth",
+        "2"
+      ],
+      "exit": 2,
+      "stdout": "",
+      "stderr": "{tool}: --depth is for summary only\n\n{help}"
+    },
+    {
+      "case": "reset: a directory in the place of the ledger is not passed over",
+      "args": [
+        "reset",
+        "--side",
+        "provider",
+        "--dir",
+        "{dir}"
+      ],
+      "ledgerDirectory": [
+        "provider"
+      ],
+      "ledgerAfter": {
+        "provider": null
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "{tool}: the ledger .ledger/provider.jsonl cannot be used (it is not a file, or it cannot be read or written)"
+    },
+    {
+      "case": "check: a directory in the place of the ledger is not taken for a missing ledger",
+      "args": [
+        "check",
+        "--side",
+        "consumer",
+        "--dir",
+        "{dir}"
+      ],
+      "ledgerDirectory": [
+        "consumer"
+      ],
+      "ledgerAfter": {
+        "consumer": null
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "{tool}: the ledger .ledger/consumer.jsonl cannot be used (it is not a file, or it cannot be read or written)"
+    },
+    {
+      "case": "check: a directory in the place of the other side's ledger costs a hint, nothing else",
+      "args": [
+        "check",
+        "--side",
+        "consumer",
+        "--dir",
+        "{dir}"
+      ],
+      "ledgerDirectory": [
+        "provider"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "{tool} check (consumer side): 4 problem(s) in 4 fixture(s)\n  - none of the 4 fixture(s) that follow the format was verified or read by the consumer side's tests (they are not listed one by one)\nHint: .ledger/consumer.jsonl does not exist. Did the consumer side's tests run, and do they use this contracts directory?\nRun `{tool} reset` and the consumer side's tests before this check."
+    },
+    {
+      "case": "summary: a directory in the place of a ledger does not matter",
+      "args": [
+        "summary",
+        "--dir",
+        "{dir}"
+      ],
+      "ledgerDirectory": [
+        "provider",
+        "consumer"
+      ],
+      "exit": 0,
+      "stdout": "FIXTURE                        REQUEST       STATUS  RESPONSE BODY\nprovider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders  409     {error: string}\nconsumer/create-order.request  POST /orders  -       -\ntables/order-total             -             -       2 row(s)",
+      "stderr": ""
     }
   ]
 }

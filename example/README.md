@@ -52,6 +52,13 @@ with a pattern for the shape it keeps, and names `created_at` wherever it occurs
 (`response.body.**.created_at`). The id of an order is also a part of the path of the receipt
 request, so `request.path` has a pattern too.
 
+An order also says when its coupon was redeemed: `coupon_redeemed_at` is a time in
+[`order.created-with-coupon`](./contracts/provider/order.created-with-coupon.json) and `null`
+in [`order.created`](./contracts/provider/order.created.json). Both scenarios list the same
+entry for it, a pattern with `nullable: true`
+([`provider/test/orders.contract.test.ts`](./provider/test/orders.contract.test.ts)): the
+value is a time of that shape or `null`, and nothing else.
+
 ## Run it
 
 From the repository root:
@@ -142,16 +149,16 @@ the real handler rejects the request:
 
 **(e) Stop listing the secret.** In `provider/test/payments-receipts.contract.test.ts`, remove
 the `secret` line of the `payment.started` scenario. The provider's test fails, and the message
-does not show the key the API returned:
+does not show the key the API returned. Its last line does not suggest update mode:
 
 ```
 ✖ payment.started
   Error [ContractMismatchError]: contract fixture provider/payment.started.json no longer matches what the provider side produces (stored -> observed):
     secret.response.body.confirm_key: "<key:payment-1>" -> (absent)
-  If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
+  Update mode does not drop a secret path: pass the path as `secret` in this test, or remove it from the stored file by hand.
 ```
 
-Update mode does not help here. `CONTRACT_FIXTURES_UPDATE=1 npm test -w example/provider`
+Update mode would not help. `CONTRACT_FIXTURES_UPDATE=1 npm test -w example/provider`
 leaves the fixture as it is, because rewriting it would put the real key into the file:
 
 ```
@@ -188,15 +195,66 @@ fails, although the value was never compared exactly:
 ```
 ✖ order.created
   Error [ContractMismatchError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
-    response.body.id: "ord_mv3vvd5y1" -> "order-mv3vwxjb1" (volatile: does not match ^ord_[a-z0-9]+$)
+    response.body.id: "ord_mv4g7hsv1" -> "order-mv4g82it1" (volatile: does not match ^ord_[a-z0-9]+$)
   If the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
 ```
 
 Update mode does not write a value that contradicts the pattern of its own entry; the pattern
-in the test has to change with the API:
+in the test has to change with the API. The message shows the value that missed:
 
 ```
 ✖ order.created
-  Error [ContractFixtureError]: contract fixture provider/order.created.json: what this side produced is not a valid fixture:
-    response.body.id: does not match the pattern ^ord_[a-z0-9]+$ of volatile.0
+  Error [ContractFixtureError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
+    response.body.id: "ord_mv4g7hsv1" -> "order-mv4g835t1" (volatile: does not match ^ord_[a-z0-9]+$)
+  The fixture is not updated, because what this side produced is not a valid fixture:
+    response.body.id: "order-mv4g835t1" does not match the pattern ^ord_[a-z0-9]+$ of volatile.0
 ```
+
+**(h) Answer with another response altogether.** In `provider/src/orders.ts`, let the handler
+answer every request to `/orders` with an error, the way an unexpected failure would (as the
+first line of `handle`:
+`if (request.path === "/orders") return { status: 500, body: { error: "unexpected_failure" } };`).
+None of the volatile paths of the test matches anything in such a response. The provider's
+test shows what came back first, the status included, and the paths after it:
+
+```
+✖ order.created
+  Error [ContractMismatchError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
+    response.body.coupon_redeemed_at: null -> (absent)
+    response.body.created_at: "2026-10-11T23:22:30.751Z" -> (absent)
+    response.body.customer: "customer-1" -> (absent)
+    response.body.error: (absent) -> "unexpected_failure"
+    response.body.id: "ord_mv4g7hsv1" -> (absent)
+    response.body.status: "confirmed" -> (absent)
+    response.body.total_minor: 1200 -> (absent)
+    response.status: 201 -> 500
+  These volatile paths of the test match nothing in what the provider side produced:
+    volatile.0: response.body.id matches nothing in this fixture
+    volatile.1: response.body.**.created_at matches nothing in this fixture
+    volatile.2: response.body.coupon_redeemed_at matches nothing in this fixture
+  If the change is intended, take these paths out of the test, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.
+```
+
+Update mode does not write this fixture, because a fixture whose volatile paths match nothing
+is not valid. Its message has the same order:
+
+```
+✖ order.created
+  Error [ContractFixtureError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
+    response.body.coupon_redeemed_at: null -> (absent)
+    response.body.created_at: "2026-10-11T23:22:30.751Z" -> (absent)
+    response.body.customer: "customer-1" -> (absent)
+    response.body.error: (absent) -> "unexpected_failure"
+    response.body.id: "ord_mv4g7hsv1" -> (absent)
+    response.body.status: "confirmed" -> (absent)
+    response.body.total_minor: 1200 -> (absent)
+    response.status: 201 -> 500
+  The fixture is not updated, because what this side produced is not a valid fixture:
+    volatile.0: response.body.id matches nothing in this fixture
+    volatile.1: response.body.**.created_at matches nothing in this fixture
+    volatile.2: response.body.coupon_redeemed_at matches nothing in this fixture
+```
+
+The fixtures of the errors this API really answers with (`order.out-of-stock` and the others)
+are rewritten by that run, with the 500 in them: they have no volatile paths, so nothing stops
+it. Look at what update mode changed before committing it.

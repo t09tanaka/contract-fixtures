@@ -262,6 +262,8 @@ const enum Kind {
 export interface CompiledPattern {
   /** Whether the whole of `value` matches. */
   test(value: string): boolean;
+  /** Whether a part of `value` matches (`^` and `$` are still the ends of the value). */
+  search(value: string): boolean;
 }
 
 /**
@@ -334,38 +336,49 @@ export function compilePattern(source: string): CompiledPattern {
     return found !== set.negated;
   };
 
-  return {
-    test(value) {
-      const seen = new Int32Array(kinds.length).fill(-1);
-      let current: number[] = [];
-      /** Follows the states that consume nothing, as they hold at `position`. */
-      const enter = (list: number[], first: number, position: number): void => {
-        const stack = [first];
-        while (stack.length > 0) {
-          const state = stack.pop()!;
-          if (seen[state] === position) continue;
-          seen[state] = position;
-          const kind = kinds[state]!;
-          if (kind === Kind.Split) stack.push(other[state]!, next[state]!);
-          else if (kind === Kind.Start) {
-            if (position === 0) stack.push(next[state]!);
-          } else if (kind === Kind.End) {
-            if (position === value.length) stack.push(next[state]!);
-          } else list.push(state);
-        }
-      };
-      enter(current, entry, 0);
-      for (let position = 0; position < value.length && current.length > 0; position++) {
-        const unit = value.charCodeAt(position);
-        const following: number[] = [];
-        for (const state of current) {
-          if (kinds[state] === Kind.Set && contains(sets[state]!, unit)) {
-            enter(following, next[state]!, position + 1);
-          }
-        }
-        current = following;
+  /** Whether `value` matches as a whole, or (`anywhere`) whether a part of it does. */
+  const run = (value: string, anywhere: boolean): boolean => {
+    const seen = new Int32Array(kinds.length).fill(-1);
+    /** Follows the states that consume nothing, as they hold at `position`. */
+    const enter = (list: number[], first: number, position: number): void => {
+      const stack = [first];
+      while (stack.length > 0) {
+        const state = stack.pop()!;
+        if (seen[state] === position) continue;
+        seen[state] = position;
+        const kind = kinds[state]!;
+        if (kind === Kind.Split) stack.push(other[state]!, next[state]!);
+        else if (kind === Kind.Start) {
+          if (position === 0) stack.push(next[state]!);
+        } else if (kind === Kind.End) {
+          if (position === value.length) stack.push(next[state]!);
+        } else list.push(state);
       }
-      return current.some((state) => kinds[state] === Kind.Match);
-    },
+    };
+    const matched = (list: number[]): boolean => list.some((state) => kinds[state] === Kind.Match);
+    let current: number[] = [];
+    enter(current, entry, 0);
+    if (anywhere && matched(current)) return true;
+    for (let position = 0; position < value.length && (anywhere || current.length > 0); position++) {
+      const unit = value.charCodeAt(position);
+      const following: number[] = [];
+      for (const state of current) {
+        if (kinds[state] === Kind.Set && contains(sets[state]!, unit)) {
+          enter(following, next[state]!, position + 1);
+        }
+      }
+      if (anywhere) {
+        // A match may start at every position, and it may end before the value does.
+        enter(following, entry, position + 1);
+        if (matched(following)) return true;
+      }
+      current = following;
+    }
+    return matched(current);
+  };
+
+  return {
+    test: (value) => run(value, false),
+    search: (value) => run(value, true),
   };
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'check.dart';
+import 'configuration.dart';
 import 'differences.dart';
 import 'errors.dart';
 import 'json.dart';
@@ -21,9 +22,10 @@ const String updateEnv = 'CONTRACT_FIXTURES_UPDATE';
 /// The helpers do not depend on a test framework: they throw ordinary exceptions, which
 /// every framework reports as a failure.
 class ContractFixtures {
-  /// [dir] defaults to the environment variable `CONTRACT_FIXTURES_DIR`; a relative path is
-  /// resolved against the working directory (the package root under `dart test` and
-  /// `flutter test`). [update] defaults to `CONTRACT_FIXTURES_UPDATE=1`.
+  /// [dir] defaults to the environment variable `CONTRACT_FIXTURES_DIR`, read when the
+  /// directory is first used; a relative path is resolved against the working directory
+  /// (the package root under `dart test` and `flutter test`). [update] defaults to
+  /// `CONTRACT_FIXTURES_UPDATE=1`.
   factory ContractFixtures({
     required ContractSide side,
     String? dir,
@@ -31,12 +33,6 @@ class ContractFixtures {
     Map<String, String>? environment,
   }) {
     final env = environment ?? Platform.environment;
-    final given = dir ?? env[dirEnv];
-    if (given == null || given.isEmpty) {
-      throw const ContractUsageException(
-        'contract_fixtures: pass the contracts directory as `dir` or set $dirEnv',
-      );
-    }
     var updating = update;
     if (updating == null) {
       updating = env[updateEnv] == '1';
@@ -48,16 +44,31 @@ class ContractFixtures {
         );
       }
     }
-    return ContractFixtures._(side, Directory(given).absolute.path, updating);
+    return ContractFixtures._(side, updating, () => dir ?? env[dirEnv]);
   }
 
-  ContractFixtures._(this.side, this.dir, this.update);
+  ContractFixtures._(this.side, this.update, this._given);
+
+  /// The directory as it was passed, or as the environment has it when it is asked for.
+  final String? Function() _given;
 
   /// The side whose tests are running.
   final ContractSide side;
 
   /// Absolute path of the contracts directory.
-  final String dir;
+  ///
+  /// Looked up at the first use (of this or of any method), which is when a missing
+  /// directory throws [ContractUsageException]: a tool that only loads a test file (to
+  /// collect other tests, say) has no reason to know the directory.
+  late final String dir = () {
+    final given = _given();
+    if (given == null || given.isEmpty) {
+      throw const ContractUsageException(
+        'contract_fixtures: pass the contracts directory as `dir` or set $dirEnv',
+      );
+    }
+    return Directory(given).absolute.path;
+  }();
 
   /// Whether verifying writes fixtures instead of failing.
   final bool update;
@@ -202,6 +213,19 @@ class ContractFixtures {
   TableFixture readTable(String name) =>
       TableFixture(_read(FixtureKind.tables, name));
 
+  /// What the `config.json` of the directory says. Nothing is verified or read while it is
+  /// not valid.
+  ContractsConfig _config() {
+    final result = readConfig(dir);
+    if (result.issues.isEmpty) return result.config;
+    throw ContractFixtureException(
+      '$configFile of the contracts directory does not follow the format:\n'
+      '${formatIssues(result.issues)}',
+      configFile,
+      result.issues,
+    );
+  }
+
   void _requireSide(ContractSide wanted, String method) {
     if (side != wanted) {
       throw ContractUsageException(
@@ -246,6 +270,7 @@ class ContractFixtures {
     _requireName(name);
     final file = '${kind.name}/$name.json';
     final target = File('$dir/$file');
+    final config = _config();
     final Object? produced;
     try {
       produced = jsonRoundTrip(observed);
@@ -264,34 +289,41 @@ class ContractFixtures {
       produced is Map<String, dynamic> ? produced['secret'] : null,
     );
     _orderVolatile(produced);
-    void refuse(List<FormatIssue> issues) {
-      if (issues.isEmpty) return;
-      throw ContractFixtureException(
-        'contract fixture $file: what this side produced is not a valid fixture:\n'
-        '${formatIssues(issues)}',
-        file,
-        issues,
-      );
-    }
+    final stored = target.existsSync()
+        ? validateFixtureFile(kind, name, target, config)
+        : null;
+    ContractFixtureException invalid(
+      List<FormatIssue> issues, {
+      String? lead,
+      String end = '',
+    }) =>
+        ContractFixtureException(
+          "${lead ?? 'contract fixture $file: what'} this side produced is not a "
+          'valid fixture:\n${formatIssues(issues)}$end',
+          file,
+          issues,
+        );
 
-    // A value that does not match the pattern of its own volatile entry is a difference
-    // from the stored fixture, if there is one to compare with. It is never written.
-    final producedIssues = validateFixtureValue(kind, name, produced);
-    final unmatchedPatterns = [
-      for (final issue in producedIssues)
-        if (issue.code == 'volatile-pattern') issue,
-    ];
-    refuse([
-      for (final issue in producedIssues)
-        if (issue.code != 'volatile-pattern') issue,
-    ]);
+    // Two kinds of issue wait until the stored fixture has been compared, because a
+    // difference says more than they do: a value that does not match the pattern of its
+    // own volatile entry, and a volatile path that matches nothing (the response may be
+    // another one altogether). Neither is ever written. Everything else stops the verify
+    // here, before a value is printed.
+    final producedIssues = validateFixtureValue(kind, name, produced, config);
+    bool waits(FormatIssue issue) =>
+        issue.code == 'volatile-pattern' || issue.code == 'volatile-unmatched';
+    final late = producedIssues.where(waits).toList();
+    final early = producedIssues.where((issue) => !waits(issue)).toList();
+    if (early.isNotEmpty) {
+      throw invalid(early, end: _statusChange(stored?.value, produced));
+    }
     void write() {
-      refuse(unmatchedPatterns);
+      if (late.isNotEmpty) throw invalid(late);
       target.parent.createSync(recursive: true);
       target.writeAsStringSync(canonicalJson(produced));
     }
 
-    if (!target.existsSync()) {
+    if (stored == null) {
       if (!update) {
         throw ContractFixtureException(
           'contract fixture $file does not exist. '
@@ -301,7 +333,6 @@ class ContractFixtures {
       }
       write();
     } else {
-      final stored = validateFixtureFile(kind, name, target);
       if (update) _refuseToRemoveSecrets(file, produced, stored.value);
       if (stored.issues.isNotEmpty) {
         if (!update) {
@@ -319,23 +350,60 @@ class ContractFixtures {
             value['volatile'] as List<dynamic>? ?? const <dynamic>[];
         final diffs =
             differences(value, _comparable(produced, value), volatile);
-        if (diffs.isNotEmpty) {
-          if (!update) {
-            throw ContractMismatch(
-              'contract fixture $file no longer matches what the ${side.name} side '
-              'produces (stored -> observed):\n${formatDifferences(diffs)}\n'
-              'If the change is intended, rerun with $updateEnv=1, '
-              "then fix the other side's tests in the same change.",
-              file,
-              diffs,
-            );
-          }
-          write();
+        final unmatched = [
+          for (final issue in late)
+            if (issue.code == 'volatile-unmatched') issue,
+        ];
+        final changed =
+            'contract fixture $file no longer matches what the ${side.name} side '
+            'produces (stored -> observed):\n${formatDifferences(diffs)}\n';
+        if (diffs.isNotEmpty && !update) {
+          final advice = _removedSecretPaths(produced, value).isNotEmpty
+              ? 'Update mode does not drop a secret path: pass the path as `secret` '
+                  'in this test, or remove it from the stored file by hand.'
+              : 'If the change is intended, '
+                  "${unmatched.isNotEmpty ? 'take these paths out of the test, ' : ''}"
+                  'rerun with $updateEnv=1, '
+                  "then fix the other side's tests in the same change.";
+          throw ContractMismatch(
+            '$changed'
+            "${unmatched.isNotEmpty ? 'These volatile paths of the test match nothing in what the ${side.name} side produced:\n${formatIssues(unmatched)}\n' : ''}"
+            '$advice',
+            file,
+            diffs,
+            unmatched,
+          );
         }
-        refuse(unmatchedPatterns);
+        // In update mode the same order: what changed first, then why it is not written.
+        if (diffs.isNotEmpty && late.isNotEmpty) {
+          throw invalid(
+            late,
+            lead: '${changed}The fixture is not updated, because what',
+          );
+        }
+        if (diffs.isNotEmpty) write();
+        if (late.isNotEmpty) throw invalid(late);
       }
     }
     appendLedger(dir, side, LedgerAction.verified, kind, name);
+  }
+
+  /// A line for the end of a refusal: that the status of the response is another one than
+  /// the stored fixture has. A refusal prints no values, so without this line it would hide
+  /// that the response as a whole is a different one (an error in the place of the expected
+  /// answer). A status is a number, and no secret path can name it.
+  String _statusChange(Object? stored, Object? produced) {
+    Object? status(Object? fixture) {
+      final response =
+          fixture is Map<String, dynamic> ? fixture['response'] : null;
+      return response is Map<String, dynamic> ? response['status'] : null;
+    }
+
+    final before = status(stored);
+    final after = status(produced);
+    if (before is! num || after is! num || before == after) return '';
+    return '\nThe status of the response is not the stored one either: '
+        '${compactJson(before)} -> ${compactJson(after)}';
   }
 
   /// Writes the keys of volatile entries with a pattern as `path`, `pattern`.
@@ -347,7 +415,7 @@ class ContractFixtures {
       final entry = volatile[i];
       if (entry is! Map<String, dynamic>) continue;
       volatile[i] = <String, dynamic>{
-        for (final key in const ['path', 'pattern'])
+        for (final key in const ['path', 'pattern', 'nullable'])
           if (entry.containsKey(key)) key: entry[key],
         ...entry,
       };
@@ -411,13 +479,14 @@ class ContractFixtures {
         'contract_fixtures: ${jsonEncode(name)} is not a fixture name',
       );
     }
+    final config = _config();
     final file = '${kind.name}/$name.json';
     final source = File('$dir/$file');
     if (!source.existsSync()) {
       throw ContractFixtureException(
           'contract fixture $file does not exist.', file);
     }
-    final result = validateFixtureFile(kind, name, source);
+    final result = validateFixtureFile(kind, name, source, config);
     if (result.issues.isNotEmpty) {
       throw ContractFixtureException(
         'contract fixture $file does not follow the format:\n'

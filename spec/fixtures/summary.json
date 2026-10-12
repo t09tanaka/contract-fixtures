@@ -1,5 +1,5 @@
 {
-  "description": "Cases for the summary. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, and summarize the directory. `text` is what the summary command prints, character for character: a header and one line per fixture, the first three columns padded with spaces to the longest cell (in UTF-16 code units), columns separated by two spaces. `rows` is the number of fixtures.",
+  "description": "Cases for the summary. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, and summarize the directory. `text` is what the summary command prints, character for character: a header and one line per fixture, the first three columns padded with spaces to the longest cell (in UTF-16 code units), columns separated by two spaces. `rows` is the number of fixtures. With `depth`, summarize with that depth (the option --depth of the command).",
   "cases": [
     {
       "case": "the shared contracts",
@@ -26,6 +26,56 @@
       "empty": true,
       "rows": 0,
       "text": "FIXTURE  REQUEST  STATUS  RESPONSE BODY"
+    },
+    {
+      "case": "depth 1 (the default): two bodies with the same keys at the top look the same",
+      "files": {
+        "provider/session.list.json": "{\n  \"format\": 1,\n  \"name\": \"session.list\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"data\": {\n        \"items\": [\n          {\n            \"id\": \"s1\"\n          }\n        ],\n        \"next\": null,\n        \"page\": {\n          \"size\": 20,\n          \"of all\": 3,\n          \"cursor\": {\n            \"after\": \"s1\"\n          }\n        }\n      },\n      \"ok\": true\n    }\n  }\n}\n",
+        "provider/session.shown.json": "{\n  \"format\": 1,\n  \"name\": \"session.shown\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/s1\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"data\": {\n        \"id\": \"s1\",\n        \"closed_at\": null,\n        \"owner\": {}\n      },\n      \"ok\": true\n    }\n  }\n}\n",
+        "provider/session.count.json": "{\n  \"format\": 1,\n  \"name\": \"session.count\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/count\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": [\n      {\n        \"n\": 1\n      }\n    ]\n  }\n}\n"
+      },
+      "rows": 7,
+      "text": "FIXTURE                        REQUEST              STATUS  RESPONSE BODY\nprovider/order.created         POST /orders         201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders         409     {error: string}\nprovider/session.count         GET /sessions/count  200     array(1)\nprovider/session.list          GET /sessions        200     {data: object, ok: boolean}\nprovider/session.shown         GET /sessions/s1     200     {data: object, ok: boolean}\nconsumer/create-order.request  POST /orders         -       -\ntables/order-total             -                    -       2 row(s)"
+    },
+    {
+      "case": "depth 2: the objects inside the body are opened; arrays and what lies deeper are not",
+      "files": {
+        "provider/session.list.json": "{\n  \"format\": 1,\n  \"name\": \"session.list\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"data\": {\n        \"items\": [\n          {\n            \"id\": \"s1\"\n          }\n        ],\n        \"next\": null,\n        \"page\": {\n          \"size\": 20,\n          \"of all\": 3,\n          \"cursor\": {\n            \"after\": \"s1\"\n          }\n        }\n      },\n      \"ok\": true\n    }\n  }\n}\n",
+        "provider/session.shown.json": "{\n  \"format\": 1,\n  \"name\": \"session.shown\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/s1\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"data\": {\n        \"id\": \"s1\",\n        \"closed_at\": null,\n        \"owner\": {}\n      },\n      \"ok\": true\n    }\n  }\n}\n",
+        "provider/session.count.json": "{\n  \"format\": 1,\n  \"name\": \"session.count\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/count\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": [\n      {\n        \"n\": 1\n      }\n    ]\n  }\n}\n"
+      },
+      "depth": 2,
+      "rows": 7,
+      "text": "FIXTURE                        REQUEST              STATUS  RESPONSE BODY\nprovider/order.created         POST /orders         201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders         409     {error: string}\nprovider/session.count         GET /sessions/count  200     array(1)\nprovider/session.list          GET /sessions        200     {data: {items: array, next: null, page: object}, ok: boolean}\nprovider/session.shown         GET /sessions/s1     200     {data: {closed_at: null, id: string, owner: object}, ok: boolean}\nconsumer/create-order.request  POST /orders         -       -\ntables/order-total             -                    -       2 row(s)"
+    },
+    {
+      "case": "depth 3: one level more",
+      "files": {
+        "provider/session.list.json": "{\n  \"format\": 1,\n  \"name\": \"session.list\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"data\": {\n        \"items\": [\n          {\n            \"id\": \"s1\"\n          }\n        ],\n        \"next\": null,\n        \"page\": {\n          \"size\": 20,\n          \"of all\": 3,\n          \"cursor\": {\n            \"after\": \"s1\"\n          }\n        }\n      },\n      \"ok\": true\n    }\n  }\n}\n",
+        "provider/session.shown.json": "{\n  \"format\": 1,\n  \"name\": \"session.shown\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/s1\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"data\": {\n        \"id\": \"s1\",\n        \"closed_at\": null,\n        \"owner\": {}\n      },\n      \"ok\": true\n    }\n  }\n}\n",
+        "provider/session.count.json": "{\n  \"format\": 1,\n  \"name\": \"session.count\",\n  \"description\": \"A case of the summary\",\n  \"request\": {\n    \"method\": \"GET\",\n    \"path\": \"/sessions/count\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": [\n      {\n        \"n\": 1\n      }\n    ]\n  }\n}\n"
+      },
+      "depth": 3,
+      "rows": 7,
+      "text": "FIXTURE                        REQUEST              STATUS  RESPONSE BODY\nprovider/order.created         POST /orders         201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders         409     {error: string}\nprovider/session.count         GET /sessions/count  200     array(1)\nprovider/session.list          GET /sessions        200     {data: {items: array, next: null, page: {cursor: object, \"of all\": number, size: number}}, ok: boolean}\nprovider/session.shown         GET /sessions/s1     200     {data: {closed_at: null, id: string, owner: {}}, ok: boolean}\nconsumer/create-order.request  POST /orders         -       -\ntables/order-total             -                    -       2 row(s)"
+    },
+    {
+      "case": "config: a fixture that holds what the configuration forbids does not follow the format",
+      "files": {
+        "config.json": "{\n  \"format\": 1,\n  \"forbidden\": [\n    \"sec_(live|test)_[A-Za-z0-9]+\"\n  ]\n}\n",
+        "provider/payment.started.json": "{\n  \"format\": 1,\n  \"name\": \"payment.started\",\n  \"description\": \"A case of the check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/payments\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"client_key\": \"sec_live_9fK27Q\"\n    }\n  }\n}\n"
+      },
+      "rows": 5,
+      "text": "FIXTURE                        REQUEST       STATUS  RESPONSE BODY\nprovider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders  409     {error: string}\nprovider/payment.started       -             -       (does not follow the format; see check)\nconsumer/create-order.request  POST /orders  -       -\ntables/order-total             -             -       2 row(s)"
+    },
+    {
+      "case": "config: a configuration that is not valid forbids nothing; the check reports it",
+      "files": {
+        "config.json": "{",
+        "provider/payment.started.json": "{\n  \"format\": 1,\n  \"name\": \"payment.started\",\n  \"description\": \"A case of the check\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/payments\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"client_key\": \"sec_live_9fK27Q\"\n    }\n  }\n}\n"
+      },
+      "rows": 5,
+      "text": "FIXTURE                        REQUEST         STATUS  RESPONSE BODY\nprovider/order.created         POST /orders    201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders    409     {error: string}\nprovider/payment.started       POST /payments  201     {client_key: string}\nconsumer/create-order.request  POST /orders    -       -\ntables/order-total             -               -       2 row(s)"
     }
   ]
 }

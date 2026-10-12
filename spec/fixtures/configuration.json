@@ -1,0 +1,165 @@
+{
+  "description": "Cases for <contracts>/config.json. `text` is the text of the file. Every implementation must report exactly these issues, in this order. `forbidden` is the list of patterns the configuration holds afterwards: those of the file when there are no issues, none otherwise.",
+  "cases": [
+    {
+      "case": "the format alone",
+      "text": "{ \"format\": 1 }",
+      "forbidden": [],
+      "issues": []
+    },
+    {
+      "case": "patterns",
+      "text": "{\n  \"format\": 1,\n  \"forbidden\": [\n    \"sec_(live|test)_[A-Za-z0-9]+\",\n    \"^hook_\"\n  ]\n}\n",
+      "forbidden": [
+        "sec_(live|test)_[A-Za-z0-9]+",
+        "^hook_"
+      ],
+      "issues": []
+    },
+    {
+      "case": "an empty list",
+      "text": "{\n  \"format\": 1,\n  \"forbidden\": []\n}\n",
+      "forbidden": [],
+      "issues": []
+    },
+    {
+      "case": "a byte order mark is ignored",
+      "text": "\ufeff{\n  \"format\": 1,\n  \"forbidden\": [\n    \"x\"\n  ]\n}\n",
+      "forbidden": [
+        "x"
+      ],
+      "issues": []
+    },
+    {
+      "case": "not JSON",
+      "text": "{",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "json",
+          "path": "(root)"
+        }
+      ]
+    },
+    {
+      "case": "not an object",
+      "text": "[]",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "root",
+          "path": "(root)"
+        }
+      ]
+    },
+    {
+      "case": "no format",
+      "text": "{ \"forbidden\": [\"x\"] }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "format",
+          "path": "format"
+        }
+      ]
+    },
+    {
+      "case": "another format",
+      "text": "{ \"format\": 2 }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "format",
+          "path": "format"
+        }
+      ]
+    },
+    {
+      "case": "unknown keys, in code unit order, before the rest",
+      "text": "{ \"format\": 1, \"secret\": {}, \"Forbidden\": [], \"forbidden\": 1 }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "unknown-key",
+          "path": "Forbidden"
+        },
+        {
+          "code": "unknown-key",
+          "path": "secret"
+        },
+        {
+          "code": "forbidden",
+          "path": "forbidden"
+        }
+      ]
+    },
+    {
+      "case": "forbidden is not an array",
+      "text": "{ \"format\": 1, \"forbidden\": \"x\" }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "forbidden"
+        }
+      ]
+    },
+    {
+      "case": "forbidden is null",
+      "text": "{ \"format\": 1, \"forbidden\": null }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "forbidden"
+        }
+      ]
+    },
+    {
+      "case": "an entry that is not a string, and one that is not a pattern: nothing of the file counts",
+      "text": "{\n  \"format\": 1,\n  \"forbidden\": [\n    \"ok\",\n    1,\n    \"(\",\n    {\n      \"pattern\": \"x\"\n    },\n    \"a(?=b)\"\n  ]\n}\n",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "forbidden.1"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.2"
+        },
+        {
+          "code": "forbidden",
+          "path": "forbidden.3"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.4"
+        }
+      ]
+    },
+    {
+      "case": "a pattern that matches the empty string would forbid every string",
+      "text": "{ \"format\": 1, \"forbidden\": [\"sec_[a-z]+\", \"\", \"a*\", \"x?\", \"^$\"] }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "pattern",
+          "path": "forbidden.1"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.2"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.3"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.4"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'check.dart';
+import 'configuration.dart';
+import 'errors.dart';
 import 'json.dart';
 import 'types.dart';
 import 'validate.dart';
@@ -30,38 +32,60 @@ class FixtureSummary {
   /// `null` for a consumer fixture and a table.
   final int? status;
 
-  /// The top level of the response body: `{error: string, available: number}` with the keys
-  /// in code unit order, `array(3)`, the type of a scalar, or `-` without a body. For a
-  /// table, the number of rows.
+  /// The response body: `{error: string, available: number}` with the keys in code unit
+  /// order (objects inside it are opened up to the depth asked for), `array(3)`, the type
+  /// of a scalar, or `-` without a body. For a table, the number of rows.
   final String body;
 }
 
 final RegExp _plainKey = RegExp(r'^[A-Za-z0-9_.-]+$');
 
-/// The top level of a body: its keys with the JSON type of each value.
-String _shape(Map<String, dynamic>? response) {
+/// The keys of an object with the JSON type of each value; objects are opened [depth]
+/// levels deep.
+String _members(Map<String, dynamic> value, int depth) {
+  final parts = [
+    for (final key in sortedKeys(value))
+      '${_plainKey.hasMatch(key) ? key : compactJson(key)}: '
+          '${switch (value[key]) {
+        final Map<String, dynamic> child when depth > 1 =>
+          _members(child, depth - 1),
+        final child => jsonType(child),
+      }}',
+  ];
+  return '{${parts.join(', ')}}';
+}
+
+/// A body: its keys with the JSON type of each value, [depth] levels deep.
+String _shape(Map<String, dynamic>? response, int depth) {
   if (response == null || !response.containsKey('body')) return '-';
   final body = response['body'];
   if (body is List) return 'array(${body.length})';
   if (body is! Map<String, dynamic>) return jsonType(body);
-  final members = [
-    for (final key in sortedKeys(body))
-      '${_plainKey.hasMatch(key) ? key : compactJson(key)}: ${jsonType(body[key])}',
-  ];
-  return '{${members.join(', ')}}';
+  return _members(body, depth);
 }
 
+/// The deepest level the summary opens.
+const int maxSummaryDepth = 9;
+
 /// Every fixture of a contracts directory in one row each, to read them side by side:
-/// which status an exchange has, and which keys its response body has. Reads the files
-/// only; the ledger is neither read nor written.
-List<FixtureSummary> summarizeContracts({required String dir}) {
+/// which status an exchange has, and which keys its response body has. With [depth] 2 (or
+/// more, up to 9) the objects inside the body are opened as well. Reads the files only; the
+/// ledger is neither read nor written.
+List<FixtureSummary> summarizeContracts({required String dir, int depth = 1}) {
+  if (depth < 1 || depth > maxSummaryDepth) {
+    throw const ContractUsageException(
+      'contract_fixtures: depth must be a whole number from 1 to $maxSummaryDepth',
+    );
+  }
   final rows = <FixtureSummary>[];
+  final config = readConfig(dir).config;
   for (final kind in FixtureKind.values) {
     for (final name in listFixtureNames(dir, kind)) {
       final result = validateFixtureFile(
         kind,
         name,
         File('$dir/${kind.name}/$name.json'),
+        config,
       );
       if (result.issues.isNotEmpty) {
         rows.add(FixtureSummary(kind: kind, name: name, valid: false));
@@ -90,7 +114,7 @@ List<FixtureSummary> summarizeContracts({required String dir}) {
           method: request['method'] as String,
           path: request['path'] as String,
           status: (response?['status'] as num?)?.toInt(),
-          body: _shape(response),
+          body: _shape(response, depth),
         ),
       );
     }

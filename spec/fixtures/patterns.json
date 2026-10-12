@@ -1,5 +1,5 @@
 {
-  "description": "Cases for the patterns of volatile entries. A pattern with `valid` false is not a pattern of this format (a format issue with the code `pattern`). Otherwise the whole of each string in `matches` must match and none of `rejects` may. Unless `native` is false, the regular expression engine of the language must agree when it is given the pattern wrapped as ^(?:pattern)$ without flags; that is how the packages show that their own matching is the ECMAScript one.",
+  "description": "Cases for the patterns of volatile entries. A pattern with `valid` false is not a pattern of this format (a format issue with the code `pattern`). Otherwise the whole of each string in `matches` must match and none of `rejects` may. `finds` and `findsNot` are for the search that the `forbidden` patterns of a configuration use: a part of each string in `finds` must match, and no part of a string in `findsNot` may (the engine of the language is then given the pattern as it is). Unless `native` is false, the regular expression engine of the language must agree when it is given the pattern wrapped as ^(?:pattern)$ without flags; that is how the packages show that their own matching is the ECMAScript one.",
   "cases": [
     {
       "case": "anchors at both ends",
@@ -1171,6 +1171,82 @@
       ],
       "rejects": [
         "a"
+      ]
+    },
+    {
+      "case": "search: a part of the value matches",
+      "pattern": "sec_(live|test)_[A-Za-z0-9]+",
+      "valid": true,
+      "matches": [
+        "sec_live_9fK27Q"
+      ],
+      "rejects": [
+        "key=sec_live_9fK27Q"
+      ],
+      "finds": [
+        "sec_live_9fK27Q",
+        "key=sec_test_9Z;",
+        "a\nsec_live_x",
+        "sec_live_sec_live_1"
+      ],
+      "findsNot": [
+        "",
+        "sec_live_",
+        "pub_live_9fK27Q",
+        "sec_dead_1",
+        "SEC_LIVE_1"
+      ]
+    },
+    {
+      "case": "search: ^ and $ are the ends of the value, not of a part",
+      "pattern": "^hook_|_end$",
+      "valid": true,
+      "finds": [
+        "hook_1",
+        "x_end"
+      ],
+      "findsNot": [
+        "a hook_1 ",
+        "x_end.",
+        "_endhook_"
+      ]
+    },
+    {
+      "case": "search: a pattern that matches the empty string is found in every value",
+      "pattern": "a*",
+      "valid": true,
+      "finds": [
+        "",
+        "bbb",
+        "aaa"
+      ]
+    },
+    {
+      "case": "search: an attempt that fails does not hide a later one",
+      "pattern": "ab+c",
+      "valid": true,
+      "finds": [
+        "xxabbbcxx",
+        "ababc",
+        "aabc"
+      ],
+      "findsNot": [
+        "abab",
+        "ac",
+        "abbb"
+      ]
+    },
+    {
+      "case": "search: a repetition with a count",
+      "pattern": "[0-9]{4}-[0-9]{4}",
+      "valid": true,
+      "finds": [
+        "card 1234-5678 ok",
+        "11234-56789"
+      ],
+      "findsNot": [
+        "123-45678",
+        "1234 5678"
       ]
     }
   ]
