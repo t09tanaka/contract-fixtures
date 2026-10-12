@@ -26,9 +26,6 @@ npm install --save-dev @t09tanaka/contract-fixtures   # TypeScript: Node.js 20 o
 dart pub add --dev contract_fixtures                  # Dart 3.5 or later
 ```
 
-> **Not published yet.** Version 0.1.0 is not on npm or pub.dev, so these two commands do not
-> work for now. Until it is, install from the repository as described below.
-
 ### From the repository
 
 A version that is not published can be installed from a clone (TypeScript) or straight from
@@ -653,9 +650,7 @@ Both packages have the same version. For a release:
 2. In `CHANGELOG.md`, replace `(unreleased)` in the heading of the version with the date, and
    copy the file to `packages/ts/CHANGELOG.md` and `packages/dart/CHANGELOG.md`. A test in each
    package fails when a copy differs.
-3. For the first release only: delete the note that starts with "Not published yet" under
-   [Install](#install).
-4. `npm pack --dry-run` in `packages/ts` and `dart pub publish --dry-run` in `packages/dart`
+3. `npm pack --dry-run` in `packages/ts` and `dart pub publish --dry-run` in `packages/dart`
    must list the README, the licence and the changelog, and give no warning.
 
 ## Related tools
