@@ -459,10 +459,12 @@ build/contract_fixtures check --side consumer --dir ../contracts
 The commands, their output and their exit codes are the same; only the start is shorter.
 
 - **The executable is the version it was built from.** It is compiled from the project, so
-  that is the version in `pubspec.lock` at that moment, not the one after the next
-  `dart pub upgrade`. Build it again whenever the lock file is newer, for instance at the top
-  of the script that runs the tests:
-  `test build/contract_fixtures -nt pubspec.lock || { mkdir -p build && dart compile exe tool/contract_fixtures.dart -o build/contract_fixtures; }`.
+  that is the version the dependencies are resolved to at that moment (after `dart pub get`,
+  the one in `pubspec.lock`), not the one after the next `dart pub upgrade`. Build it again
+  whenever the lock file is newer, and resolve first: `dart compile exe` compiles what was
+  resolved last, so a lock file that changed without `dart pub get` would give an executable
+  of the old version that looks new. For instance at the top of the script that runs the tests:
+  `test build/contract_fixtures -nt pubspec.lock || { dart pub get && mkdir -p build && dart compile exe tool/contract_fixtures.dart -o build/contract_fixtures; }`.
   `build/contract_fixtures --version` says what it is. The lock file changes with the version
   of a dependency from pub.dev or from git; with a `path` dependency it does not change when
   the source of the package does, so build again after changing that. Do not commit the
