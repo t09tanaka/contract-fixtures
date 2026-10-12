@@ -217,7 +217,8 @@ A path is a list of segments separated by `.`, starting at the fixture root:
   that matches nothing is a mistake.
 - Keys that contain `.` cannot be addressed: `a.b` always means the key `b` inside `a`. A path
   written for a dotted key therefore matches nothing and is rejected (or, if a nested key of
-  that name exists, addresses that one).
+  that name exists, addresses that one). `*` and `**` do reach such a key: it is one segment
+  for them, and a pattern of the entry is held against its value like against any other.
 
 How the verifying side compares:
 

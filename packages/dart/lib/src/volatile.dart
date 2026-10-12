@@ -94,25 +94,42 @@ class VolatileRule {
   /// volatile), [VolatileMode.subtree] (the node is at or below a path that ends in `**`)
   /// or `null`.
   VolatileMode? match(List<String> path) {
+    // From the end: the last segments tell most nodes apart, the first ones hardly any.
     if (wildcard == -1) {
       if (path.length != segments.length) return null;
-      for (var i = 0; i < segments.length; i++) {
+      for (var i = segments.length - 1; i >= 0; i--) {
         if (!_fits(segments[i], path[i])) return null;
       }
       return VolatileMode.exact;
     }
     final tail = segments.length - wildcard - 1;
     if (path.length < wildcard + tail) return null;
-    for (var i = 0; i < wildcard; i++) {
-      if (!_fits(segments[i], path[i])) return null;
-    }
     for (var i = 1; i <= tail; i++) {
       if (!_fits(segments[segments.length - i], path[path.length - i])) {
         return null;
       }
     }
+    for (var i = wildcard - 1; i >= 0; i--) {
+      if (!_fits(segments[i], path[i])) return null;
+    }
     return tail == 0 ? VolatileMode.subtree : VolatileMode.exact;
   }
+}
+
+/// For a depth, the rules that can match a node that deep, in the order of the entries: a
+/// rule without `**` only matches nodes as deep as it is long, so most rules need not be
+/// asked at most nodes. The answer for a depth is worked out once.
+List<Rule> Function(int depth) rulesByDepth<Rule extends VolatileRule>(
+  List<Rule> rules,
+) {
+  final known = <int, List<Rule>>{};
+  return (depth) => known[depth] ??= [
+        for (final rule in rules)
+          if (rule.wildcard == -1
+              ? rule.segments.length == depth
+              : rule.segments.length - 1 <= depth)
+            rule,
+      ];
 }
 
 /// The rules of the entries that have the shape of one; validation reports the others.
@@ -141,20 +158,24 @@ class VolatileMatch {
   final List<VolatileRule> patterns;
 }
 
+const VolatileMatch _unnamed = VolatileMatch(null, []);
+
 /// A rule that names the node itself wins over a path that ends in `**`.
 VolatileMatch volatileMode(List<VolatileRule> rules, List<String> segments) {
   VolatileMode? mode;
-  final patterns = <VolatileRule>[];
+  List<VolatileRule>? patterns;
   for (final rule in rules) {
     final match = rule.match(segments);
     if (match == VolatileMode.exact) {
       mode = VolatileMode.exact;
-      if (rule.matcher != null) patterns.add(rule);
+      if (rule.matcher != null) (patterns ??= []).add(rule);
     } else if (match == VolatileMode.subtree && mode == null) {
       mode = VolatileMode.subtree;
     }
   }
-  return VolatileMatch(mode, patterns);
+  // Most nodes are named by no entry: nothing is made for them.
+  if (mode == null) return _unnamed;
+  return VolatileMatch(mode, patterns ?? const []);
 }
 
 /// The first of [patterns] that [value] does not satisfy, or `null`.

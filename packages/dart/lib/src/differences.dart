@@ -45,10 +45,15 @@ List<Difference> differences(
       },
   ];
   final out = <Difference>[];
+  final candidates = rulesByDepth(rules);
+  // One list of segments for the whole walk, and a path only where a line is printed: most
+  // nodes are equal, and a text for each of them is most of the work on a large body.
+  final segments = <String>[];
 
-  void walk(Object? e, Object? a, List<String> segments) {
-    final path = segments.isEmpty ? '(root)' : segments.join('.');
-    final VolatileMatch(:mode, :patterns) = volatileMode(rules, segments);
+  void walk(Object? e, Object? a) {
+    late final path = segments.isEmpty ? '(root)' : segments.join('.');
+    final VolatileMatch(:mode, :patterns) =
+        volatileMode(candidates(segments.length), segments);
     final typeE = jsonType(e);
     final typeA = jsonType(a);
 
@@ -116,16 +121,15 @@ List<Difference> differences(
         return;
       }
       for (var i = 0; i < e.length; i++) {
-        walk(e[i], a[i], [...segments, '$i']);
+        segments.add('$i');
+        walk(e[i], a[i]);
+        segments.removeLast();
       }
       return;
     }
     if (e is Map && a is Map) {
-      for (final key in sortedKeys({
-        ...e.cast<String, dynamic>(),
-        ...a.cast<String, dynamic>(),
-      })) {
-        final child = segments.isEmpty ? key : '$path.$key';
+      for (final key in _unionOfKeys(e, a)) {
+        late final child = segments.isEmpty ? key : '$path.$key';
         if (!a.containsKey(key)) {
           out.add(
             Difference(
@@ -143,7 +147,9 @@ List<Difference> differences(
             ),
           );
         } else {
-          walk(e[key], a[key], [...segments, key]);
+          segments.add(key);
+          walk(e[key], a[key]);
+          segments.removeLast();
         }
       }
       return;
@@ -159,11 +165,21 @@ List<Difference> differences(
     }
   }
 
-  walk(expected, actual, const []);
+  walk(expected, actual);
   // The status of a response says most about what happened, and the lines before it can
   // be long: it comes first. Everything else keeps the order of the walk.
   bool first(Difference d) => d.path == 'response.status';
   return [...out.where(first), ...out.where((d) => !first(d))];
+}
+
+/// The keys of both objects in code unit order; those of one, when the other has the same.
+List<String> _unionOfKeys(Map<dynamic, dynamic> e, Map<dynamic, dynamic> a) {
+  final keys = sortedKeys(e.cast<String, dynamic>());
+  if (a.length == keys.length && keys.every(a.containsKey)) return keys;
+  return sortedKeys({
+    ...e.cast<String, dynamic>(),
+    ...a.cast<String, dynamic>(),
+  });
 }
 
 /// Whether two scalars are equal the way every implementation sees them: numbers by the

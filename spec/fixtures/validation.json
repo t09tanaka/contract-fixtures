@@ -5138,6 +5138,262 @@
       "messages": [
         "\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx... (102 more) does not match the pattern ^ord_[0-9]+$ of volatile.0"
       ]
+    },
+    {
+      "case": "volatile: a key with a dot is one segment for *, and its value is held to the pattern",
+      "kind": "provider",
+      "name": "order.list",
+      "value": {
+        "format": 1,
+        "name": "order.list",
+        "description": "Orders with their lines",
+        "request": {
+          "method": "GET",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "a.b": "x",
+            "c": {
+              "d.e": "2026-01-15",
+              "f": "y"
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.*",
+            "pattern": "^z$"
+          },
+          {
+            "path": "response.body.c.*",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          {
+            "path": "response.body.**.f",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a.b"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.c"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.c.f"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.c.f"
+        }
+      ],
+      "messages": [
+        "\"x\" does not match the pattern ^z$ of volatile.0",
+        "must be a string that matches the pattern ^z$ of volatile.0 (found object)",
+        "\"y\" does not match the pattern ^\\d{4}-\\d{2}-\\d{2}$ of volatile.1",
+        "\"y\" does not match the pattern ^\\d{4}-\\d{2}-\\d{2}$ of volatile.2"
+      ]
+    },
+    {
+      "case": "volatile: many entries over one body: the issues follow the entries, and within an entry the nodes",
+      "kind": "provider",
+      "name": "order.list",
+      "value": {
+        "format": 1,
+        "name": "order.list",
+        "description": "Orders with their lines",
+        "request": {
+          "method": "GET",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "created": "2026-01-15",
+            "orders": [
+              {
+                "created": "soon",
+                "lines": [
+                  {
+                    "created": "2026-01-16"
+                  },
+                  {
+                    "created": 3
+                  }
+                ]
+              },
+              {
+                "created": "2026-01-17",
+                "lines": []
+              }
+            ],
+            "zeta": {
+              "created": null
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.orders.*.lines.*.created",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "response.body.missing",
+          {
+            "path": "response.body.**.created",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          {
+            "path": "response.body.orders.1.**"
+          },
+          "response.body.orders.**",
+          {
+            "path": "response.body.zeta.created",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "nullable": true
+          },
+          {
+            "path": "response.body.orders.0.created",
+            "pattern": "("
+          },
+          {
+            "path": "response.body.*.created",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "response.body.orders.1.lines.0",
+          {
+            "path": "response.body.**.**",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.orders.0.lines.1.created"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.1"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.orders.0.created"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.orders.0.lines.1.created"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.zeta.created"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.3"
+        },
+        {
+          "code": "pattern",
+          "path": "volatile.6.pattern"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.zeta.created"
+        },
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.8"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.9"
+        }
+      ]
+    },
+    {
+      "case": "volatile: a path with ** names nodes at every depth from its own length on, and none above",
+      "kind": "provider",
+      "name": "order.list",
+      "value": {
+        "format": 1,
+        "name": "order.list",
+        "description": "Orders with their lines",
+        "request": {
+          "method": "GET",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "id": 1,
+            "a": {
+              "id": 2,
+              "b": {
+                "id": 3,
+                "c": [
+                  {
+                    "id": 4
+                  },
+                  {
+                    "id": "five"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.**.id",
+            "pattern": "^[a-z]+$"
+          },
+          {
+            "path": "response.body.a.**.c.*.id",
+            "pattern": "^[0-9]+$"
+          },
+          "response.body.a.b.c.**",
+          {
+            "path": "response.**.a.b.id",
+            "pattern": "^x$"
+          }
+        ]
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a.b.c.0.id"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a.b.id"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a.id"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.id"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a.b.c.0.id"
+        },
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.a.b.c.1.id"
+        },
+        {
+          "code": "volatile",
+          "path": "volatile.3"
+        }
+      ]
     }
   ]
 }
