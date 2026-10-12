@@ -2000,6 +2000,44 @@
           "text": "a: (230 the same) ... 😀xxxxxxxxxxxxxxxxxxxa\" -> (230 the same) ... 😀xxxxxxxxxxxxxxxxxxxb\""
         }
       ]
+    },
+    {
+      "case": "numbers beyond 2^53 are printed the same way by every implementation",
+      "expected": {
+        "a": 123456789012345680000,
+        "b": 1e21,
+        "c": 18014398509481984,
+        "d": [1e300]
+      },
+      "actual": {
+        "a": 1e21,
+        "b": 123456789012345680000,
+        "c": 36028797018963968,
+        "d": [1e300, 1e-7]
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "a",
+          "kind": "value",
+          "text": "a: 123456789012345680000 -> 1e+21"
+        },
+        {
+          "path": "b",
+          "kind": "value",
+          "text": "b: 1e+21 -> 123456789012345680000"
+        },
+        {
+          "path": "c",
+          "kind": "value",
+          "text": "c: 18014398509481984 -> 36028797018963970"
+        },
+        {
+          "path": "d",
+          "kind": "length",
+          "text": "d: array length 1 -> 2"
+        }
+      ]
     }
   ]
 }

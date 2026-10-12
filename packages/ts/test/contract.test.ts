@@ -362,6 +362,35 @@ describe("contractFixtures", () => {
     assert.throws(() => contractFixtures({ side: "consumer", dir }).readTable("order-total"), /config\.json of the contracts directory/);
   });
 
+  it("a warn that throws: the fixture is written, the error is the one thrown, and nothing is recorded", () => {
+    const dir = tempDir();
+    const failure = new Error("the test wants no notes");
+    const contract = contractFixtures({
+      side: "provider",
+      dir,
+      update: true,
+      warn: () => {
+        throw failure;
+      },
+    });
+    const exchange = (status: number) => ({
+      name: "order.created",
+      description: "An order is accepted",
+      request: { method: "POST", path: "/orders" },
+      response: { status },
+    });
+    contract.verifyResponse(exchange(201));
+    assert.throws(() => contract.verifyResponse(exchange(500)), (error: unknown) => error === failure);
+    // The note comes after the write and before the ledger: the file has the new response,
+    // and the ledger only the first verify.
+    const written = JSON.parse(fs.readFileSync(path.join(dir, "provider", "order.created.json"), "utf8"));
+    assert.equal(written.response.status, 500);
+    assert.equal(ledgerLines(dir, "provider").length, 1);
+    // The next verify agrees with the file, gives no note, and is recorded.
+    contract.verifyResponse(exchange(500));
+    assert.equal(ledgerLines(dir, "provider").length, 2);
+  });
+
   it("a file in the place of a directory of fixtures holds no fixtures", () => {
     const dir = tempDir();
     fs.writeFileSync(path.join(dir, "provider"), "");

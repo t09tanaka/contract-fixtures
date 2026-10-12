@@ -688,7 +688,10 @@ contract fixture provider/order.created.json was updated from status 201 to 500.
 ```
 
 There is no note for a new fixture, for a fixture that was a 5xx before, for a stored file
-without a status, outside update mode, or when nothing was written.
+without a status, outside update mode, or when nothing was written. The note is given after
+the file is written and before the verify is recorded in the ledger: a function for it that
+throws leaves the new file in place and the verify unrecorded, and the next verify, which
+agrees with the file, is recorded.
 
 Fixtures are written as JSON with two-space indentation, a trailing newline, and the key order
 `format`, `name`, `description`, `request`, `response`, `volatile`, `secret` (inside a request:
@@ -698,7 +701,12 @@ them; an entry with a pattern is written with the keys `path`, `pattern` and, wh
 set, `nullable`. Inside a body and
 inside `secret`, keys keep the order the side produced them in, except that keys that are
 array indexes (`"0"`, `"10"`) come first in ascending order, as in a JavaScript object.
-Integer-valued numbers are written without a fraction (`1`, not `1.0`). Characters are written
+Integer-valued numbers are written without a fraction (`1`, not `1.0`). A number is written,
+and printed in a difference, the way ECMAScript turns a number into a string, so that every
+implementation gives the same text beyond 2^53 too: `123456789012345680000`, `1e+21`,
+`1e-7`, and `9007199254740992` for the literal `9007199254740993`. (Such a number is not
+allowed in a fixture, see [Comparison](#comparison); it can only reach the comparison when a
+package is called directly.) Characters are written
 as they are; only characters below U+0020, `"`, `\` and lone surrogates are escaped. The cases
 in `fixtures/canonical.json` and `fixtures/verify.json` pin the exact text for both packages.
 Update mode never deletes files; a fixture whose test was removed is found by the check.

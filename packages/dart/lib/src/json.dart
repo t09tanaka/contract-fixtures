@@ -45,31 +45,70 @@ List<String> _javaScriptOrder(Iterable<String> keys) {
   return [...indexes, ...keys.where((key) => !isIndex(key))];
 }
 
-/// A copy in which integer-valued doubles are ints, so `1.0` prints as `1`, with keys either
-/// sorted or in the order JavaScript would write them.
-Object? _normalize(Object? value, {required bool sort}) {
-  if (value is double) {
-    if (value.isFinite &&
-        value == value.truncateToDouble() &&
-        value.abs() <= maxSafeInteger) {
-      return value.toInt();
+/// A number as JavaScript writes it, so that both packages print and write the same text:
+/// an integer-valued number without a fraction, also beyond 2^53 (`123456789012345680000`,
+/// not `123456789012345680000.0`), `1e+21` from there on, and `null` for one that JSON
+/// has no form for. A Dart `int` beyond 2^53 is first taken to the double JavaScript would
+/// hold.
+String _number(num value) {
+  if (value is int && value.abs() <= maxSafeInteger) return '$value';
+  final number = value.toDouble();
+  if (!number.isFinite) return 'null';
+  if (number == 0) return '0';
+  final text = number.toString();
+  return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
+}
+
+/// Writes [value] as JSON: on one line with sorted keys (no [indent]), or indented with the
+/// keys in the order JavaScript would write them.
+void _write(StringBuffer out, Object? value, String? indent, String current) {
+  if (value is num) {
+    out.write(_number(value));
+  } else if (value is List) {
+    if (value.isEmpty) {
+      out.write('[]');
+      return;
     }
-    return value;
+    final inner = indent == null ? '' : '$current$indent';
+    out.write('[');
+    for (var i = 0; i < value.length; i++) {
+      if (i > 0) out.write(',');
+      if (indent != null) out.write('\n$inner');
+      _write(out, value[i], indent, inner);
+    }
+    if (indent != null) out.write('\n$current');
+    out.write(']');
+  } else if (value is Map<String, dynamic>) {
+    if (value.isEmpty) {
+      out.write('{}');
+      return;
+    }
+    final inner = indent == null ? '' : '$current$indent';
+    out.write('{');
+    var first = true;
+    for (final key
+        in indent == null ? sortedKeys(value) : _javaScriptOrder(value.keys)) {
+      if (!first) out.write(',');
+      first = false;
+      if (indent != null) out.write('\n$inner');
+      out
+        ..write(jsonEncode(key))
+        ..write(indent == null ? ':' : ': ');
+      _write(out, value[key], indent, inner);
+    }
+    if (indent != null) out.write('\n$current');
+    out.write('}');
+  } else {
+    out.write(jsonEncode(value));
   }
-  if (value is List) {
-    return [for (final item in value) _normalize(item, sort: sort)];
-  }
-  if (value is Map<String, dynamic>) {
-    return {
-      for (final key in sort ? sortedKeys(value) : _javaScriptOrder(value.keys))
-        key: _normalize(value[key], sort: sort),
-    };
-  }
-  return value;
 }
 
 /// One-line JSON with sorted keys. Used to print values in differences.
-String compactJson(Object? value) => jsonEncode(_normalize(value, sort: true));
+String compactJson(Object? value) {
+  final out = StringBuffer();
+  _write(out, value, null, '');
+  return out.toString();
+}
 
 /// The most code units of a value that a difference or an issue prints.
 const int maxShownLength = 200;
@@ -91,8 +130,12 @@ String _cutText(String text) {
 /// integer-valued numbers without a fraction. Keys keep the order given, except that keys
 /// that are array indexes come first in ascending order (what JavaScript does to every
 /// object, so both packages write the same file).
-String canonicalJson(Object? value) =>
-    '${const JsonEncoder.withIndent('  ').convert(_normalize(value, sort: false))}\n';
+String canonicalJson(Object? value) {
+  final out = StringBuffer();
+  _write(out, value, '  ', '');
+  out.write('\n');
+  return out.toString();
+}
 
 /// What [value] looks like after it went over the wire as JSON.
 Object? jsonRoundTrip(Object? value) => jsonDecode(jsonEncode(value));

@@ -661,6 +661,37 @@ void main() {
       expect((written['response'] as Map<String, dynamic>)['status'], 500);
     });
 
+    test(
+        'a warn that throws: the fixture is written, the error is the one thrown, and nothing is recorded',
+        () {
+      final dir = tempDir();
+      final failure = StateError('the test wants no notes');
+      final contract = ContractFixtures(
+        side: ContractSide.provider,
+        dir: dir,
+        update: true,
+        warn: (_) => throw failure,
+      );
+      void verify(int status) => contract.verifyResponse(
+            name: 'order.created',
+            description: 'An order is accepted',
+            request: const ExchangeRequest(method: 'POST', path: '/orders'),
+            response: ExchangeResponse(status: status),
+          );
+      verify(201);
+      expect(() => verify(500), throwsA(same(failure)));
+      // The note comes after the write and before the ledger: the file has the new
+      // response, and the ledger only the first verify.
+      final written = jsonDecode(
+              File('$dir/provider/order.created.json').readAsStringSync())
+          as Map<String, dynamic>;
+      expect((written['response'] as Map<String, dynamic>)['status'], 500);
+      expect(ledgerLines(dir, 'provider'), hasLength(1));
+      // The next verify agrees with the file, gives no note, and is recorded.
+      verify(500);
+      expect(ledgerLines(dir, 'provider'), hasLength(2));
+    });
+
     test('a file in the place of a directory of fixtures holds no fixtures',
         () {
       final dir = tempDir();
