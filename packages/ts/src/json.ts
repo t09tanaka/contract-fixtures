@@ -33,6 +33,49 @@ export function compactJson(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+/** The most code units of a value that a difference or an issue prints. */
+export const MAX_SHOWN_LENGTH = 200;
+
+/**
+ * `compactJson`, cut after `MAX_SHOWN_LENGTH` code units (one less when that would split a
+ * surrogate pair) and followed by `... (<n> more)`, n being the code units left out. A line
+ * of a difference stays readable that way; the whole value is in the fixture file.
+ */
+export function shownJson(value: unknown): string {
+  return cutText(compactJson(value));
+}
+
+function cutText(text: string): string {
+  if (text.length <= MAX_SHOWN_LENGTH) return text;
+  const last = text.charCodeAt(MAX_SHOWN_LENGTH - 1);
+  const cut = last >= 0xd800 && last <= 0xdbff ? MAX_SHOWN_LENGTH - 1 : MAX_SHOWN_LENGTH;
+  return `${text.slice(0, cut)}... (${text.length - cut} more)`;
+}
+
+/** How much of what two long values have in common is kept before the place where they part. */
+const SHOWN_CONTEXT = 20;
+
+/**
+ * The two sides of a difference, as `shownJson` prints them. When both are longer than
+ * `MAX_SHOWN_LENGTH` and equal that far, cutting each would print the same text twice; both
+ * then start `SHOWN_CONTEXT` code units before the first one that differs, after
+ * `(<n> the same) ... `, n being the code units left out at the start.
+ */
+export function shownPair(stored: unknown, observed: unknown): [string, string] {
+  const s = compactJson(stored);
+  const o = compactJson(observed);
+  let same = 0;
+  while (same < s.length && same < o.length && s.charCodeAt(same) === o.charCodeAt(same)) same++;
+  if (s.length <= MAX_SHOWN_LENGTH || o.length <= MAX_SHOWN_LENGTH || same < MAX_SHOWN_LENGTH) {
+    return [cutText(s), cutText(o)];
+  }
+  let skip = same - SHOWN_CONTEXT;
+  const first = s.charCodeAt(skip);
+  if (first >= 0xdc00 && first <= 0xdfff) skip--;
+  const lead = `(${skip} the same) ... `;
+  return [lead + cutText(s.slice(skip)), lead + cutText(o.slice(skip))];
+}
+
 /**
  * The text a fixture file is written as: two-space indentation, trailing newline,
  * integer-valued numbers without a fraction. Keys keep the order given, except that keys that

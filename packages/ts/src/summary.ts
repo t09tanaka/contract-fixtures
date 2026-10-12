@@ -28,22 +28,38 @@ export interface FixtureSummary {
 
 const PLAIN_KEY = /^[A-Za-z0-9_.-]+$/;
 
-/** The keys of an object with the JSON type of each value; objects are opened `depth` levels deep. */
-function members(value: Record<string, unknown>, depth: number): string {
-  const parts = sortedKeys(value).map((key) => {
-    const child = value[key];
-    const type = depth > 1 && isObject(child) ? members(child, depth - 1) : jsonType(child);
-    return `${PLAIN_KEY.test(key) ? key : compactJson(key)}: ${type}`;
-  });
+/** Whether the elements of an array have more than one JSON type. */
+function mixed(items: readonly unknown[]): boolean {
+  return items.some((item) => jsonType(item) !== jsonType(items[0]));
+}
+
+/**
+ * A value with `depth` levels left to open. An object costs a level: its keys with what
+ * their values are. An array costs none: it stands for its first element, in brackets.
+ */
+function opened(value: unknown, depth: number): string {
+  if (depth < 1) return jsonType(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    return mixed(value) ? "[mixed]" : `[${opened(value[0], depth)}]`;
+  }
+  if (!isObject(value)) return jsonType(value);
+  const parts = sortedKeys(value).map(
+    (key) => `${PLAIN_KEY.test(key) ? key : compactJson(key)}: ${opened(value[key], depth - 1)}`,
+  );
   return `{${parts.join(", ")}}`;
 }
 
 /** A body: its keys with the JSON type of each value, `depth` levels deep. */
 function shape(body: unknown, depth: number): string {
   if (body === undefined) return "-";
-  if (Array.isArray(body)) return `array(${body.length})`;
-  if (!isObject(body)) return jsonType(body);
-  return members(body, depth);
+  if (Array.isArray(body)) {
+    // The top level of an array is its length; from depth 2 on, its first element follows.
+    const head = `array(${body.length})`;
+    if (depth < 2 || body.length === 0) return head;
+    return `${head} of ${mixed(body) ? "mixed" : opened(body[0], depth - 1)}`;
+  }
+  return opened(body, depth);
 }
 
 /** The deepest level the summary opens. */

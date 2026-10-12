@@ -55,6 +55,11 @@ export interface ContractFixturesOptions {
   dir?: string;
   /** Write fixtures instead of failing. Defaults to `CONTRACT_FIXTURES_UPDATE=1`. */
   update?: boolean;
+  /**
+   * Where a note goes that is not a failure (update mode wrote a 5xx over a response that was
+   * none). Defaults to one line on standard error, which test runners pass through.
+   */
+  warn?: (message: string) => void;
 }
 
 export interface ContractFixtures {
@@ -192,6 +197,16 @@ function removedSecretPaths(produced: Record<string, unknown>, stored: unknown):
   return sortedKeys(storedSecret).filter((p) => !Object.hasOwn(own, p));
 }
 
+/** Whether a value is a number that can be printed as a status (a stored file may hold `1e400`). */
+function isStatus(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/** The status of the response of a fixture, if it has one. */
+function statusOf(fixture: unknown): unknown {
+  return isObject(fixture) && isObject(fixture.response) ? fixture.response.status : undefined;
+}
+
 /**
  * A line for the end of a refusal: that the status of the response is another one than the
  * stored fixture has. A refusal prints no values, so without this line it would hide that the
@@ -199,11 +214,9 @@ function removedSecretPaths(produced: Record<string, unknown>, stored: unknown):
  * status is a number, and no secret path can name it.
  */
 function statusChange(stored: unknown, produced: Record<string, unknown>): string {
-  const status = (fixture: unknown): unknown =>
-    isObject(fixture) && isObject(fixture.response) ? fixture.response.status : undefined;
-  const before = status(stored);
-  const after = status(produced);
-  if (typeof before !== "number" || typeof after !== "number" || before === after) return "";
+  const before = statusOf(stored);
+  const after = statusOf(produced);
+  if (!isStatus(before) || !isStatus(after) || before === after) return "";
   return `\nThe status of the response is not the stored one either: ${compactJson(before)} -> ${compactJson(after)}`;
 }
 
@@ -274,6 +287,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     return resolved;
   };
   const update = options.update ?? updateFromEnvironment(process.env);
+  const warn = options.warn ?? ((message: string): void => void process.stderr.write(`${message}\n`));
 
   const requireSide = (wanted: Side, method: string): void => {
     if (side !== wanted) {
@@ -326,6 +340,18 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       if (late.length > 0) throw invalid(late);
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, canonicalJson(produced));
+      // Written all the same: a fixture of a 5xx may be meant. But a response that used to be
+      // something else and is a 5xx now is more often a test application that differs from
+      // the deployed one, and nothing else would say so.
+      const before = statusOf(stored?.value);
+      const after = statusOf(produced);
+      if (isStatus(before) && isStatus(after) && before < 500 && after >= 500) {
+        warn(
+          `contract fixture ${file} was updated from status ${compactJson(before)} to ${compactJson(after)}. ` +
+            "A fixture with a 5xx is rarely what the deployed API answers: before committing it, " +
+            'check how this test assembles the application (docs/adoption.md, "Which tests verify").',
+        );
+      }
     };
 
     if (stored === null) {

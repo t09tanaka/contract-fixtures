@@ -1,4 +1,4 @@
-import { compactJson, isObject, jsonType, sortedKeys } from "./json.js";
+import { isObject, jsonType, shownJson, shownPair, sortedKeys } from "./json.js";
 import {
   entryParts,
   failedPattern,
@@ -56,7 +56,7 @@ export function differences(
             ? {
                 path,
                 kind: "pattern",
-                text: `${path}: ${compactJson(e)} -> ${compactJson(a)} (volatile: does not match ${failed.source})`,
+                text: `${path}: ${shownPair(e, a).join(" -> ")} (volatile: does not match ${failed.source})`,
               }
             : { path, kind: "type", text: `${path}: type ${typeE} -> ${typeA} (volatile: ${requirement(failed)})` },
         );
@@ -69,7 +69,7 @@ export function differences(
     if (typeE !== typeA) {
       out.push(
         mode === null
-          ? { path, kind: "value", text: `${path}: ${compactJson(e)} -> ${compactJson(a)}` }
+          ? { path, kind: "value", text: `${path}: ${shownPair(e, a).join(" -> ")}` }
           : {
               path,
               kind: "type",
@@ -99,13 +99,13 @@ export function differences(
           out.push({
             path: child,
             kind: "missing",
-            text: `${child}: ${compactJson(e[key])} -> (absent)`,
+            text: `${child}: ${shownJson(e[key])} -> (absent)`,
           });
         } else if (!Object.hasOwn(e, key)) {
           out.push({
             path: child,
             kind: "unexpected",
-            text: `${child}: (absent) -> ${compactJson(a[key])}`,
+            text: `${child}: (absent) -> ${shownJson(a[key])}`,
           });
         } else {
           walk(e[key], a[key], [...segments, key]);
@@ -114,12 +114,15 @@ export function differences(
       return;
     }
     if (mode === null && e !== a) {
-      out.push({ path, kind: "value", text: `${path}: ${compactJson(e)} -> ${compactJson(a)}` });
+      out.push({ path, kind: "value", text: `${path}: ${shownPair(e, a).join(" -> ")}` });
     }
   };
 
   walk(expected, actual, []);
-  return out;
+  // The status of a response says most about what happened, and the lines before it can be
+  // long: it comes first. Everything else keeps the order of the walk.
+  const first = (d: Difference): boolean => d.path === "response.status";
+  return [...out.filter(first), ...out.filter((d) => !first(d))];
 }
 
 /** The lines of `differences`, indented, one per line. */

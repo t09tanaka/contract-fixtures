@@ -71,6 +71,7 @@ describe("spec/fixtures/validation.json", () => {
     issues: { code: string; path: string }[];
     absent?: string[];
     shown?: string[];
+    messages?: string[];
     forbidden?: string[];
   }
   for (const c of loadCases<Case>("validation.json")) {
@@ -89,6 +90,7 @@ describe("spec/fixtures/validation.json", () => {
         for (const text of c.absent ?? []) assert.ok(!issue.message.includes(text));
       }
       for (const text of c.shown ?? []) assert.ok(issues.some((issue) => issue.message.includes(text)), text);
+      if (c.messages !== undefined) assert.deepEqual(issues.map((issue) => issue.message), c.messages);
     });
   }
 });
@@ -338,6 +340,7 @@ describe("spec/fixtures/verify.json", () => {
     differences?: string[];
     issues?: { code: string; path: string }[];
     message?: string;
+    warnings?: string[];
     config?: string;
     written: string | null;
     absent?: string[];
@@ -349,7 +352,8 @@ describe("spec/fixtures/verify.json", () => {
       const file = path.join(dir, c.kind, `${c.observed.name}.json`);
       if (c.storedText !== null) writeFile(dir, relative, c.storedText);
       if (c.config !== undefined) writeFile(dir, "config.json", c.config);
-      const contract = contractFixtures({ side: c.kind, dir, update: c.update });
+      const warnings: string[] = [];
+      const contract = contractFixtures({ side: c.kind, dir, update: c.update, warn: (text) => warnings.push(text) });
 
       let outcome = "ok";
       let lines: string[] | undefined;
@@ -390,6 +394,7 @@ describe("spec/fixtures/verify.json", () => {
       if (c.differences) assert.deepEqual(lines, c.differences);
       if (c.issues) assert.deepEqual(issues, c.issues);
       if (c.message !== undefined) assert.equal(said, c.message);
+      assert.deepEqual(warnings, c.warnings ?? []);
       assert.equal(after, c.written ?? c.storedText);
       const succeeded = c.outcome === "ok" || c.outcome === "written";
       assert.deepEqual(

@@ -115,6 +115,12 @@ throws `ContractFixtureError`.
   `contractFixtures(...)`: a tool that only loads the test files, to collect other tests or
   to run mutation tests on a part of them, does not need the variable. A missing directory
   throws `ContractUsageError` at that first use.
+- `warn` (a function that takes a string) receives a note that is not a failure. There is one:
+  update mode wrote a fixture with a 5xx over one that held another status, which is more
+  often a test application that differs from the deployed one than a change of the API. By
+  default the note is one line on standard error.
+- A line of a difference shows at most 200 UTF-16 code units of a value (`... (<n> more)` after
+  that), and the difference of the status of a response comes first.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
   is refused when `CI` is `true` or `1`.
@@ -177,7 +183,14 @@ const fetchFixture = (name: string): typeof fetch => async (input, init) => {
   const { response } = contract.readResponse(name);
   return toFetchResponse(resolvePlaceholders(response, (kind, name) => `test ${kind} of ${name}`));
 };
+
+// ... run the client code with fetchFixture("order.created"), then, before verifying sent[0]:
+assert.equal(sent.length, 1);
 ```
+
+Compare the number of requests with the number the test expects. This `fetch` answers every
+call, so a request the client should not have sent (a retry, a second page) gets an answer
+like the first one, and nothing fails by itself.
 
 - `toFetchResponse(response)` returns a `Response` with the status, the headers and the JSON
   body of the fixture, and nothing else. It does not add a `content-type`: if the client looks
@@ -277,7 +290,8 @@ entries at all, one line gives the number of fixtures in the place of the whole 
 `summary` prints one line per fixture, to compare them side by side: the request, the status,
 and the keys of the response body with their types. It takes no `--side` and does not touch
 the ledger. `--depth 2` opens the objects inside a body as well (`{data: object}` becomes
-`{data: {id: string, ...}}`), up to `--depth 9`; arrays are not opened.
+`{data: {id: string, ...}}`), up to `--depth 9`. An array that is reached shows its first
+element in brackets (`[{id: string}]`, `[]` when empty, `[mixed]` for more than one type).
 
 ```
 FIXTURE                        REQUEST       STATUS  RESPONSE BODY

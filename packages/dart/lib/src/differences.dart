@@ -63,7 +63,7 @@ List<Difference> differences(
               ? Difference(
                   path,
                   DifferenceKind.pattern,
-                  '$path: ${compactJson(e)} -> ${compactJson(a)} '
+                  '$path: ${shownPair(e, a)} '
                   '(volatile: does not match ${failed.source})',
                 )
               : Difference(
@@ -92,7 +92,7 @@ List<Difference> differences(
             ? Difference(
                 path,
                 DifferenceKind.value,
-                '$path: ${compactJson(e)} -> ${compactJson(a)}',
+                '$path: ${shownPair(e, a)}',
               )
             : Difference(
                 path,
@@ -131,7 +131,7 @@ List<Difference> differences(
             Difference(
               child,
               DifferenceKind.missing,
-              '$child: ${compactJson(e[key])} -> (absent)',
+              '$child: ${shownJson(e[key])} -> (absent)',
             ),
           );
         } else if (!e.containsKey(key)) {
@@ -139,7 +139,7 @@ List<Difference> differences(
             Difference(
               child,
               DifferenceKind.unexpected,
-              '$child: (absent) -> ${compactJson(a[key])}',
+              '$child: (absent) -> ${shownJson(a[key])}',
             ),
           );
         } else {
@@ -153,14 +153,17 @@ List<Difference> differences(
         Difference(
           path,
           DifferenceKind.value,
-          '$path: ${compactJson(e)} -> ${compactJson(a)}',
+          '$path: ${shownPair(e, a)}',
         ),
       );
     }
   }
 
   walk(expected, actual, const []);
-  return out;
+  // The status of a response says most about what happened, and the lines before it can
+  // be long: it comes first. Everything else keeps the order of the walk.
+  bool first(Difference d) => d.path == 'response.status';
+  return [...out.where(first), ...out.where((d) => !first(d))];
 }
 
 /// The lines of [diffs], indented, one per line.

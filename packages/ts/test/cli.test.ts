@@ -199,6 +199,22 @@ describe("command line", () => {
     assert.equal(spawnSync(process.execPath, [bin, "check"]).status, 2);
   });
 
+  it("the note of update mode goes to standard error by default, and the fixture is written", () => {
+    const dir = tempDir();
+    const script =
+      'const { contractFixtures } = require("@t09tanaka/contract-fixtures");' +
+      'const c = contractFixtures({ side: "provider", dir: process.argv[1], update: true });' +
+      "for (const status of [201, 500]) c.verifyResponse({ name: 'order.created', description: 'An order is accepted'," +
+      " request: { method: 'POST', path: '/orders' }, response: { status } });";
+    const result = spawnSync(process.execPath, ["-e", script, dir], { encoding: "utf8" });
+    assert.deepEqual([result.status, result.stdout], [0, ""], result.stderr);
+    assert.equal(
+      result.stderr,
+      'contract fixture provider/order.created.json was updated from status 201 to 500. A fixture with a 5xx is rarely what the deployed API answers: before committing it, check how this test assembles the application (docs/adoption.md, "Which tests verify").\n',
+    );
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "provider", "order.created.json"), "utf8")).response.status, 500);
+  });
+
   it("the package can be loaded with require() as well as import", () => {
     const dir = copyOfContracts();
     const script =

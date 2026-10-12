@@ -501,7 +501,7 @@
       "stderr": "{tool}: pass --dir or set CONTRACT_FIXTURES_DIR\n\n{help}"
     },
     {
-      "case": "summary: --depth is accepted, and changes nothing where no object lies inside the body",
+      "case": "summary: --depth 2 opens what lies inside the body",
       "args": [
         "summary",
         "--dir",
@@ -510,7 +510,7 @@
         "2"
       ],
       "exit": 0,
-      "stdout": "FIXTURE                        REQUEST       STATUS  RESPONSE BODY\nprovider/order.created         POST /orders  201     {created_at: string, id: string, lines: array, status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders  409     {error: string}\nconsumer/create-order.request  POST /orders  -       -\ntables/order-total             -             -       2 row(s)",
+      "stdout": "FIXTURE                        REQUEST       STATUS  RESPONSE BODY\nprovider/order.created         POST /orders  201     {created_at: string, id: string, lines: [{line_id: string, quantity: number, sku: string}], status: string, total_minor: number}\nprovider/order.out-of-stock    POST /orders  409     {error: string}\nconsumer/create-order.request  POST /orders  -       -\ntables/order-total             -             -       2 row(s)",
       "stderr": ""
     },
     {

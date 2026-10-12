@@ -93,7 +93,10 @@ ways in which the two applications still differ:
 How to tell: **a fixture with a 5xx status, or with a body that carries the wording of a
 validator, was most likely produced by a difference in assembly, not by the API.** Before
 committing such a fixture, send the same request to an application started the way it is
-deployed, and compare.
+deployed, and compare. Update mode points at this section when it happens: when it writes a
+5xx over a fixture that held another status, it prints one line to standard error
+(`contract fixture ... was updated from status 201 to 500. ...`). The fixture is written all
+the same, because a 5xx can be what a fixture is meant to hold.
 
 ## The provider side
 
