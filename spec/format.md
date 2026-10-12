@@ -533,8 +533,10 @@ While the configuration is invalid, no helper verifies or reads a fixture of tha
 problem of `config.json`. The check and the summary then look at the fixtures as if the
 directory had no configuration. The cases in `fixtures/configuration.json` pin the issues,
 and those of `fixtures/patterns.json` and `fixtures/search.json` the search. A package may
-leave a value untried when it lacks a text that every match of the pattern contains (`sec_`
-for `sec_(live|test)_[A-Za-z0-9]+`); the result is the same, and the cases of
+leave a value untried when it cannot hold a match: it lacks a text that every match of the
+pattern contains (`sec_` for `sec_(live|test)_[A-Za-z0-9]+`), it has none of the texts of
+which every match contains one (`abc_` and `abd_` for `abc_x+|abd_y+`), or it is shorter
+than any match (32 code units for `[A-Za-z0-9]{32}`); the result is the same, and the cases of
 `fixtures/search.json` hold the two ways against each other (that file is written by
 `generate-search.mjs`, from a fixed seed).
 

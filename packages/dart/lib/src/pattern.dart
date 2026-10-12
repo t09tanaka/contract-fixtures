@@ -381,7 +381,24 @@ class CompiledPattern {
     this._other,
     this._sets,
     this.required,
+    this.requiredAny,
+    this.minLength,
   );
+
+  /// Texts of which every match contains at least one, for a pattern without one
+  /// [required] text (a choice between whole alternatives); empty when none are known.
+  final List<String> requiredAny;
+
+  /// The fewest code units a match can have. A shorter value is not tried either.
+  final int minLength;
+
+  /// Whether [value] can hold a match at all: long enough, and with a text every match
+  /// contains.
+  bool _possible(String value) {
+    if (value.length < minLength) return false;
+    if (required.isNotEmpty) return value.contains(required);
+    return requiredAny.isEmpty || requiredAny.any(value.contains);
+  }
 
   /// A text that every match of the pattern contains, or `''` when none is known. A value
   /// without it cannot hold a match, which [search] finds out before it tries the pattern.
@@ -397,9 +414,7 @@ class CompiledPattern {
   bool test(String value) => _run(value, anywhere: false);
 
   /// Whether a part of [value] matches (`^` and `$` are still the ends of the value).
-  bool search(String value) =>
-      (required.isEmpty || value.contains(required)) &&
-      _run(value, anywhere: true);
+  bool search(String value) => _possible(value) && _run(value, anywhere: true);
 
   /// [search] without its shortcut: every position of the value is tried. The result is
   /// the same by definition; the tests hold the two against each other.
@@ -461,10 +476,26 @@ class CompiledPattern {
 /// ([exact], `null` when it can match more than one, or none), and the longest text found
 /// that every match of the part contains ([required]).
 class _Literal {
-  const _Literal(this.exact, this.required);
+  const _Literal(this.exact, this.required, this.anyOf, this.min);
   final String? exact;
   final String required;
+
+  /// Texts of which every match of the part contains at least one; empty when none are
+  /// known.
+  final List<String> anyOf;
+
+  /// The fewest code units a match of the part can have.
+  final int min;
 }
+
+/// More alternatives than this are not kept: the part then says nothing.
+const int _maxAlternatives = 32;
+
+/// A length beyond this is not counted further; no value is that long.
+const int _maxMinLength = 1000000000;
+
+int _cappedLength(int length) =>
+    length > _maxMinLength ? _maxMinLength : length;
 
 /// An exact text is not carried on beyond this length; what was found so far still counts.
 const int _maxLiteralLength = 256;
@@ -486,15 +517,38 @@ _Literal _literal(_Node node) {
           exact = String.fromCharCode(item.ranges.single.low);
         }
       }
-      return _Literal(exact, exact ?? '');
-    case _StartNode() || _EndNode() || _ChoiceNode():
-      return const _Literal(null, '');
+      return _Literal(
+          exact, exact ?? '', exact == null ? const [] : [exact], 1);
+    case _StartNode() || _EndNode():
+      return const _Literal(null, '', [], 0);
+    case _ChoiceNode(:final nodes):
+      // A match is a match of one branch: it contains a text of that branch, if every
+      // branch has one, and is as long as the shortest branch allows.
+      final parts = nodes.map(_literal).toList();
+      final all = parts.every((part) => part.anyOf.isNotEmpty)
+          ? <String>{for (final part in parts) ...part.anyOf}.toList()
+          : const <String>[];
+      return _Literal(
+        null,
+        '',
+        all.length <= _maxAlternatives ? all : const [],
+        parts.map((part) => part.min).reduce((a, b) => a < b ? a : b),
+      );
     case _SequenceNode(:final nodes):
       var run = '';
       var required = '';
       var exact = true;
+      var anyOf = const <String>[];
+      var min = 0;
       for (final child in nodes) {
         final part = _literal(child);
+        min = _cappedLength(min + part.min);
+        // Of the parts that offer alternatives, the one with the fewest (the first, if
+        // equal).
+        if (part.anyOf.isNotEmpty &&
+            (anyOf.isEmpty || part.anyOf.length < anyOf.length)) {
+          anyOf = part.anyOf;
+        }
         final text = part.exact;
         if (text != null && run.length + text.length <= _maxLiteralLength) {
           run += text;
@@ -505,11 +559,21 @@ _Literal _literal(_Node node) {
         run = text ?? '';
       }
       required = _longer(required, run);
-      return _Literal(exact ? run : null, required);
+      return _Literal(
+        exact ? run : null,
+        required,
+        required.isEmpty ? anyOf : [required],
+        min,
+      );
     case _RepeatNode(node: final inner, :final min, :final max):
-      if (min < 1) return const _Literal(null, '');
+      if (min < 1) return const _Literal(null, '', [], 0);
       final part = _literal(inner);
-      return _Literal(min == 1 && max == 1 ? part.exact : null, part.required);
+      return _Literal(
+        min == 1 && max == 1 ? part.exact : null,
+        part.required,
+        part.anyOf,
+        _cappedLength(part.min * min),
+      );
   }
 }
 
@@ -604,12 +668,16 @@ CompiledPattern _prepare(String source) {
   }
 
   final entry = build(root, 0);
+  final literal = _literal(root);
   return CompiledPattern._(
     entry,
     kinds,
     next,
     other,
     sets,
-    _literal(root).required,
+    literal.required,
+    List.unmodifiable(
+        literal.required.isEmpty ? literal.anyOf : const <String>[]),
+    literal.min,
   );
 }

@@ -25,6 +25,8 @@ First version.
     (`response.body.**.created_at`); a pattern on `request.path` for ids in a path;
     `nullable: true` next to a pattern, for a value that is a string in one place and `null`
     in another;
+    a key that contains a dot is one segment for `*` and `**`, and its value is held to the
+    pattern of the entry, by validation as by the comparison, in both packages;
   - messages of a failing verify that show the cause first: when the response is another one
     altogether, the differences (status, keys that went, keys that came) come before the
     volatile paths that match nothing, in update mode too; a value that misses its pattern

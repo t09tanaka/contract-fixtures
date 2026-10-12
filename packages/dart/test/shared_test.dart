@@ -148,11 +148,24 @@ void main() {
                 reason: 'scan ${jsonEncode(value)}');
             if (pattern.scan(value)) {
               expect(value, contains(pattern.required));
+              expect(value.length, greaterThanOrEqualTo(pattern.minLength));
+              expect(
+                pattern.requiredAny.isEmpty ||
+                    pattern.requiredAny.any(value.contains),
+                isTrue,
+                reason: 'one of the texts in ${jsonEncode(value)}',
+              );
             }
           }
         }
         if (c.containsKey('required')) {
           expect(pattern.required, c['required']);
+        }
+        if (c.containsKey('requiredAny')) {
+          expect(pattern.requiredAny, c['requiredAny']);
+        }
+        if (c.containsKey('minLength')) {
+          expect(pattern.minLength, c['minLength']);
         }
         if (c['native'] == false) return;
         final native = RegExp('^(?:$source)\$');
