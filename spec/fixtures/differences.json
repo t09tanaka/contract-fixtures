@@ -2000,6 +2000,61 @@
           "text": "a: (230 the same) ... 😀xxxxxxxxxxxxxxxxxxxa\" -> (230 the same) ... 😀xxxxxxxxxxxxxxxxxxxb\""
         }
       ]
+    },
+    {
+      "case": "numbers beyond 2^53 are printed the same way by every implementation",
+      "expected": {
+        "a": 123456789012345680000,
+        "b": 1e21,
+        "c": 18014398509481984,
+        "d": [1e300]
+      },
+      "actual": {
+        "a": 1e21,
+        "b": 123456789012345680000,
+        "c": 36028797018963968,
+        "d": [1e-7]
+      },
+      "volatile": [],
+      "differences": [
+        {
+          "path": "a",
+          "kind": "value",
+          "text": "a: 123456789012345680000 -> 1e+21"
+        },
+        {
+          "path": "b",
+          "kind": "value",
+          "text": "b: 1e+21 -> 123456789012345680000"
+        },
+        {
+          "path": "c",
+          "kind": "value",
+          "text": "c: 18014398509481984 -> 36028797018963970"
+        },
+        {
+          "path": "d.0",
+          "kind": "value",
+          "text": "d.0: 1e+300 -> 1e-7"
+        }
+      ]
+    },
+    {
+      "case": "two whole numbers beyond 2^53 that are the same double are equal",
+      "expected": {
+        "a": 9007199254740993,
+        "b": 9223372036854775807,
+        "c": -9223372036854775808,
+        "d": 123456789012345680000
+      },
+      "actual": {
+        "a": 9007199254740992,
+        "b": 9223372036854775806,
+        "c": -9223372036854775807,
+        "d": 123456789012345680001
+      },
+      "volatile": [],
+      "differences": []
     }
   ]
 }

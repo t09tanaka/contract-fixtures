@@ -39,6 +39,8 @@ First version.
   - response headers next to request headers, with the same rules for both: lower-case
     names, and a string or an array of strings (a header that is sent more than once, such as
     `set-cookie`) as the value;
+  - numbers are written and printed as ECMAScript writes them, in both packages, also beyond
+    2^53;
   - `resolvePlaceholders` to put real values back on the reading side;
   - the contracts directory (`dir`, or `CONTRACT_FIXTURES_DIR`) is looked up at the first
     verify, read or list, not when the object is created, so that a tool that only loads the

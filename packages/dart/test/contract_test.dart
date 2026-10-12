@@ -661,6 +661,68 @@ void main() {
       expect((written['response'] as Map<String, dynamic>)['status'], 500);
     });
 
+    test(
+        'a warn that throws: the fixture is written, the error is the one thrown, and nothing is recorded',
+        () {
+      final dir = tempDir();
+      final failure = StateError('the test wants no notes');
+      final contract = ContractFixtures(
+        side: ContractSide.provider,
+        dir: dir,
+        update: true,
+        warn: (_) => throw failure,
+      );
+      void verify(int status) => contract.verifyResponse(
+            name: 'order.created',
+            description: 'An order is accepted',
+            request: const ExchangeRequest(method: 'POST', path: '/orders'),
+            response: ExchangeResponse(status: status),
+          );
+      verify(201);
+      expect(() => verify(500), throwsA(same(failure)));
+      // The note comes after the write and before the ledger: the file has the new
+      // response, and the ledger only the first verify.
+      final written = jsonDecode(
+              File('$dir/provider/order.created.json').readAsStringSync())
+          as Map<String, dynamic>;
+      expect((written['response'] as Map<String, dynamic>)['status'], 500);
+      expect(ledgerLines(dir, 'provider'), hasLength(1));
+      // The next verify agrees with the file, gives no note, and is recorded.
+      verify(500);
+      expect(ledgerLines(dir, 'provider'), hasLength(2));
+    });
+
+    test(
+        'the writers treat a map of another type and an object with toJson like decoded JSON',
+        () {
+      const expected = '{\n  "k": {\n    "b": 1,\n    "a": 2\n  }\n}\n';
+      expect(
+        canonicalJson({
+          'k': <dynamic, dynamic>{'b': 1.0, 'a': 2},
+        }),
+        expected,
+      );
+      expect(
+        canonicalJson({
+          'k': <String, Object>{'b': 1.0, 'a': 2},
+        }),
+        expected,
+      );
+      expect(
+        canonicalJson({
+          'v': const VolatilePattern('response.body.id', '[0-9]+'),
+        }),
+        '{\n  "v": {\n    "path": "response.body.id",\n    "pattern": "[0-9]+"\n  }\n}\n',
+      );
+      expect(compactJson(<dynamic, dynamic>{'b': 1.0, 'a': <int>[]}),
+          '{"a":[],"b":1}');
+      // What JSON has no form for is refused, as before.
+      expect(() => compactJson({1: 2}),
+          throwsA(isA<JsonUnsupportedObjectError>()));
+      expect(() => canonicalJson({1, 2}),
+          throwsA(isA<JsonUnsupportedObjectError>()));
+    });
+
     test('a file in the place of a directory of fixtures holds no fixtures',
         () {
       final dir = tempDir();

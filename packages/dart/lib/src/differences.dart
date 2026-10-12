@@ -148,7 +148,7 @@ List<Difference> differences(
       }
       return;
     }
-    if (mode == null && e != a) {
+    if (mode == null && !_sameScalar(e, a)) {
       out.add(
         Difference(
           path,
@@ -165,6 +165,12 @@ List<Difference> differences(
   bool first(Difference d) => d.path == 'response.status';
   return [...out.where(first), ...out.where((d) => !first(d))];
 }
+
+/// Whether two scalars are equal the way every implementation sees them: numbers by the
+/// double they are, so that two integers beyond 2^53 that Dart can tell apart, and a
+/// JavaScript engine cannot, are not a difference in one package only.
+bool _sameScalar(Object? e, Object? a) =>
+    e is num && a is num ? e.toDouble() == a.toDouble() : e == a;
 
 /// The lines of [diffs], indented, one per line.
 String formatDifferences(Iterable<Difference> diffs) =>
