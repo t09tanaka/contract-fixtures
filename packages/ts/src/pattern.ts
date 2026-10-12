@@ -280,7 +280,7 @@ export interface CompiledPattern {
    */
   readonly requiredAny: readonly string[];
   /** The fewest code units a match can have. A shorter value is not tried either. */
-  readonly minLength: number;
+  readonly shortest: number;
 }
 
 /** What is known about the texts a part of a pattern matches. */
@@ -509,6 +509,6 @@ function prepare(source: string): CompiledPattern {
     scan: (value: string) => run(value, true),
     required,
     requiredAny,
-    minLength: min,
+    shortest: min,
   });
 }

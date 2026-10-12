@@ -382,7 +382,7 @@ class CompiledPattern {
     this._sets,
     this.required,
     this.requiredAny,
-    this.minLength,
+    this.shortest,
   );
 
   /// Texts of which every match contains at least one, for a pattern without one
@@ -390,12 +390,12 @@ class CompiledPattern {
   final List<String> requiredAny;
 
   /// The fewest code units a match can have. A shorter value is not tried either.
-  final int minLength;
+  final int shortest;
 
   /// Whether [value] can hold a match at all: long enough, and with a text every match
   /// contains.
   bool _possible(String value) {
-    if (value.length < minLength) return false;
+    if (value.length < shortest) return false;
     if (required.isNotEmpty) return value.contains(required);
     return requiredAny.isEmpty || requiredAny.any(value.contains);
   }

@@ -6,7 +6,7 @@
 // finds is asked of the RegExp of the engine, not of the package. Only what the package
 // derives to leave values untried is taken from the TypeScript package: `required` (a text
 // every match contains), `requiredAny` (texts of which every match contains one) and
-// `minLength` (the fewest code units of a match). The Dart package must derive the same,
+// `shortest` (the fewest code units of a match). The Dart package must derive the same,
 // and both must find them true of every string that holds a match.
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -59,13 +59,13 @@ const all = (chars, length) => {
 
 const wrong = [];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const entry = (name, pattern, values, required, requiredAny, minLength) => {
+const entry = (name, pattern, values, required, requiredAny, shortest) => {
   const compiled = compilePattern(pattern);
   if (requiredAny !== undefined && !same(compiled.requiredAny, requiredAny)) {
     wrong.push(`${pattern.slice(0, 40)}: derived any of ${JSON.stringify(compiled.requiredAny)}, expected ${JSON.stringify(requiredAny)}`);
   }
-  if (minLength !== undefined && compiled.minLength !== minLength) {
-    wrong.push(`${pattern.slice(0, 40)}: derived a length of ${compiled.minLength}, expected ${minLength}`);
+  if (shortest !== undefined && compiled.shortest !== shortest) {
+    wrong.push(`${pattern.slice(0, 40)}: derived a length of ${compiled.shortest}, expected ${shortest}`);
   }
   const native = new RegExp(pattern);
   const whole = new RegExp(`^(?:${pattern})$`);
@@ -78,7 +78,7 @@ const entry = (name, pattern, values, required, requiredAny, minLength) => {
     valid: true,
     required: compiled.required,
     requiredAny: compiled.requiredAny,
-    minLength: compiled.minLength,
+    shortest: compiled.shortest,
     matches: values.filter((v) => whole.test(v)),
     rejects: values.filter((v) => !whole.test(v)),
     finds: values.filter((v) => native.test(v)),
@@ -165,8 +165,8 @@ const alternatives = [
   [`(${forty.join("|")})!?`, [], 3, ["ka0", "kn39!", "ka", "kz99", ""]],
   [`(${forty.slice(0, 32).join("|")})!?`, forty.slice(0, 32), 3, ["ka0", "kf31!", "kg32", ""]],
 ];
-for (const [pattern, requiredAny, minLength, values] of alternatives) {
-  cases.push(entry(`alternatives and length: ${pattern.length > 40 ? `${pattern.slice(0, 20)}... (${pattern.length} code units)` : pattern}`, pattern, values, undefined, requiredAny, minLength));
+for (const [pattern, requiredAny, shortest, values] of alternatives) {
+  cases.push(entry(`alternatives and length: ${pattern.length > 40 ? `${pattern.slice(0, 20)}... (${pattern.length} code units)` : pattern}`, pattern, values, undefined, requiredAny, shortest));
 }
 
 if (wrong.length > 0) throw new Error(`the derived text is not the expected one:\n${wrong.join("\n")}`);
@@ -200,7 +200,7 @@ const text = () => Array.from({ length: Math.floor(rand() * 20) }, () => pick(ch
 generate(wide, () => [...new Set(Array.from({ length: 16 }, text))], 150, "generated, random strings");
 
 const description =
-  "Cases for the search that the `forbidden` patterns of a configuration use, in the shape of the cases of patterns.json. `finds` and `findsNot`: a part of each string in `finds` must match, and no part of a string in `findsNot` may; `matches` and `rejects` are for the whole string. On every string of a case, the search with its shortcut and the search that tries every position must agree, and so must the engine of the language, given the pattern as it is. `required` is the text every match contains, as the packages derive it (the empty string when they derive none); `requiredAny` is a list of texts of which every match contains at least one (empty when they derive none, or when there is a `required` text); `minLength` is the fewest code units of a match. A value without the text, without any of the texts, or shorter than that is not tried, and every string in which a match is found must have all three. The file is written by spec/generate-search.mjs from a fixed seed; the expectations of what matches are those of an ECMAScript engine.";
+  "Cases for the search that the `forbidden` patterns of a configuration use, in the shape of the cases of patterns.json. `finds` and `findsNot`: a part of each string in `finds` must match, and no part of a string in `findsNot` may; `matches` and `rejects` are for the whole string. On every string of a case, the search with its shortcut and the search that tries every position must agree, and so must the engine of the language, given the pattern as it is. `required` is the text every match contains, as the packages derive it (the empty string when they derive none); `requiredAny` is a list of texts of which every match contains at least one (empty when they derive none, or when there is a `required` text); `shortest` is the fewest code units of a match. A value without the text, without any of the texts, or shorter than that is not tried, and every string in which a match is found must have all three. The file is written by spec/generate-search.mjs from a fixed seed; the expectations of what matches are those of an ECMAScript engine.";
 const lines = cases.map((c) => "    " + JSON.stringify(c)).join(",\n");
 fs.writeFileSync(
   fileURLToPath(new URL("./fixtures/search.json", import.meta.url)),

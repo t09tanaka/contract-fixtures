@@ -148,7 +148,8 @@ void main() {
                 reason: 'scan ${jsonEncode(value)}');
             if (pattern.scan(value)) {
               expect(value, contains(pattern.required));
-              expect(value.length, greaterThanOrEqualTo(pattern.minLength));
+              expect(value.length >= pattern.shortest, isTrue,
+                  reason: 'the length of ${jsonEncode(value)}');
               expect(
                 pattern.requiredAny.isEmpty ||
                     pattern.requiredAny.any(value.contains),
@@ -164,8 +165,8 @@ void main() {
         if (c.containsKey('requiredAny')) {
           expect(pattern.requiredAny, c['requiredAny']);
         }
-        if (c.containsKey('minLength')) {
-          expect(pattern.minLength, c['minLength']);
+        if (c.containsKey('shortest')) {
+          expect(pattern.shortest, c['shortest']);
         }
         if (c['native'] == false) return;
         final native = RegExp('^(?:$source)\$');
