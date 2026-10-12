@@ -449,6 +449,7 @@ void main(List<String> arguments) {
 ```
 
 ```sh
+mkdir -p build
 dart compile exe tool/contract_fixtures.dart -o build/contract_fixtures
 build/contract_fixtures reset --side consumer --dir ../contracts
 dart test
@@ -461,8 +462,11 @@ The commands, their output and their exit codes are the same; only the start is 
   that is the version in `pubspec.lock` at that moment, not the one after the next
   `dart pub upgrade`. Build it again whenever the lock file is newer, for instance at the top
   of the script that runs the tests:
-  `test build/contract_fixtures -nt pubspec.lock || dart compile exe tool/contract_fixtures.dart -o build/contract_fixtures`.
-  `build/contract_fixtures --version` says what it is. Do not commit the executable.
+  `test build/contract_fixtures -nt pubspec.lock || { mkdir -p build && dart compile exe tool/contract_fixtures.dart -o build/contract_fixtures; }`.
+  `build/contract_fixtures --version` says what it is. The lock file changes with the version
+  of a dependency from pub.dev or from git; with a `path` dependency it does not change when
+  the source of the package does, so build again after changing that. Do not commit the
+  executable: put `build/` into `.gitignore`.
 - **In CI, stay with `dart run`.** A job runs `reset` once and `check` once; compiling takes
   longer than the two starts it saves. The compiled executable pays off from a handful of
   calls on.
