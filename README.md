@@ -504,7 +504,8 @@ The keys at the top are not always where the difference is. When every body is a
 (`{data: object, ok: boolean}` on each line), `--depth 2` opens the objects inside it, and
 `--depth 3` those inside them (up to 9). An array that is reached shows its first element in
 brackets, so the keys of a row of a list are there as soon as the list is (`[]` for an empty
-array, `[mixed]` for elements of more than one type):
+array, `[mixed]` for elements of more than one type). In the table above, `--depth 2` turns
+`lines: array` of the receipt into `lines: [{quantity: number, sku: string}]`. For an envelope:
 
 ```
 --depth 1   {data: object, ok: boolean}
