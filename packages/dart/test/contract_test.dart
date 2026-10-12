@@ -692,6 +692,37 @@ void main() {
       expect(ledgerLines(dir, 'provider'), hasLength(2));
     });
 
+    test(
+        'the writers treat a map of another type and an object with toJson like decoded JSON',
+        () {
+      const expected = '{\n  "k": {\n    "b": 1,\n    "a": 2\n  }\n}\n';
+      expect(
+        canonicalJson({
+          'k': <dynamic, dynamic>{'b': 1.0, 'a': 2},
+        }),
+        expected,
+      );
+      expect(
+        canonicalJson({
+          'k': <String, Object>{'b': 1.0, 'a': 2},
+        }),
+        expected,
+      );
+      expect(
+        canonicalJson({
+          'v': const VolatilePattern('response.body.id', '[0-9]+'),
+        }),
+        '{\n  "v": {\n    "path": "response.body.id",\n    "pattern": "[0-9]+"\n  }\n}\n',
+      );
+      expect(compactJson(<dynamic, dynamic>{'b': 1.0, 'a': <int>[]}),
+          '{"a":[],"b":1}');
+      // What JSON has no form for is refused, as before.
+      expect(() => compactJson({1: 2}),
+          throwsA(isA<JsonUnsupportedObjectError>()));
+      expect(() => canonicalJson({1, 2}),
+          throwsA(isA<JsonUnsupportedObjectError>()));
+    });
+
     test('a file in the place of a directory of fixtures holds no fixtures',
         () {
       final dir = tempDir();

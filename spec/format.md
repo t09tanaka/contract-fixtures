@@ -544,7 +544,8 @@ and those of `fixtures/patterns.json` the search.
 - Fixture files are UTF-8. A byte order mark at the start is ignored; a file that is not valid
   UTF-8 is an invalid fixture.
 - A symbolic link to a file counts as that file.
-- Numbers are compared by value: `1` and `1.0` are equal.
+- Numbers are compared by value, as the double-precision numbers they are: `1` and `1.0`
+  are equal, and so are two whole numbers beyond 2^53 that are the same double.
 - A number whose value is a whole number beyond ±(2^53 − 1) is not allowed anywhere in a fixture
   or a table **(beyond the schema)**: not every JSON parser keeps it exact, so the two sides
   could silently see different values. This includes large floating point values such as `1e300`

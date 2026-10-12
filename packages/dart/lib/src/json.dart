@@ -51,7 +51,10 @@ List<String> _javaScriptOrder(Iterable<String> keys) {
 /// has no form for. A Dart `int` beyond 2^53 is first taken to the double JavaScript would
 /// hold.
 String _number(num value) {
-  if (value is int && value.abs() <= maxSafeInteger) return '$value';
+  // Not `abs()`: it overflows for the smallest int.
+  if (value is int && value <= maxSafeInteger && value >= -maxSafeInteger) {
+    return '$value';
+  }
   final number = value.toDouble();
   if (!number.isFinite) return 'null';
   if (number == 0) return '0';
@@ -78,28 +81,34 @@ void _write(StringBuffer out, Object? value, String? indent, String current) {
     }
     if (indent != null) out.write('\n$current');
     out.write(']');
-  } else if (value is Map<String, dynamic>) {
+  } else if (value is Map && value.keys.every((key) => key is String)) {
     if (value.isEmpty) {
       out.write('{}');
       return;
     }
+    final members = value.cast<String, dynamic>();
     final inner = indent == null ? '' : '$current$indent';
     out.write('{');
     var first = true;
-    for (final key
-        in indent == null ? sortedKeys(value) : _javaScriptOrder(value.keys)) {
+    for (final key in indent == null
+        ? sortedKeys(members)
+        : _javaScriptOrder(members.keys)) {
       if (!first) out.write(',');
       first = false;
       if (indent != null) out.write('\n$inner');
       out
         ..write(jsonEncode(key))
         ..write(indent == null ? ':' : ': ');
-      _write(out, value[key], indent, inner);
+      _write(out, members[key], indent, inner);
     }
     if (indent != null) out.write('\n$current');
     out.write('}');
-  } else {
+  } else if (value == null || value is bool || value is String) {
     out.write(jsonEncode(value));
+  } else {
+    // An object with `toJson`: what it encodes to is written like everything else. What
+    // JSON has no form for (a set, a map with keys that are not strings) throws here.
+    _write(out, jsonDecode(jsonEncode(value)), indent, current);
   }
 }
 
