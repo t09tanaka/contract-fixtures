@@ -502,22 +502,24 @@ that the net for tokens does not know. It works like that net:
   limits are those of [Patterns](#patterns).
 - A verify that would write or compare a fixture with such a string fails instead, in update
   mode too, before anything is compared and whether or not the fixture exists (issue code
-  `forbidden`). List the path in
-  `secret`; the placeholder that is then stored is not what the pattern describes.
+  `forbidden`). For a value in headers or a body, list the path in `secret`; the placeholder
+  that is then stored is not what the pattern describes. A string elsewhere (the path of a
+  request, a description) cannot be a secret path and has to change.
 - A stored fixture that holds such a string is invalid (`forbidden`): it cannot be read, and
   the check reports it.
 - The message names the path and the index of the pattern (`forbidden.0`), never the value.
+- A pattern that matches the empty string would forbid every string, so it is not accepted.
 
 **(beyond the schema)** A configuration is invalid when
 
 | Code | |
 |---|---|
-| `json` | the file is not valid JSON, or not valid UTF-8. |
+| `json` | `config.json` is not a file, not valid JSON, or not valid UTF-8. |
 | `root` | it is not an object. |
 | `unknown-key` | it has a key other than `format` and `forbidden`. |
 | `format` | `format` is not `1`. |
 | `forbidden` | `forbidden` is not an array, or an entry is not a string. |
-| `pattern` | an entry is not a pattern (reported at `forbidden.<index>`). |
+| `pattern` | an entry is not a pattern, or matches the empty string (reported at `forbidden.<index>`). |
 
 While the configuration is invalid, no helper verifies or reads a fixture of that directory
 (the error names `config.json` and the issues), and the check reports every issue as a
@@ -648,7 +650,8 @@ Fixtures are written as JSON with two-space indentation, a trailing newline, and
 `format`, `name`, `description`, `request`, `response`, `volatile`, `secret` (inside a request:
 `method`, `path`, `headers`, `body`; inside a response: `status`, `headers`, `body`). An empty
 `volatile` or `secret` is left out. The entries of `volatile` keep the order the side gave
-them; an entry with a pattern is written with the keys `path`, `pattern`, `nullable`. Inside a body and
+them; an entry with a pattern is written with the keys `path`, `pattern` and, when it is
+set, `nullable`. Inside a body and
 inside `secret`, keys keep the order the side produced them in, except that keys that are
 array indexes (`"0"`, `"10"`) come first in ascending order, as in a JavaScript object.
 Integer-valued numbers are written without a fraction (`1`, not `1.0`). Characters are written

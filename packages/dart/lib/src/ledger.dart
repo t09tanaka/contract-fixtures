@@ -9,6 +9,22 @@ enum LedgerAction { verified, read }
 File ledgerFile(String dir, ContractSide side) =>
     File('$dir/.ledger/${side.name}.jsonl');
 
+/// Whether [file] may be there although it cannot be looked at: `typeSync` answers "not
+/// found" for every path it cannot reach, also for one in a directory that cannot be
+/// read. Throws [FileSystemException] when the directory cannot be listed.
+bool _hidden(File file) {
+  final parent = file.parent;
+  if (FileSystemEntity.typeSync(parent.path) !=
+      FileSystemEntityType.directory) {
+    return false;
+  }
+  final name = file.uri.pathSegments.last;
+  return parent.listSync().any(
+        (entity) =>
+            entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty) == name,
+      );
+}
+
 /// Runs one operation on a ledger; [operation] is told whether the file exists. Whatever
 /// goes wrong with the file (a directory in its place, a path that cannot be read or
 /// written) is reported in the same words by every implementation, and never passed over.
@@ -17,7 +33,7 @@ T _onLedger<T>(
   try {
     final type = FileSystemEntity.typeSync(file.path);
     if (type == FileSystemEntityType.file ||
-        type == FileSystemEntityType.notFound) {
+        (type == FileSystemEntityType.notFound && !_hidden(file))) {
       return operation(type == FileSystemEntityType.file);
     }
   } on FileSystemException {

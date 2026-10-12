@@ -488,7 +488,8 @@ void _validateNotForbidden(
             'forbidden',
             path,
             'contains what forbidden.$i of config.json describes '
-                '(list this path in secret, so that a placeholder is stored instead)',
+                '(keep it out of the fixture: for a value in headers or a body, list '
+                'its path in secret)',
           ),
         );
       }

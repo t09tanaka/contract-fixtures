@@ -84,7 +84,15 @@ ConfigValidation validateConfig(String text) {
         continue;
       }
       try {
-        compilePattern(pattern);
+        if (compilePattern(pattern).search('')) {
+          issues.add(
+            FormatIssue(
+              'pattern',
+              'forbidden.$i',
+              'matches the empty string, so it would forbid every string',
+            ),
+          );
+        }
       } on PatternException catch (error) {
         issues.add(
           FormatIssue(
@@ -109,7 +117,15 @@ ConfigValidation validateConfig(String text) {
 /// nothing. The file must be UTF-8 (a byte order mark is ignored), like a fixture.
 ConfigValidation readConfig(String dir) {
   final file = File('$dir/$configFile');
-  if (!file.existsSync()) return const ConfigValidation(ContractsConfig(), []);
+  final type = FileSystemEntity.typeSync(file.path);
+  if (type == FileSystemEntityType.notFound) {
+    return const ConfigValidation(ContractsConfig(), []);
+  }
+  if (type != FileSystemEntityType.file) {
+    return const ConfigValidation(ContractsConfig(), [
+      FormatIssue('json', '(root)', 'is not a file'),
+    ]);
+  }
   final String text;
   try {
     text = utf8.decode(file.readAsBytesSync());

@@ -137,6 +137,29 @@
           "path": "forbidden.4"
         }
       ]
+    },
+    {
+      "case": "a pattern that matches the empty string would forbid every string",
+      "text": "{ \"format\": 1, \"forbidden\": [\"sec_[a-z]+\", \"\", \"a*\", \"x?\", \"^$\"] }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "pattern",
+          "path": "forbidden.1"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.2"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.3"
+        },
+        {
+          "code": "pattern",
+          "path": "forbidden.4"
+        }
+      ]
     }
   ]
 }

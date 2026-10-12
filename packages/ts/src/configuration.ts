@@ -58,7 +58,13 @@ export function validateConfig(text: string): { config: ContractsConfig; issues:
         return;
       }
       try {
-        compilePattern(pattern);
+        if (compilePattern(pattern).search("")) {
+          issues.push({
+            code: "pattern",
+            path: `forbidden.${i}`,
+            message: "matches the empty string, so it would forbid every string",
+          });
+        }
       } catch (error) {
         if (!(error instanceof PatternError)) throw error;
         issues.push({
@@ -78,8 +84,10 @@ export function validateConfig(text: string): { config: ContractsConfig; issues:
  */
 export function readConfig(dir: string): { config: ContractsConfig; issues: FormatIssue[] } {
   const file = path.join(dir, CONFIG_FILE);
-  if (!(fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false)) {
-    return { config: { forbidden: [] }, issues: [] };
+  const stat = fs.statSync(file, { throwIfNoEntry: false });
+  if (stat === undefined) return { config: { forbidden: [] }, issues: [] };
+  if (!stat.isFile()) {
+    return { config: { forbidden: [] }, issues: [{ code: "json", path: "(root)", message: "is not a file" }] };
   }
   let text: string;
   try {

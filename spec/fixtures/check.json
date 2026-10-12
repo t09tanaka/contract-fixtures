@@ -766,7 +766,7 @@
         }
       ],
       "hints": [],
-      "report": "{tool} check (provider side): 1 problem(s) in 5 fixture(s)\n  - provider/payment.started.json: invalid fixture: response.body.client_key contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)\nRun `{tool} reset` and the provider side's tests before this check."
+      "report": "{tool} check (provider side): 1 problem(s) in 5 fixture(s)\n  - provider/payment.started.json: invalid fixture: response.body.client_key contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "config: a configuration that is not valid is a problem, and forbids nothing meanwhile",
@@ -795,6 +795,42 @@
       ],
       "hints": [],
       "report": "{tool} check (provider side): 2 problem(s) in 5 fixture(s)\n  - config.json: invalid configuration: extra unknown key (allowed: format, forbidden)\n  - config.json: invalid configuration: forbidden.1 must be a pattern (a string)\nRun `{tool} reset` and the provider side's tests before this check."
+    },
+    {
+      "case": "no entries and one fixture that is invalid: the one line counts the others and stands where the first of them would",
+      "side": "provider",
+      "noLedger": true,
+      "ledger": [],
+      "files": {
+        "consumer/broken.json": "{"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unverified"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unverified"
+        },
+        {
+          "file": "consumer/broken.json",
+          "code": "invalid"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unread"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        ".ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?"
+      ],
+      "report": "{tool} check (provider side): 5 problem(s) in 5 fixture(s)\n  - none of the 4 fixture(s) that follow the format was verified or read by the provider side's tests (they are not listed one by one)\n  - consumer/broken.json: invalid fixture: (root) is not valid JSON\nHint: .ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?\nRun `{tool} reset` and the provider side's tests before this check."
     }
   ]
 }

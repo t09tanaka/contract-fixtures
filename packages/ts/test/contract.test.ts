@@ -336,6 +336,32 @@ describe("contractFixtures", () => {
     );
   });
 
+  it("a ledger directory that cannot be looked at is not taken for a missing ledger", (t) => {
+    if (process.platform === "win32" || process.getuid?.() === 0) return t.skip("needs a directory that cannot be read");
+    const dir = copyOfContracts();
+    contractFixtures({ side: "provider", dir }).readTable("order-total");
+    fs.chmodSync(path.join(dir, ".ledger"), 0o000);
+    try {
+      const unusable = /the ledger \.ledger\/provider\.jsonl cannot be used/;
+      assert.throws(() => resetLedger({ dir, side: "provider" }), unusable);
+      assert.throws(() => checkContracts({ dir, side: "provider" }), unusable);
+      assert.throws(() => contractFixtures({ side: "provider", dir }).readTable("order-total"), unusable);
+    } finally {
+      fs.chmodSync(path.join(dir, ".ledger"), 0o755);
+    }
+    assert.equal(ledgerLines(dir, "provider").length, 1);
+  });
+
+  it("a directory in the place of config.json is a configuration that is not valid", () => {
+    const dir = copyOfContracts();
+    fs.mkdirSync(path.join(dir, "config.json"));
+    assert.deepEqual(
+      checkContracts({ dir, side: "consumer" }).problems.filter((p) => p.file === "config.json").map((p) => p.message),
+      ["invalid configuration: (root) is not a file"],
+    );
+    assert.throws(() => contractFixtures({ side: "consumer", dir }).readTable("order-total"), /config\.json of the contracts directory/);
+  });
+
   it("a file in the place of a directory of fixtures holds no fixtures", () => {
     const dir = tempDir();
     fs.writeFileSync(path.join(dir, "provider"), "");

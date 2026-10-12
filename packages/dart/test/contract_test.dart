@@ -581,6 +581,63 @@ void main() {
       );
     });
 
+    test(
+        'a ledger directory that cannot be looked at is not taken for a missing ledger',
+        () {
+      final dir = copyOfContracts();
+      ContractFixtures(side: ContractSide.provider, dir: dir)
+          .readTable('order-total');
+      Process.runSync('chmod', ['000', '$dir/.ledger']);
+      try {
+        final unusable = throwsA(
+          isA<ContractUsageException>().having(
+            (e) => e.message,
+            'message',
+            contains('the ledger .ledger/provider.jsonl cannot be used'),
+          ),
+        );
+        expect(
+            () => resetLedger(dir: dir, side: ContractSide.provider), unusable);
+        expect(
+          () => checkContracts(dir: dir, side: ContractSide.provider),
+          unusable,
+        );
+        expect(
+          () => ContractFixtures(side: ContractSide.provider, dir: dir)
+              .readTable('order-total'),
+          unusable,
+        );
+      } finally {
+        Process.runSync('chmod', ['755', '$dir/.ledger']);
+      }
+      expect(ledgerLines(dir, 'provider'), hasLength(1));
+    },
+        // Needs a directory that cannot be read.
+        skip: Platform.isWindows ||
+            Process.runSync('id', ['-u']).stdout.toString().trim() == '0');
+
+    test(
+        'a directory in the place of config.json is a configuration that is not valid',
+        () {
+      final dir = copyOfContracts();
+      Directory('$dir/config.json').createSync();
+      expect(
+        checkContracts(dir: dir, side: ContractSide.consumer)
+            .problems
+            .where((p) => p.file == 'config.json')
+            .map((p) => p.message),
+        ['invalid configuration: (root) is not a file'],
+      );
+      expect(
+        () => ContractFixtures(side: ContractSide.consumer, dir: dir)
+            .readTable('order-total'),
+        throwsA(
+          isA<ContractFixtureException>()
+              .having((e) => e.file, 'file', 'config.json'),
+        ),
+      );
+    });
+
     test('a file in the place of a directory of fixtures holds no fixtures',
         () {
       final dir = tempDir();

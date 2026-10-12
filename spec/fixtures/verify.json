@@ -4146,7 +4146,7 @@
           "path": "response.body.client_key"
         }
       ],
-      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)",
       "written": null,
       "absent": [
         "sec_live_9fK27Q"
@@ -4180,7 +4180,7 @@
           "path": "response.body.client_key"
         }
       ],
-      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)",
       "written": null,
       "absent": [
         "sec_live_9fK27Q"
@@ -4270,7 +4270,7 @@
           "path": "response.body.client_key"
         }
       ],
-      "message": "contract fixture provider/payment.started.json does not follow the format:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+      "message": "contract fixture provider/payment.started.json does not follow the format:\n  response.body.client_key: contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)",
       "written": null
     },
     {
