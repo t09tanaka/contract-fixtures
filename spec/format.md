@@ -534,7 +534,8 @@ directory had no configuration. The cases in `fixtures/configuration.json` pin t
 and those of `fixtures/patterns.json` and `fixtures/search.json` the search. A package may
 leave a value untried when it lacks a text that every match of the pattern contains (`sec_`
 for `sec_(live|test)_[A-Za-z0-9]+`); the result is the same, and the cases of
-`fixtures/search.json` hold the two ways against each other.
+`fixtures/search.json` hold the two ways against each other (that file is written by
+`generate-search.mjs`, from a fixed seed).
 
 ## Comparison
 

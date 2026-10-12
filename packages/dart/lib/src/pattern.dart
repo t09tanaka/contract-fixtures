@@ -503,7 +503,6 @@ _Literal _literal(_Node node) {
         exact = false;
         required = _longer(_longer(required, run), part.required);
         run = text ?? '';
-        if (run.length > _maxLiteralLength) run = '';
       }
       required = _longer(required, run);
       return _Literal(exact ? run : null, required);

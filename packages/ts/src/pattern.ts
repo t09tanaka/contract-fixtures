@@ -319,7 +319,6 @@ function literal(node: Node): Literal {
         exact = false;
         required = longer(longer(required, run), part.required);
         run = part.exact ?? "";
-        if (run.length > MAX_LITERAL_LENGTH) run = "";
       }
       required = longer(required, run);
       return { exact: exact ? run : null, required };
@@ -459,10 +458,11 @@ function prepare(source: string): CompiledPattern {
   };
 
   const { required } = literal(root);
-  return {
-    test: (value) => run(value, false),
-    search: (value) => (required === "" || value.includes(required)) && run(value, true),
-    scan: (value) => run(value, true),
+  // Frozen: one object serves every caller that asks for the same text.
+  return Object.freeze({
+    test: (value: string) => run(value, false),
+    search: (value: string) => (required === "" || value.includes(required)) && run(value, true),
+    scan: (value: string) => run(value, true),
     required,
-  };
+  });
 }
