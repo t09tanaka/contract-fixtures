@@ -77,18 +77,26 @@ const fits = (pattern: string | undefined, segment: string | undefined): boolean
  */
 export function ruleMatch(rule: VolatileRule, segments: readonly string[]): "exact" | "subtree" | null {
   const { segments: pattern, wildcard } = rule;
+  // From the end: the last segments tell most nodes apart, the first ones hardly any.
   if (wildcard === -1) {
     if (segments.length !== pattern.length) return null;
-    return pattern.every((p, i) => fits(p, segments[i])) ? "exact" : null;
+    for (let i = pattern.length - 1; i >= 0; i--) if (!fits(pattern[i], segments[i])) return null;
+    return "exact";
   }
   const tail = pattern.length - wildcard - 1;
   if (segments.length < wildcard + tail) return null;
-  for (let i = 0; i < wildcard; i++) if (!fits(pattern[i], segments[i])) return null;
   for (let i = 1; i <= tail; i++) {
     if (!fits(pattern[pattern.length - i], segments[segments.length - i])) return null;
   }
+  for (let i = wildcard - 1; i >= 0; i--) if (!fits(pattern[i], segments[i])) return null;
   return tail === 0 ? "subtree" : "exact";
 }
+
+const NO_PATTERNS: VolatileRule[] = [];
+const UNNAMED: { mode: "exact" | "subtree" | null; patterns: VolatileRule[] } = Object.freeze({
+  mode: null,
+  patterns: NO_PATTERNS,
+});
 
 /**
  * How a node is compared, given all rules. A rule that names the node itself wins over a path
@@ -99,15 +107,36 @@ export function volatileMode(
   segments: readonly string[],
 ): { mode: "exact" | "subtree" | null; patterns: VolatileRule[] } {
   let mode: "exact" | "subtree" | null = null;
-  const patterns: VolatileRule[] = [];
+  let patterns: VolatileRule[] | null = null;
   for (const rule of rules) {
     const match = ruleMatch(rule, segments);
     if (match === "exact") {
       mode = "exact";
-      if (rule.matcher !== null) patterns.push(rule);
+      if (rule.matcher !== null) (patterns ??= []).push(rule);
     } else if (match === "subtree" && mode === null) mode = "subtree";
   }
-  return { mode, patterns };
+  // Most nodes are named by no entry: nothing is made for them.
+  if (mode === null) return UNNAMED;
+  return { mode, patterns: patterns ?? NO_PATTERNS };
+}
+
+/**
+ * For a depth, the rules that can match a node that deep, in the order of the entries: a
+ * rule without `**` only matches nodes as deep as it is long, so most rules need not be
+ * asked at most nodes. The answer for a depth is worked out once.
+ */
+export function rulesByDepth<Rule extends VolatileRule>(rules: readonly Rule[]): (depth: number) => readonly Rule[] {
+  const known = new Map<number, Rule[]>();
+  return (depth) => {
+    let at = known.get(depth);
+    if (at === undefined) {
+      at = rules.filter((rule) =>
+        rule.wildcard === -1 ? rule.segments.length === depth : rule.segments.length - 1 <= depth,
+      );
+      known.set(depth, at);
+    }
+    return at;
+  };
 }
 
 /** Whether `value` is what a rule with a pattern asks for: a matching string, or `null` if nullable. */

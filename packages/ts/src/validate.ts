@@ -6,6 +6,7 @@ import {
   entryParts,
   lenientRules,
   ruleMatch,
+  rulesByDepth,
   satisfies,
   volatileMode,
   volatileRule,
@@ -165,16 +166,45 @@ function validateResponse(issues: FormatIssue[], response: unknown): void {
   }
 }
 
-/** The nodes of the fixture that a rule names (not those below a path that ends in `**`). */
-function matchedNodes(root: unknown, rule: VolatileRule): { path: string; value: unknown }[] {
-  const out: { path: string; value: unknown }[] = [];
-  const walk = (node: unknown, segments: string[]): void => {
-    if (ruleMatch(rule, segments) !== null) out.push({ path: segments.join("."), value: node });
-    if (Array.isArray(node)) node.forEach((item, i) => walk(item, [...segments, String(i)]));
-    else if (isObject(node)) for (const key of sortedKeys(node)) walk(node[key], [...segments, key]);
+/** A rule of a fixture, with what one walk of the fixture finds out about it. */
+interface WatchedRule extends VolatileRule {
+  /** The nodes the rule matches (those below a path that ends in `**` included). */
+  matched: number;
+  /** The nodes it names whose value is not what its pattern asks for, in the order of the walk. */
+  failures: { path: string; value: unknown }[];
+}
+
+/**
+ * Walks the fixture once for all rules: how many nodes each matches, and which of the nodes
+ * a rule with a pattern names do not hold what the pattern asks for.
+ */
+function watch(root: unknown, rules: readonly WatchedRule[]): void {
+  if (rules.length === 0) return;
+  const candidates = rulesByDepth(rules);
+  const segments: string[] = [];
+  const walk = (node: unknown): void => {
+    for (const rule of candidates(segments.length)) {
+      if (ruleMatch(rule, segments) === null) continue;
+      rule.matched++;
+      if (rule.matcher !== null && !satisfies(rule, node)) {
+        rule.failures.push({ path: segments.join("."), value: node });
+      }
+    }
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) {
+        segments.push(String(i));
+        walk(node[i]);
+        segments.pop();
+      }
+    } else if (isObject(node)) {
+      for (const key of sortedKeys(node)) {
+        segments.push(key);
+        walk(node[key]);
+        segments.pop();
+      }
+    }
   };
-  walk(root, []);
-  return out;
+  walk(root);
 }
 
 /** Why `path` cannot be a volatile path, or `null` when it can. */
@@ -217,56 +247,56 @@ function validateVolatile(
     hidden.has(nodePath) || JWT_PATTERN.test(value) || forbidden.some((pattern) => pattern.search(value))
       ? ""
       : `${shownJson(value)} `;
-  volatile.forEach((entry: unknown, i: number) => {
+  // What is wrong with an entry itself is known at once; what the fixture holds at its path
+  // is found by one walk for all entries. The issues keep the order of the entries.
+  const found: (FormatIssue | WatchedRule)[] = volatile.map((entry: unknown, i: number) => {
     const path = `volatile.${i}`;
     const parts = entryParts(entry);
     if (parts === null) {
-      issues.push({
+      return {
         code: "volatile",
         path,
         message:
           "must be a path, or an object with the keys path and pattern (both strings) and, optionally, nullable (true)",
-      });
-      return;
+      };
     }
     const problem = volatilePathProblem(parts.path, roots);
-    if (problem !== null) {
-      issues.push({ code: "volatile", path, message: problem });
-      return;
-    }
+    if (problem !== null) return { code: "volatile", path, message: problem };
     if (parts.pattern !== null && parts.path.endsWith(".**")) {
-      issues.push({
+      return {
         code: "volatile",
         path,
         message: "a path that ends in ** cannot have a pattern (a pattern is for one string)",
-      });
-      return;
+      };
     }
-    let rule: VolatileRule;
     try {
-      rule = volatileRule(parts);
+      return { ...volatileRule(parts), matched: 0, failures: [] };
     } catch (error) {
       if (!(error instanceof PatternError)) throw error;
-      issues.push({
+      return {
         code: "pattern",
         path: `${path}.pattern`,
         message: `is not a pattern this format supports: ${error.message}`,
-      });
+      };
+    }
+  });
+  const watched = (entry: FormatIssue | WatchedRule): entry is WatchedRule => "segments" in entry;
+  watch(fixture, found.filter(watched));
+  found.forEach((rule, i) => {
+    if (!watched(rule)) {
+      issues.push(rule);
       return;
     }
-    const nodes = matchedNodes(fixture, rule);
-    if (nodes.length === 0) {
+    const path = `volatile.${i}`;
+    if (rule.matched === 0) {
       issues.push({
         code: "volatile-unmatched",
         path,
-        message: `${parts.path} matches nothing in this fixture`,
+        message: `${rule.segments.join(".")} matches nothing in this fixture`,
       });
       return;
     }
-    if (rule.matcher === null) return;
-    for (const node of nodes) {
-      if (ruleMatch(rule, node.path.split(".")) !== "exact") continue;
-      if (satisfies(rule, node.value)) continue;
+    for (const node of rule.failures) {
       issues.push({
         code: "volatile-pattern",
         path: node.path,

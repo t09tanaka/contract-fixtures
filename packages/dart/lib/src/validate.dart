@@ -191,31 +191,51 @@ void _validateResponse(List<FormatIssue> issues, Object? response) {
   }
 }
 
-class _Matched {
-  const _Matched(this.segments, this.value);
-  final List<String> segments;
-  final Object? value;
+/// A rule of a fixture, with what one walk of the fixture finds out about it.
+class _WatchedRule extends VolatileRule {
+  _WatchedRule(super.parts, this.entry);
+
+  /// `volatile.<index>`.
+  final String entry;
+
+  /// The nodes the rule matches (those below a path that ends in `**` included).
+  int matched = 0;
+
+  /// The nodes it names whose value is not what its pattern asks for, in the order of the
+  /// walk: the path and the value.
+  final List<(String, Object?)> failures = [];
 }
 
-/// The nodes of the fixture that a rule matches, those below a path that ends in `**`
-/// included.
-List<_Matched> _matchedNodes(Object? root, VolatileRule rule) {
-  final out = <_Matched>[];
-  void walk(Object? node, List<String> segments) {
-    if (rule.match(segments) != null) out.add(_Matched(segments, node));
+/// Walks the fixture once for all rules: how many nodes each matches, and which of the
+/// nodes a rule with a pattern names do not hold what the pattern asks for.
+void _watch(Object? root, List<_WatchedRule> rules) {
+  if (rules.isEmpty) return;
+  final candidates = rulesByDepth(rules);
+  final segments = <String>[];
+  void walk(Object? node) {
+    for (final rule in candidates(segments.length)) {
+      if (rule.match(segments) == null) continue;
+      rule.matched++;
+      if (rule.matcher != null && !rule.satisfiedBy(node)) {
+        rule.failures.add((segments.join('.'), node));
+      }
+    }
     if (node is List) {
       for (var i = 0; i < node.length; i++) {
-        walk(node[i], [...segments, '$i']);
+        segments.add('$i');
+        walk(node[i]);
+        segments.removeLast();
       }
     } else if (node is Map<String, dynamic>) {
       for (final key in sortedKeys(node)) {
-        walk(node[key], [...segments, key]);
+        segments.add(key);
+        walk(node[key]);
+        segments.removeLast();
       }
     }
   }
 
-  walk(root, const []);
-  return out;
+  walk(root);
 }
 
 /// Why [path] cannot be a volatile path, or `null` when it can.
@@ -267,78 +287,75 @@ void _validateVolatile(
           forbidden.any((pattern) => pattern.search(value))
       ? ''
       : '${shownJson(value)} ';
-  for (var i = 0; i < volatile.length; i++) {
-    final path = 'volatile.$i';
-    final parts = entryParts(volatile[i] as Object?);
-    if (parts == null) {
-      issues.add(
-        FormatIssue(
-          'volatile',
-          path,
-          'must be a path, or an object with the keys path and pattern (both '
-              'strings) and, optionally, nullable (true)',
-        ),
-      );
+  // What is wrong with an entry itself is known at once; what the fixture holds at its
+  // path is found by one walk for all entries. The issues keep the order of the entries.
+  final found = <Object>[
+    for (var i = 0; i < volatile.length; i++)
+      _entry(volatile[i] as Object?, 'volatile.$i', roots),
+  ];
+  _watch(fixture, found.whereType<_WatchedRule>().toList());
+  for (final entry in found) {
+    if (entry is FormatIssue) {
+      issues.add(entry);
       continue;
     }
-    final problem = _volatilePathProblem(parts.path, roots);
-    if (problem != null) {
-      issues.add(FormatIssue('volatile', path, problem));
-      continue;
-    }
-    if (parts.pattern != null && parts.path.endsWith('.**')) {
-      issues.add(
-        FormatIssue(
-          'volatile',
-          path,
-          'a path that ends in ** cannot have a pattern (a pattern is for one '
-              'string)',
-        ),
-      );
-      continue;
-    }
-    final VolatileRule rule;
-    try {
-      rule = VolatileRule(parts);
-    } on PatternException catch (error) {
-      issues.add(
-        FormatIssue(
-          'pattern',
-          '$path.pattern',
-          'is not a pattern this format supports: ${error.message}',
-        ),
-      );
-      continue;
-    }
-    final nodes = _matchedNodes(fixture, rule);
-    if (nodes.isEmpty) {
+    final rule = entry as _WatchedRule;
+    if (rule.matched == 0) {
       issues.add(
         FormatIssue(
           'volatile-unmatched',
-          path,
-          '${parts.path} matches nothing in this fixture',
+          rule.entry,
+          '${rule.segments.join('.')} matches nothing in this fixture',
         ),
       );
       continue;
     }
-    if (rule.matcher == null) continue;
-    for (final node in nodes) {
-      final value = node.value;
-      if (rule.satisfiedBy(value)) continue;
-      final nodePath = node.segments.join('.');
+    for (final (nodePath, value) in rule.failures) {
       issues.add(
         FormatIssue(
           'volatile-pattern',
           nodePath,
           value is String
               ? '${shown(nodePath, value)}does not match the pattern '
-                  '${rule.source} of $path'
+                  '${rule.source} of ${rule.entry}'
               : 'must be a string that matches the pattern ${rule.source} of '
-                  "$path${rule.nullable ? ', or null' : ''} "
+                  "${rule.entry}${rule.nullable ? ', or null' : ''} "
                   '(found ${jsonType(value)})',
         ),
       );
     }
+  }
+}
+
+/// What an entry of `volatile` is: the issue that is wrong with it, or its rule.
+Object _entry(Object? entry, String path, List<String> roots) {
+  final parts = entryParts(entry);
+  if (parts == null) {
+    return FormatIssue(
+      'volatile',
+      path,
+      'must be a path, or an object with the keys path and pattern (both '
+          'strings) and, optionally, nullable (true)',
+    );
+  }
+  final problem = _volatilePathProblem(parts.path, roots);
+  if (problem != null) return FormatIssue('volatile', path, problem);
+  if (parts.pattern != null && parts.path.endsWith('.**')) {
+    return FormatIssue(
+      'volatile',
+      path,
+      'a path that ends in ** cannot have a pattern (a pattern is for one '
+          'string)',
+    );
+  }
+  try {
+    return _WatchedRule(parts, path);
+  } on PatternException catch (error) {
+    return FormatIssue(
+      'pattern',
+      '$path.pattern',
+      'is not a pattern this format supports: ${error.message}',
+    );
   }
 }
 

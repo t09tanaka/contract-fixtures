@@ -3,6 +3,7 @@ import {
   entryParts,
   failedPattern,
   requirement,
+  rulesByDepth,
   volatileMode,
   volatileRule,
   type VolatileEntry,
@@ -39,10 +40,14 @@ export function differences(
     return volatileRule(parts);
   });
   const out: Difference[] = [];
+  const candidates = rulesByDepth(rules);
+  // One list of segments for the whole walk, and a path only where a line is printed: most
+  // nodes are equal, and a text for each of them is most of the work on a large body.
+  const segments: string[] = [];
+  const where = (): string => (segments.length === 0 ? "(root)" : segments.join("."));
 
-  const walk = (e: unknown, a: unknown, segments: string[]): void => {
-    const path = segments.length === 0 ? "(root)" : segments.join(".");
-    const { mode, patterns } = volatileMode(rules, segments);
+  const walk = (e: unknown, a: unknown): void => {
+    const { mode, patterns } = volatileMode(candidates(segments.length), segments);
     const typeE = jsonType(e);
     const typeA = jsonType(a);
 
@@ -51,6 +56,7 @@ export function differences(
       // one is asked. With `nullable`, a string and null may stand in for each other.
       const failed = failedPattern(patterns, a);
       if (failed !== null) {
+        const path = where();
         out.push(
           typeE === typeA || typeof a === "string"
             ? {
@@ -62,11 +68,13 @@ export function differences(
         );
       } else if (typeE !== typeA && failedPattern(patterns, e) !== null) {
         const rule = failedPattern(patterns, e)!;
+        const path = where();
         out.push({ path, kind: "type", text: `${path}: type ${typeE} -> ${typeA} (volatile: ${requirement(rule)})` });
       }
       return;
     }
     if (typeE !== typeA) {
+      const path = where();
       out.push(
         mode === null
           ? { path, kind: "value", text: `${path}: ${shownPair(e, a).join(" -> ")}` }
@@ -82,6 +90,7 @@ export function differences(
 
     if (Array.isArray(e) && Array.isArray(a)) {
       if (e.length !== a.length) {
+        const path = where();
         out.push({
           path,
           kind: "length",
@@ -89,40 +98,56 @@ export function differences(
         });
         return;
       }
-      e.forEach((item, i) => walk(item, a[i], [...segments, String(i)]));
+      for (let i = 0; i < e.length; i++) {
+        segments.push(String(i));
+        walk(e[i], a[i]);
+        segments.pop();
+      }
       return;
     }
     if (isObject(e) && isObject(a)) {
-      for (const key of sortedKeys({ ...e, ...a })) {
-        const child = segments.length === 0 ? key : `${path}.${key}`;
+      for (const key of unionOfKeys(e, a)) {
         if (!Object.hasOwn(a, key)) {
+          const child = segments.length === 0 ? key : `${where()}.${key}`;
           out.push({
             path: child,
             kind: "missing",
             text: `${child}: ${shownJson(e[key])} -> (absent)`,
           });
         } else if (!Object.hasOwn(e, key)) {
+          const child = segments.length === 0 ? key : `${where()}.${key}`;
           out.push({
             path: child,
             kind: "unexpected",
             text: `${child}: (absent) -> ${shownJson(a[key])}`,
           });
         } else {
-          walk(e[key], a[key], [...segments, key]);
+          segments.push(key);
+          walk(e[key], a[key]);
+          segments.pop();
         }
       }
       return;
     }
     if (mode === null && e !== a) {
+      const path = where();
       out.push({ path, kind: "value", text: `${path}: ${shownPair(e, a).join(" -> ")}` });
     }
   };
 
-  walk(expected, actual, []);
+  walk(expected, actual);
   // The status of a response says most about what happened, and the lines before it can be
   // long: it comes first. Everything else keeps the order of the walk.
   const first = (d: Difference): boolean => d.path === "response.status";
   return [...out.filter(first), ...out.filter((d) => !first(d))];
+}
+
+/** The keys of both objects in code unit order; those of one, when the other has the same. */
+function unionOfKeys(e: Record<string, unknown>, a: Record<string, unknown>): string[] {
+  const keys = sortedKeys(e);
+  let same = Object.keys(a).length === keys.length;
+  for (let i = 0; same && i < keys.length; i++) same = Object.hasOwn(a, keys[i]!);
+  return same ? keys : sortedKeys({ ...e, ...a });
 }
 
 /** The lines of `differences`, indented, one per line. */

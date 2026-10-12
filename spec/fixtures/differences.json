@@ -2055,6 +2055,180 @@
       },
       "volatile": [],
       "differences": []
+    },
+    {
+      "case": "many entries of different depths over one value: each node is compared by the entries that can name it",
+      "expected": {
+        "a": {
+          "id": "x1",
+          "b": {
+            "id": "x2",
+            "list": [
+              {
+                "id": "x3",
+                "n": 1
+              },
+              {
+                "id": "x4",
+                "n": 2
+              }
+            ],
+            "free": {
+              "k": 1,
+              "l": [
+                1
+              ]
+            }
+          }
+        },
+        "id": "x0",
+        "n": 0
+      },
+      "actual": {
+        "a": {
+          "id": "y1",
+          "b": {
+            "id": 2,
+            "list": [
+              {
+                "id": "bad",
+                "n": 1
+              },
+              {
+                "id": "y4",
+                "n": 3
+              }
+            ],
+            "free": {
+              "k": "one",
+              "l": [
+                2
+              ]
+            }
+          }
+        },
+        "id": "bad",
+        "n": 0
+      },
+      "volatile": [
+        {
+          "path": "**.id",
+          "pattern": "^[xy][0-9]$"
+        },
+        {
+          "path": "a.b.list.*.id",
+          "pattern": "^y"
+        },
+        "a.b.free.**",
+        "n",
+        {
+          "path": "a.id",
+          "pattern": "^y1$"
+        },
+        "a.b.list.1.n"
+      ],
+      "differences": [
+        {
+          "path": "a.b.free.k",
+          "kind": "type",
+          "text": "a.b.free.k: type number -> string (volatile: only the type is compared)"
+        },
+        {
+          "path": "a.b.id",
+          "kind": "type",
+          "text": "a.b.id: type string -> number (volatile: must be a string that matches ^[xy][0-9]$)"
+        },
+        {
+          "path": "a.b.list.0.id",
+          "kind": "pattern",
+          "text": "a.b.list.0.id: \"x3\" -> \"bad\" (volatile: does not match ^[xy][0-9]$)"
+        },
+        {
+          "path": "a.b.list.1.id",
+          "kind": "pattern",
+          "text": "a.b.list.1.id: \"x4\" -> \"y4\" (volatile: does not match ^y)"
+        },
+        {
+          "path": "id",
+          "kind": "pattern",
+          "text": "id: \"x0\" -> \"bad\" (volatile: does not match ^[xy][0-9]$)"
+        }
+      ]
+    },
+    {
+      "case": "a deep value: the path of a difference far down is the whole path",
+      "expected": {
+        "l1": {
+          "l2": {
+            "l3": {
+              "l4": {
+                "l5": {
+                  "l6": {
+                    "l7": {
+                      "l8": [
+                        [
+                          [
+                            {
+                              "leaf": 1,
+                              "other": "same"
+                            }
+                          ]
+                        ]
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "actual": {
+        "l1": {
+          "l2": {
+            "l3": {
+              "l4": {
+                "l5": {
+                  "l6": {
+                    "l7": {
+                      "l8": [
+                        [
+                          [
+                            {
+                              "leaf": 2,
+                              "other": "same",
+                              "more": true
+                            }
+                          ]
+                        ]
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "volatile": [
+        "l1.**.nothing",
+        {
+          "path": "l1.l2.**.other",
+          "pattern": "^same$"
+        }
+      ],
+      "differences": [
+        {
+          "path": "l1.l2.l3.l4.l5.l6.l7.l8.0.0.0.leaf",
+          "kind": "value",
+          "text": "l1.l2.l3.l4.l5.l6.l7.l8.0.0.0.leaf: 1 -> 2"
+        },
+        {
+          "path": "l1.l2.l3.l4.l5.l6.l7.l8.0.0.0.more",
+          "kind": "unexpected",
+          "text": "l1.l2.l3.l4.l5.l6.l7.l8.0.0.0.more: (absent) -> true"
+        }
+      ]
     }
   ]
 }
