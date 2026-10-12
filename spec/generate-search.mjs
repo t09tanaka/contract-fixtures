@@ -164,6 +164,12 @@ const alternatives = [
   ["^(live|test)_[a-z]+$", [], 6, ["live_a", "test_abc", "live_", "xlive_a", "prod_a"]],
   [`(${forty.join("|")})!?`, [], 3, ["ka0", "kn39!", "ka", "kz99", ""]],
   [`(${forty.slice(0, 32).join("|")})!?`, forty.slice(0, 32), 3, ["ka0", "kf31!", "kg32", ""]],
+  // One alternative more than is kept, and the string that matches uses the last one.
+  [`(${forty.slice(0, 33).join("|")})!?`, [], 3, ["kg32", "x kg32!", "kf31", "kh33", ""]],
+  // Two choices of 20 alternatives each, as branches of one choice: 40 texts, not kept.
+  [`(${forty.slice(0, 20).join("|")})[0-9]|(${forty.slice(20).join("|")})[a-z]`, [], 4, ["ka07", "kn39z", "ku20q", "ka0z", "ku207", ""]],
+  // The same two as parts of a sequence: the first one offers 20, which are kept.
+  [`(${forty.slice(0, 20).join("|")})[xy](${forty.slice(20).join("|")})`, forty.slice(0, 20), 8, ["ka0xku20", "kt19ykn39", "ka0ku20", "ku20xka0", ""]],
 ];
 for (const [pattern, requiredAny, shortest, values] of alternatives) {
   cases.push(entry(`alternatives and length: ${pattern.length > 40 ? `${pattern.slice(0, 20)}... (${pattern.length} code units)` : pattern}`, pattern, values, undefined, requiredAny, shortest));
