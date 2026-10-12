@@ -62,10 +62,43 @@ String _number(num value) {
   return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
 }
 
+/// Writes a string as JSON. Most strings need no escape and are written as they are; one
+/// with a control character, a quote, a backslash or a surrogate goes through the encoder
+/// of the language, which is what decides how those are written.
+void _writeString(StringBuffer out, String text) {
+  for (var i = 0; i < text.length; i++) {
+    final unit = text.codeUnitAt(i);
+    if (unit < 0x20 ||
+        unit == 0x22 ||
+        unit == 0x5c ||
+        (unit >= 0xd800 && unit <= 0xdfff)) {
+      out.write(jsonEncode(text));
+      return;
+    }
+  }
+  out
+    ..write('"')
+    ..write(text)
+    ..write('"');
+}
+
+/// The keys as JavaScript would write them: as given, unless one could be an array index.
+Iterable<String> _writtenOrder(Map<String, dynamic> members) {
+  for (final key in members.keys) {
+    if (key.isNotEmpty) {
+      final first = key.codeUnitAt(0);
+      if (first >= 0x30 && first <= 0x39) return _javaScriptOrder(members.keys);
+    }
+  }
+  return members.keys;
+}
+
 /// Writes [value] as JSON: on one line with sorted keys (no [indent]), or indented with the
 /// keys in the order JavaScript would write them.
 void _write(StringBuffer out, Object? value, String? indent, String current) {
-  if (value is num) {
+  if (value is String) {
+    _writeString(out, value);
+  } else if (value is num) {
     out.write(_number(value));
   } else if (value is List) {
     if (value.isEmpty) {
@@ -73,43 +106,54 @@ void _write(StringBuffer out, Object? value, String? indent, String current) {
       return;
     }
     final inner = indent == null ? '' : '$current$indent';
+    final lead = indent == null ? '' : '\n$inner';
     out.write('[');
     for (var i = 0; i < value.length; i++) {
       if (i > 0) out.write(',');
-      if (indent != null) out.write('\n$inner');
+      out.write(lead);
       _write(out, value[i], indent, inner);
     }
     if (indent != null) out.write('\n$current');
     out.write(']');
+  } else if (value is Map<String, dynamic>) {
+    _writeMembers(out, value, indent, current);
   } else if (value is Map && value.keys.every((key) => key is String)) {
-    if (value.isEmpty) {
-      out.write('{}');
-      return;
-    }
-    final members = value.cast<String, dynamic>();
-    final inner = indent == null ? '' : '$current$indent';
-    out.write('{');
-    var first = true;
-    for (final key in indent == null
-        ? sortedKeys(members)
-        : _javaScriptOrder(members.keys)) {
-      if (!first) out.write(',');
-      first = false;
-      if (indent != null) out.write('\n$inner');
-      out
-        ..write(jsonEncode(key))
-        ..write(indent == null ? ':' : ': ');
-      _write(out, members[key], indent, inner);
-    }
-    if (indent != null) out.write('\n$current');
-    out.write('}');
-  } else if (value == null || value is bool || value is String) {
-    out.write(jsonEncode(value));
+    _writeMembers(out, value.cast<String, dynamic>(), indent, current);
+  } else if (value == null || value is bool) {
+    out.write(value);
   } else {
     // An object with `toJson`: what it encodes to is written like everything else. What
     // JSON has no form for (a set, a map with keys that are not strings) throws here.
     _write(out, jsonDecode(jsonEncode(value)), indent, current);
   }
+}
+
+void _writeMembers(
+  StringBuffer out,
+  Map<String, dynamic> members,
+  String? indent,
+  String current,
+) {
+  if (members.isEmpty) {
+    out.write('{}');
+    return;
+  }
+  final inner = indent == null ? '' : '$current$indent';
+  final lead = indent == null ? '' : '\n$inner';
+  final colon = indent == null ? ':' : ': ';
+  out.write('{');
+  var first = true;
+  for (final key
+      in indent == null ? sortedKeys(members) : _writtenOrder(members)) {
+    if (!first) out.write(',');
+    first = false;
+    out.write(lead);
+    _writeString(out, key);
+    out.write(colon);
+    _write(out, members[key], indent, inner);
+  }
+  if (indent != null) out.write('\n$current');
+  out.write('}');
 }
 
 /// One-line JSON with sorted keys. Used to print values in differences.
