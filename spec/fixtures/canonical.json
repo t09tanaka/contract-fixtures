@@ -69,9 +69,9 @@
     },
     {
       "case": "strings and keys with and without characters that need an escape",
-      "input": "{\"plain\":\"abc xyz\",\"quote\":\"a\\\"b\",\"back\":\"a\\\\b\",\"ctl\":\"a\\u0001\\n\\t\\u001fb\",\"del\":\"a\\u007fb\",\"sep\":\"a  b\",\"pair\":\"a😀b\",\"lone\":[\"\\ud83d\",\"x\\ude00\",\"\\ud83dx\"],\"k\\\"ey\":1,\"k\\ney\":2,\"10\":\"x\",\"2\":\"y\",\"é\":\"é\",\"\":\"\"}",
-      "pretty": "{\n  \"2\": \"y\",\n  \"10\": \"x\",\n  \"plain\": \"abc xyz\",\n  \"quote\": \"a\\\"b\",\n  \"back\": \"a\\\\b\",\n  \"ctl\": \"a\\u0001\\n\\t\\u001fb\",\n  \"del\": \"ab\",\n  \"sep\": \"a  b\",\n  \"pair\": \"a😀b\",\n  \"lone\": [\n    \"\\ud83d\",\n    \"x\\ude00\",\n    \"\\ud83dx\"\n  ],\n  \"k\\\"ey\": 1,\n  \"k\\ney\": 2,\n  \"é\": \"é\",\n  \"\": \"\"\n}\n",
-      "compact": "{\"\":\"\",\"10\":\"x\",\"2\":\"y\",\"back\":\"a\\\\b\",\"ctl\":\"a\\u0001\\n\\t\\u001fb\",\"del\":\"ab\",\"k\\ney\":2,\"k\\\"ey\":1,\"lone\":[\"\\ud83d\",\"x\\ude00\",\"\\ud83dx\"],\"pair\":\"a😀b\",\"plain\":\"abc xyz\",\"quote\":\"a\\\"b\",\"sep\":\"a  b\",\"é\":\"é\"}"
+      "input": "{\"plain\":\"abc xyz\",\"quote\":\"a\\\"b\",\"back\":\"a\\\\b\",\"ctl\":\"a\\u0001\\n\\t\\u001fb\",\"del\":\"a\\u007fb\",\"sep\":\"a\\u2028\\u2029b\",\"pair\":\"a\\ud83d\\ude00b\",\"lone\":[\"\\ud83d\",\"x\\ude00\",\"\\ud83dx\"],\"k\\\"ey\":1,\"k\\ney\":2,\"k\\ud83d\\ude00\":3,\"k\\ud83d\":4,\"\\ude00k\":5,\"10\":\"x\",\"2\":\"y\",\"é\":\"é\",\"\":\"\"}",
+      "pretty": "{\n  \"2\": \"y\",\n  \"10\": \"x\",\n  \"plain\": \"abc xyz\",\n  \"quote\": \"a\\\"b\",\n  \"back\": \"a\\\\b\",\n  \"ctl\": \"a\\u0001\\n\\t\\u001fb\",\n  \"del\": \"a\u007fb\",\n  \"sep\": \"a\u2028\u2029b\",\n  \"pair\": \"a😀b\",\n  \"lone\": [\n    \"\\ud83d\",\n    \"x\\ude00\",\n    \"\\ud83dx\"\n  ],\n  \"k\\\"ey\": 1,\n  \"k\\ney\": 2,\n  \"k😀\": 3,\n  \"k\\ud83d\": 4,\n  \"\\ude00k\": 5,\n  \"é\": \"é\",\n  \"\": \"\"\n}\n",
+      "compact": "{\"\":\"\",\"10\":\"x\",\"2\":\"y\",\"back\":\"a\\\\b\",\"ctl\":\"a\\u0001\\n\\t\\u001fb\",\"del\":\"a\u007fb\",\"k\\ney\":2,\"k\\\"ey\":1,\"k\\ud83d\":4,\"k😀\":3,\"lone\":[\"\\ud83d\",\"x\\ude00\",\"\\ud83dx\"],\"pair\":\"a😀b\",\"plain\":\"abc xyz\",\"quote\":\"a\\\"b\",\"sep\":\"a\u2028\u2029b\",\"é\":\"é\",\"\\ude00k\":5}"
     }
   ]
 }
