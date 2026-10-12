@@ -375,7 +375,17 @@ enum _Kind { set, split, start, end, match }
 /// A pattern, ready to be tried on values.
 class CompiledPattern {
   CompiledPattern._(
-      this._entry, this._kinds, this._next, this._other, this._sets);
+    this._entry,
+    this._kinds,
+    this._next,
+    this._other,
+    this._sets,
+    this.required,
+  );
+
+  /// A text that every match of the pattern contains, or `''` when none is known. A value
+  /// without it cannot hold a match, which [search] finds out before it tries the pattern.
+  final String required;
 
   final int _entry;
   final List<_Kind> _kinds;
@@ -387,7 +397,13 @@ class CompiledPattern {
   bool test(String value) => _run(value, anywhere: false);
 
   /// Whether a part of [value] matches (`^` and `$` are still the ends of the value).
-  bool search(String value) => _run(value, anywhere: true);
+  bool search(String value) =>
+      (required.isEmpty || value.contains(required)) &&
+      _run(value, anywhere: true);
+
+  /// [search] without its shortcut: every position of the value is tried. The result is
+  /// the same by definition; the tests hold the two against each other.
+  bool scan(String value) => _run(value, anywhere: true);
 
   bool _run(String value, {required bool anywhere}) {
     final seen = List<int>.filled(_kinds.length, -1);
@@ -441,9 +457,82 @@ class CompiledPattern {
   }
 }
 
+/// What is known about the texts a part of a pattern matches: the one text it matches
+/// ([exact], `null` when it can match more than one, or none), and the longest text found
+/// that every match of the part contains ([required]).
+class _Literal {
+  const _Literal(this.exact, this.required);
+  final String? exact;
+  final String required;
+}
+
+/// An exact text is not carried on beyond this length; what was found so far still counts.
+const int _maxLiteralLength = 256;
+
+String _longer(String a, String b) => b.length > a.length ? b : a;
+
+/// A text that every match of [node] contains. Only what is certain counts: a character
+/// that stands for itself, a sequence of such, and what a group or a repetition of at least
+/// one holds. A choice, a class, an optional part and an anchor say nothing, and end a run.
+_Literal _literal(_Node node) {
+  switch (node) {
+    case _SetNode(:final set):
+      String? exact;
+      if (!set.negated && set.items.length == 1) {
+        final item = set.items.single;
+        if (!item.negated &&
+            item.ranges.length == 1 &&
+            item.ranges.single.low == item.ranges.single.high) {
+          exact = String.fromCharCode(item.ranges.single.low);
+        }
+      }
+      return _Literal(exact, exact ?? '');
+    case _StartNode() || _EndNode() || _ChoiceNode():
+      return const _Literal(null, '');
+    case _SequenceNode(:final nodes):
+      var run = '';
+      var required = '';
+      var exact = true;
+      for (final child in nodes) {
+        final part = _literal(child);
+        final text = part.exact;
+        if (text != null && run.length + text.length <= _maxLiteralLength) {
+          run += text;
+          continue;
+        }
+        exact = false;
+        required = _longer(_longer(required, run), part.required);
+        run = text ?? '';
+        if (run.length > _maxLiteralLength) run = '';
+      }
+      required = _longer(required, run);
+      return _Literal(exact ? run : null, required);
+    case _RepeatNode(node: final inner, :final min, :final max):
+      if (min < 1) return const _Literal(null, '');
+      final part = _literal(inner);
+      return _Literal(min == 1 && max == 1 ? part.exact : null, part.required);
+  }
+}
+
+/// Patterns that were compiled before, by their text. What a pattern means depends on
+/// nothing else.
+final Map<String, CompiledPattern> _compiled = {};
+
+/// More texts than this are not kept: the map is emptied and starts again.
+const int _maxCompiled = 1000;
+
 /// Checks [source] against the pattern syntax of spec/format.md and prepares it for
 /// matching. Throws [PatternException] when it is not a pattern.
 CompiledPattern compilePattern(String source) {
+  final known = _compiled[source];
+  if (known != null) return known;
+  final pattern = _prepare(source);
+  if (_compiled.length >= _maxCompiled) _compiled.clear();
+  _compiled[source] = pattern;
+  return pattern;
+}
+
+CompiledPattern _prepare(String source) {
   if (source.length > maxPatternLength) {
     throw const PatternException('is longer than $maxPatternLength characters');
   }
@@ -516,5 +605,12 @@ CompiledPattern compilePattern(String source) {
   }
 
   final entry = build(root, 0);
-  return CompiledPattern._(entry, kinds, next, other, sets);
+  return CompiledPattern._(
+    entry,
+    kinds,
+    next,
+    other,
+    sets,
+    _literal(root).required,
+  );
 }

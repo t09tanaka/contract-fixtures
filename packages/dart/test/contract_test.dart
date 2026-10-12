@@ -723,6 +723,68 @@ void main() {
           throwsA(isA<JsonUnsupportedObjectError>()));
     });
 
+    test(
+        'a config.json rewritten in the same process is read again: the patterns in force are those of the file now',
+        () {
+      final dir = copyOfContracts();
+      final consumer = ContractFixtures(side: ContractSide.consumer, dir: dir);
+      final forbidden = throwsA(
+        isA<ContractFixtureException>().having(
+          (e) => e.issues.map((issue) => issue.code),
+          'codes',
+          everyElement('forbidden'),
+        ),
+      );
+      writeFile(dir, 'config.json', '{ "format": 1, "forbidden": ["^ord_"] }');
+      expect(() => consumer.readResponse('order.created'), forbidden);
+      // Another pattern: the first one is no longer in force, although it was compiled.
+      writeFile(dir, 'config.json', '{ "format": 1, "forbidden": ["^pay_"] }');
+      expect(consumer.readResponse('order.created').response.status, 201);
+      // The first one again, and then no file at all.
+      writeFile(
+        dir,
+        'config.json',
+        '{ "format": 1, "forbidden": ["^pay_", "^ord_"] }',
+      );
+      expect(() => consumer.readResponse('order.created'), forbidden);
+      File('$dir/config.json').deleteSync();
+      expect(consumer.readResponse('order.created').response.status, 201);
+      // The same text in another directory is in force there, and only there.
+      final other = copyOfContracts();
+      writeFile(
+          other, 'config.json', '{ "format": 1, "forbidden": ["^ord_"] }');
+      expect(
+        () => ContractFixtures(side: ContractSide.consumer, dir: other)
+            .readResponse('order.created'),
+        forbidden,
+      );
+      expect(consumer.readResponse('order.created').response.status, 201);
+    });
+
+    test(
+        'a pattern is prepared once for a text, and a text that is not a pattern fails every time',
+        () {
+      expect(
+        compilePattern(r'^ord_[a-z0-9]+$'),
+        same(compilePattern(r'^ord_[a-z0-9]+$')),
+      );
+      expect(
+        compilePattern(r'^ord_[a-z0-9]+$'),
+        isNot(same(compilePattern(r'^ord_[a-z0-9]*$'))),
+      );
+      for (var i = 0; i < 3; i++) {
+        expect(() => compilePattern('('), throwsA(isA<PatternException>()));
+      }
+      // More texts than are kept: every one still means what it says.
+      for (var i = 0; i < 2500; i++) {
+        final pattern = compilePattern('key${i}_[0-9]+');
+        expect(pattern.required, 'key${i}_');
+        expect(pattern.search('a key${i}_7'), isTrue);
+        expect(pattern.search('a key${i + 1}_7'), isFalse);
+      }
+      expect(compilePattern(r'^ord_[a-z0-9]+$').test('ord_81f3'), isTrue);
+    });
+
     test('a file in the place of a directory of fixtures holds no fixtures',
         () {
       final dir = tempDir();

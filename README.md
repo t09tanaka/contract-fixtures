@@ -627,7 +627,8 @@ docs/            the adoption guide
 ```
 
 `spec/fixtures/` holds language-independent cases (comparison, validation, file output, the
-messages of a failing verify, the configuration of a directory, check with its report and
+messages of a failing verify, the configuration of a directory and the search for what it
+forbids, check with its report and
 hints, summary, coverage, and the command line with its help, messages and exit codes). Both packages run them in their own tests; that is how "the two packages
 treat a fixture the same way" is kept true.
 

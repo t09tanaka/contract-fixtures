@@ -264,13 +264,94 @@ export interface CompiledPattern {
   test(value: string): boolean;
   /** Whether a part of `value` matches (`^` and `$` are still the ends of the value). */
   search(value: string): boolean;
+  /**
+   * `search` without its shortcut: every position of the value is tried. The result is the
+   * same by definition; the tests hold the two against each other.
+   */
+  scan(value: string): boolean;
+  /**
+   * A text that every match of the pattern contains, or `""` when none is known. A value
+   * without it cannot hold a match, which `search` finds out before it tries the pattern.
+   */
+  readonly required: string;
 }
+
+/** What is known about the texts a part of a pattern matches. */
+interface Literal {
+  /** The one text the part matches, or `null` when it can match more than one (or none). */
+  exact: string | null;
+  /** The longest text found that every match of the part contains. */
+  required: string;
+}
+
+/** An exact text is not carried on beyond this length; what was found so far still counts. */
+const MAX_LITERAL_LENGTH = 256;
+
+/**
+ * A text that every match of `node` contains. Only what is certain counts: a character that
+ * stands for itself, a sequence of such, and what a group or a repetition of at least one
+ * holds. A choice, a class, an optional part and an anchor say nothing, and end a run.
+ */
+function literal(node: Node): Literal {
+  const longer = (a: string, b: string): string => (b.length > a.length ? b : a);
+  switch (node.type) {
+    case "set": {
+      const { negated, items } = node.set;
+      const only = !negated && items.length === 1 && !items[0]!.negated && items[0]!.ranges.length === 1;
+      const range = only ? items[0]!.ranges[0]! : null;
+      const exact = range !== null && range[0] === range[1] ? String.fromCharCode(range[0]) : null;
+      return { exact, required: exact ?? "" };
+    }
+    case "start":
+    case "end":
+    case "choice":
+      return { exact: null, required: "" };
+    case "sequence": {
+      let run = "";
+      let required = "";
+      let exact = true;
+      for (const child of node.nodes) {
+        const part = literal(child);
+        if (part.exact !== null && run.length + part.exact.length <= MAX_LITERAL_LENGTH) {
+          run += part.exact;
+          continue;
+        }
+        exact = false;
+        required = longer(longer(required, run), part.required);
+        run = part.exact ?? "";
+        if (run.length > MAX_LITERAL_LENGTH) run = "";
+      }
+      required = longer(required, run);
+      return { exact: exact ? run : null, required };
+    }
+    case "repeat": {
+      if (node.min < 1) return { exact: null, required: "" };
+      const part = literal(node.node);
+      const once = node.min === 1 && node.max === 1;
+      return { exact: once ? part.exact : null, required: part.required };
+    }
+  }
+}
+
+/** Patterns that were compiled before, by their text. What a pattern means depends on nothing else. */
+const compiled = new Map<string, CompiledPattern>();
+/** More texts than this are not kept: the map is emptied and starts again. */
+const MAX_COMPILED = 1000;
 
 /**
  * Checks `source` against the pattern syntax of spec/format.md and prepares it for matching.
  * Throws `PatternError` when it is not a pattern.
  */
 export function compilePattern(source: string): CompiledPattern {
+  const known = compiled.get(source);
+  if (known !== undefined) return known;
+  const pattern = prepare(source);
+  if (compiled.size >= MAX_COMPILED) compiled.clear();
+  compiled.set(source, pattern);
+  return pattern;
+}
+
+function prepare(source: string): CompiledPattern {
   if (source.length > MAX_PATTERN_LENGTH) {
     throw new PatternError(`is longer than ${MAX_PATTERN_LENGTH} characters`);
   }
@@ -377,8 +458,11 @@ export function compilePattern(source: string): CompiledPattern {
     return matched(current);
   };
 
+  const { required } = literal(root);
   return {
     test: (value) => run(value, false),
-    search: (value) => run(value, true),
+    search: (value) => (required === "" || value.includes(required)) && run(value, true),
+    scan: (value) => run(value, true),
+    required,
   };
 }
