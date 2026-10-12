@@ -395,7 +395,11 @@ other's results, only the committed fixtures. The workflow of the example in thi
       - run: npm run contract -w example/consumer-web
 ```
 
-where `contract` is `contract-fixtures reset ... && npm test && contract-fixtures check ...`.
+where `contract` is `contract-fixtures reset ... && npm test && contract-fixtures check ...`
+(without `npx`: inside a script npm finds the executable itself; for a Dart side, `dart run
+contract_fixtures ...` is the right choice in CI, and the
+[README of the Dart package](../packages/dart/README.md#starting-the-commands-faster) says when
+a compiled executable is worth it).
 When the tests of a side are split into several suites (unit, integration, end-to-end; each
 a command or a container run of its own), the order is `reset`, then **every** suite of that
 side, then `check`: the tables may be read in the integration tests and the responses

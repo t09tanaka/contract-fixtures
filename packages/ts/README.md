@@ -304,6 +304,11 @@ tables/order-total             -             -       2 row(s)
 With Jest or Vitest, the helpers append to the ledger from every worker; no reporter or plugin is
 needed.
 
+In the `scripts` of a `package.json`, write the commands without `npx`
+(`"contract": "contract-fixtures reset --side provider --dir ../contracts && npm test && contract-fixtures check --side provider --dir ../contracts"`):
+npm finds the executable of the installed package by itself, and `npx` only adds a start of
+its own in front of it.
+
 The environment variables (`CONTRACT_FIXTURES_DIR`, `CONTRACT_FIXTURES_UPDATE`, `CI`) are in
 one table in the
 [repository README](https://github.com/t09tanaka/contract-fixtures#environment-variables).
