@@ -155,7 +155,7 @@ fixture throws `ContractFixtureException`.
   constructor: a tool that only loads the test files, to collect other tests or to run
   mutation tests on a part of them, does not need the variable. A missing directory throws
   `ContractUsageException` at that first use.
-- `warn` (a `void Function(String)`) receives a note that is not a failure. There is one:
+- `warn` (a function that takes a `String`) receives a note that is not a failure. There is one:
   update mode wrote a fixture with a 5xx over one that held another status, which is more
   often a test application that differs from the deployed one than a change of the API. By
   default the note is one line on standard error.
