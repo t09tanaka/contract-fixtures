@@ -391,6 +391,42 @@ describe("contractFixtures", () => {
     assert.equal(ledgerLines(dir, "provider").length, 2);
   });
 
+  it("a config.json rewritten in the same process is read again: the patterns in force are those of the file now", () => {
+    const dir = copyOfContracts();
+    const consumer = contractFixtures({ side: "consumer", dir });
+    const forbidden = (error: unknown): boolean =>
+      error instanceof ContractFixtureError && error.issues.every((issue) => issue.code === "forbidden");
+    writeFile(dir, "config.json", '{ "format": 1, "forbidden": ["^ord_"] }');
+    assert.throws(() => consumer.readResponse("order.created"), forbidden);
+    // Another pattern: the first one is no longer in force, although it was compiled.
+    writeFile(dir, "config.json", '{ "format": 1, "forbidden": ["^pay_"] }');
+    assert.equal(consumer.readResponse("order.created").response.status, 201);
+    // The first one again, and then no file at all.
+    writeFile(dir, "config.json", '{ "format": 1, "forbidden": ["^pay_", "^ord_"] }');
+    assert.throws(() => consumer.readResponse("order.created"), forbidden);
+    fs.rmSync(path.join(dir, "config.json"));
+    assert.equal(consumer.readResponse("order.created").response.status, 201);
+    // The same text in another directory is in force there, and only there.
+    const other = copyOfContracts();
+    writeFile(other, "config.json", '{ "format": 1, "forbidden": ["^ord_"] }');
+    assert.throws(() => contractFixtures({ side: "consumer", dir: other }).readResponse("order.created"), forbidden);
+    assert.equal(consumer.readResponse("order.created").response.status, 201);
+  });
+
+  it("a pattern is prepared once for a text, and a text that is not a pattern fails every time", () => {
+    assert.equal(compilePattern("^ord_[a-z0-9]+$"), compilePattern("^ord_[a-z0-9]+$"));
+    assert.notEqual(compilePattern("^ord_[a-z0-9]+$"), compilePattern("^ord_[a-z0-9]*$"));
+    for (let i = 0; i < 3; i++) assert.throws(() => compilePattern("("), PatternError);
+    // More texts than are kept: every one still means what it says.
+    for (let i = 0; i < 2500; i++) {
+      const pattern = compilePattern(`key${i}_[0-9]+`);
+      assert.equal(pattern.required, `key${i}_`);
+      assert.equal(pattern.search(`a key${i}_7`), true);
+      assert.equal(pattern.search(`a key${i + 1}_7`), false);
+    }
+    assert.equal(compilePattern("^ord_[a-z0-9]+$").test("ord_81f3"), true);
+  });
+
   it("a file in the place of a directory of fixtures holds no fixtures", () => {
     const dir = tempDir();
     fs.writeFileSync(path.join(dir, "provider"), "");

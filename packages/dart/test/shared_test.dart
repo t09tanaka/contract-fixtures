@@ -106,8 +106,11 @@ void main() {
     }
   });
 
-  group('spec/fixtures/patterns.json', () {
-    for (final c in loadCases('patterns.json')) {
+  group('spec/fixtures/patterns.json and search.json', () {
+    for (final c in [
+      ...loadCases('patterns.json'),
+      ...loadCases('search.json'),
+    ]) {
       test(c['case'], () {
         final source = c['pattern'] as String;
         if (c['valid'] == false) {
@@ -133,6 +136,23 @@ void main() {
         }
         for (final value in rejects) {
           expect(pattern.test(value), isFalse, reason: jsonEncode(value));
+        }
+        // The search that tries every position, without the shortcut, on every string of a
+        // case that is about searching (the others have values made to be slow to search).
+        final searched = c.containsKey('finds') || c.containsKey('findsNot')
+            ? const ['matches', 'rejects', 'finds', 'findsNot']
+            : const <String>[];
+        for (final key in searched) {
+          for (final value in strings(key)) {
+            expect(pattern.scan(value), pattern.search(value),
+                reason: 'scan ${jsonEncode(value)}');
+            if (pattern.scan(value)) {
+              expect(value, contains(pattern.required));
+            }
+          }
+        }
+        if (c.containsKey('required')) {
+          expect(pattern.required, c['required']);
         }
         if (c['native'] == false) return;
         final native = RegExp('^(?:$source)\$');

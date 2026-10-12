@@ -142,7 +142,7 @@ describe("spec/fixtures/placeholders.json", () => {
   }
 });
 
-describe("spec/fixtures/patterns.json", () => {
+describe("spec/fixtures/patterns.json and search.json", () => {
   interface Case {
     case: string;
     pattern: string;
@@ -151,9 +151,10 @@ describe("spec/fixtures/patterns.json", () => {
     rejects?: string[];
     finds?: string[];
     findsNot?: string[];
+    required?: string;
     native?: boolean;
   }
-  for (const c of loadCases<Case>("patterns.json")) {
+  for (const c of [...loadCases<Case>("patterns.json"), ...loadCases<Case>("search.json")]) {
     it(c.case, () => {
       if (!c.valid) {
         assert.throws(() => compilePattern(c.pattern), PatternError);
@@ -164,6 +165,14 @@ describe("spec/fixtures/patterns.json", () => {
       for (const value of c.rejects ?? []) assert.equal(pattern.test(value), false, JSON.stringify(value));
       for (const value of c.finds ?? []) assert.equal(pattern.search(value), true, `search ${JSON.stringify(value)}`);
       for (const value of c.findsNot ?? []) assert.equal(pattern.search(value), false, `search ${JSON.stringify(value)}`);
+      // The search that tries every position, without the shortcut, on every string of a
+      // case that is about searching (the others have values made to be slow to search).
+      const searched = c.finds === undefined && c.findsNot === undefined ? [] : [c.matches, c.rejects, c.finds, c.findsNot];
+      for (const value of searched.flatMap((values) => values ?? [])) {
+        assert.equal(pattern.scan(value), pattern.search(value), `scan ${JSON.stringify(value)}`);
+        if (pattern.scan(value)) assert.ok(value.includes(pattern.required), `required in ${JSON.stringify(value)}`);
+      }
+      if (c.required !== undefined) assert.equal(pattern.required, c.required);
       if (c.native === false) return;
       const anywhere = new RegExp(c.pattern);
       for (const value of c.finds ?? []) assert.equal(anywhere.test(value), true, `RegExp: ${JSON.stringify(value)}`);
