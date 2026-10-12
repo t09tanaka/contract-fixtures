@@ -152,6 +152,8 @@ describe("spec/fixtures/patterns.json and search.json", () => {
     finds?: string[];
     findsNot?: string[];
     required?: string;
+    requiredAny?: string[];
+    shortest?: number;
     native?: boolean;
   }
   for (const c of [...loadCases<Case>("patterns.json"), ...loadCases<Case>("search.json")]) {
@@ -170,9 +172,17 @@ describe("spec/fixtures/patterns.json and search.json", () => {
       const searched = c.finds === undefined && c.findsNot === undefined ? [] : [c.matches, c.rejects, c.finds, c.findsNot];
       for (const value of searched.flatMap((values) => values ?? [])) {
         assert.equal(pattern.scan(value), pattern.search(value), `scan ${JSON.stringify(value)}`);
-        if (pattern.scan(value)) assert.ok(value.includes(pattern.required), `required in ${JSON.stringify(value)}`);
+        if (!pattern.scan(value)) continue;
+        assert.ok(value.includes(pattern.required), `required in ${JSON.stringify(value)}`);
+        assert.ok(value.length >= pattern.shortest, `the length of ${JSON.stringify(value)}`);
+        assert.ok(
+          pattern.requiredAny.length === 0 || pattern.requiredAny.some((text) => value.includes(text)),
+          `one of the texts in ${JSON.stringify(value)}`,
+        );
       }
       if (c.required !== undefined) assert.equal(pattern.required, c.required);
+      if (c.requiredAny !== undefined) assert.deepEqual(pattern.requiredAny, c.requiredAny);
+      if (c.shortest !== undefined) assert.equal(pattern.shortest, c.shortest);
       if (c.native === false) return;
       const anywhere = new RegExp(c.pattern);
       for (const value of c.finds ?? []) assert.equal(anywhere.test(value), true, `RegExp: ${JSON.stringify(value)}`);

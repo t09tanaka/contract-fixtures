@@ -3,10 +3,11 @@
 //   node spec/generate-search.mjs
 //
 // The cases come from a fixed seed, so the file is the same on every run. What a pattern
-// finds is asked of the RegExp of the engine, not of the package. Only `required` (the text
-// the package derives that every match contains) is taken from the TypeScript package; the
-// Dart package must derive the same one, and both must find it in every string that holds a
-// match.
+// finds is asked of the RegExp of the engine, not of the package. Only what the package
+// derives to leave values untried is taken from the TypeScript package: `required` (a text
+// every match contains), `requiredAny` (texts of which every match contains one) and
+// `shortest` (the fewest code units of a match). The Dart package must derive the same,
+// and both must find them true of every string that holds a match.
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -57,8 +58,15 @@ const all = (chars, length) => {
 };
 
 const wrong = [];
-const entry = (name, pattern, values, required) => {
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const entry = (name, pattern, values, required, requiredAny, shortest) => {
   const compiled = compilePattern(pattern);
+  if (requiredAny !== undefined && !same(compiled.requiredAny, requiredAny)) {
+    wrong.push(`${pattern.slice(0, 40)}: derived any of ${JSON.stringify(compiled.requiredAny)}, expected ${JSON.stringify(requiredAny)}`);
+  }
+  if (shortest !== undefined && compiled.shortest !== shortest) {
+    wrong.push(`${pattern.slice(0, 40)}: derived a length of ${compiled.shortest}, expected ${shortest}`);
+  }
   const native = new RegExp(pattern);
   const whole = new RegExp(`^(?:${pattern})$`);
   if (required !== undefined && compiled.required !== required) {
@@ -69,6 +77,8 @@ const entry = (name, pattern, values, required) => {
     pattern,
     valid: true,
     required: compiled.required,
+    requiredAny: compiled.requiredAny,
+    shortest: compiled.shortest,
     matches: values.filter((v) => whole.test(v)),
     rejects: values.filter((v) => !whole.test(v)),
     finds: values.filter((v) => native.test(v)),
@@ -131,6 +141,40 @@ for (const [pattern, required, values] of hand) {
   cases.push(entry(`required text: ${pattern.length > 40 ? `${pattern.slice(0, 20)}... (${pattern.length} code units)` : pattern}`, pattern, values, required));
 }
 
+// 1b. Hand-written: a choice between whole alternatives, where no one text is required but
+// one of several is, and the fewest code units of a match.
+const forty = Array.from({ length: 40 }, (_, i) => `k${String.fromCharCode(97 + (i % 26))}${i}`);
+const alternatives = [
+  ["abc_x+|abd_y+", ["abc_", "abd_"], 5, ["abc_x", "zabd_yyz", "abc_", "abd_x", "abc_y", ""]],
+  ["(abc|abd)", ["abc", "abd"], 3, ["abc", "xabdx", "ab", "abe", "a b c"]],
+  ["(ab|cd)[xy]", ["ab", "cd"], 3, ["abx", "cdy", "ab", "xy", "adx"]],
+  ["(a|b)(cd|ef|gh)", ["a", "b"], 3, ["acd", "bgh", "cd", "aef", "ab"]],
+  ["(cd|ef|gh)(a|b)", ["a", "b"], 3, ["cda", "ghb", "cd", "efa", "ab"]],
+  ["(ab|ab|cd)[0-9]", ["ab", "cd"], 3, ["ab1", "cd9", "ab", "cdx"]],
+  ["x{3}|y{2,}", ["x", "y"], 2, ["xxx", "yy", "xx", "y", "xxyy"]],
+  ["(a|b){0,2}c|d+", ["c", "d"], 1, ["c", "abc", "d", "ab", ""]],
+  ["(ab|(cd|ef)g)h?", ["ab", "g"], 2, ["ab", "cdg", "efgh", "cd", "g"]],
+  ["a|", [], 0, ["", "b", "a"]],
+  ["(a|[bc])d?", [], 1, ["a", "c", "d", ""]],
+  ["(ab|c*)d", [], 1, ["abd", "d", "ccd", "ab", ""]],
+  ["(ab|cd)e", [], 3, ["abe", "cde", "ab", "e", "ade"]],
+  ["[A-Za-z0-9]{32}", [], 32, [x("a", 32), x("a", 31), `${x("a", 31)}-`, x("Z9", 20), `- ${x("b", 32)} -`, ""]],
+  ["[ab]{2}[cd]{3,}", [], 5, ["abccc", "abcc", "xbaddddx", "ab", "ccc"]],
+  ["\\d{4}-\\d{4}", [], 9, ["1234-5678", "x1234-5678x", "1234-567", "12345678", "-"]],
+  ["^(live|test)_[a-z]+$", [], 6, ["live_a", "test_abc", "live_", "xlive_a", "prod_a"]],
+  [`(${forty.join("|")})!?`, [], 3, ["ka0", "kn39!", "ka", "kz99", ""]],
+  [`(${forty.slice(0, 32).join("|")})!?`, forty.slice(0, 32), 3, ["ka0", "kf31!", "kg32", ""]],
+  // One alternative more than is kept, and the string that matches uses the last one.
+  [`(${forty.slice(0, 33).join("|")})!?`, [], 3, ["kg32", "x kg32!", "kf31", "kh33", ""]],
+  // Two choices of 20 alternatives each, as branches of one choice: 40 texts, not kept.
+  [`(${forty.slice(0, 20).join("|")})[0-9]|(${forty.slice(20).join("|")})[a-z]`, [], 4, ["ka07", "kn39z", "ku20q", "ka0z", "ku207", ""]],
+  // The same two as parts of a sequence: the first one offers 20, which are kept.
+  [`(${forty.slice(0, 20).join("|")})[xy](${forty.slice(20).join("|")})`, forty.slice(0, 20), 8, ["ka0xku20", "kt19ykn39", "ka0ku20", "ku20xka0", ""]],
+];
+for (const [pattern, requiredAny, shortest, values] of alternatives) {
+  cases.push(entry(`alternatives and length: ${pattern.length > 40 ? `${pattern.slice(0, 20)}... (${pattern.length} code units)` : pattern}`, pattern, values, undefined, requiredAny, shortest));
+}
+
 if (wrong.length > 0) throw new Error(`the derived text is not the expected one:\n${wrong.join("\n")}`);
 
 // 2. Generated, a few characters and every short string: matches are common, and so are
@@ -162,7 +206,7 @@ const text = () => Array.from({ length: Math.floor(rand() * 20) }, () => pick(ch
 generate(wide, () => [...new Set(Array.from({ length: 16 }, text))], 150, "generated, random strings");
 
 const description =
-  "Cases for the search that the `forbidden` patterns of a configuration use, in the shape of the cases of patterns.json. `finds` and `findsNot`: a part of each string in `finds` must match, and no part of a string in `findsNot` may; `matches` and `rejects` are for the whole string. On every string of a case, the search with its shortcut and the search that tries every position must agree, and so must the engine of the language, given the pattern as it is. `required` is the text every match contains, as the packages derive it (the empty string when they derive none): a value without that text is not tried, and every string in which a match is found must contain it. The file is written by spec/generate-search.mjs from a fixed seed; the expectations of what matches are those of an ECMAScript engine.";
+  "Cases for the search that the `forbidden` patterns of a configuration use, in the shape of the cases of patterns.json. `finds` and `findsNot`: a part of each string in `finds` must match, and no part of a string in `findsNot` may; `matches` and `rejects` are for the whole string. On every string of a case, the search with its shortcut and the search that tries every position must agree, and so must the engine of the language, given the pattern as it is. `required` is the text every match contains, as the packages derive it (the empty string when they derive none); `requiredAny` is a list of texts of which every match contains at least one (empty when they derive none, or when there is a `required` text); `shortest` is the fewest code units of a match. A value without the text, without any of the texts, or shorter than that is not tried, and every string in which a match is found must have all three. The file is written by spec/generate-search.mjs from a fixed seed; the expectations of what matches are those of an ECMAScript engine.";
 const lines = cases.map((c) => "    " + JSON.stringify(c)).join(",\n");
 fs.writeFileSync(
   fileURLToPath(new URL("./fixtures/search.json", import.meta.url)),

@@ -274,6 +274,13 @@ export interface CompiledPattern {
    * without it cannot hold a match, which `search` finds out before it tries the pattern.
    */
   readonly required: string;
+  /**
+   * Texts of which every match contains at least one, for a pattern without one `required`
+   * text (a choice between whole alternatives); empty when none are known.
+   */
+  readonly requiredAny: readonly string[];
+  /** The fewest code units a match can have. A shorter value is not tried either. */
+  readonly shortest: number;
 }
 
 /** What is known about the texts a part of a pattern matches. */
@@ -282,7 +289,16 @@ interface Literal {
   exact: string | null;
   /** The longest text found that every match of the part contains. */
   required: string;
+  /** Texts of which every match of the part contains at least one; empty when none are known. */
+  anyOf: readonly string[];
+  /** The fewest code units a match of the part can have. */
+  min: number;
 }
+
+/** More alternatives than this are not kept: the part then says nothing. */
+const MAX_ALTERNATIVES = 32;
+/** A length beyond this is not counted further; no value is that long. */
+const MAX_MIN_LENGTH = 1_000_000_000;
 
 /** An exact text is not carried on beyond this length; what was found so far still counts. */
 const MAX_LITERAL_LENGTH = 256;
@@ -300,18 +316,34 @@ function literal(node: Node): Literal {
       const only = !negated && items.length === 1 && !items[0]!.negated && items[0]!.ranges.length === 1;
       const range = only ? items[0]!.ranges[0]! : null;
       const exact = range !== null && range[0] === range[1] ? String.fromCharCode(range[0]) : null;
-      return { exact, required: exact ?? "" };
+      return { exact, required: exact ?? "", anyOf: exact === null ? [] : [exact], min: 1 };
     }
     case "start":
     case "end":
-    case "choice":
-      return { exact: null, required: "" };
+      return { exact: null, required: "", anyOf: [], min: 0 };
+    case "choice": {
+      // A match is a match of one branch: it contains a text of that branch, if every
+      // branch has one, and is as long as the shortest branch allows.
+      const parts = node.nodes.map(literal);
+      const all = parts.every((part) => part.anyOf.length > 0) ? [...new Set(parts.flatMap((part) => part.anyOf))] : [];
+      return {
+        exact: null,
+        required: "",
+        anyOf: all.length <= MAX_ALTERNATIVES ? all : [],
+        min: Math.min(...parts.map((part) => part.min)),
+      };
+    }
     case "sequence": {
       let run = "";
       let required = "";
       let exact = true;
+      let anyOf: readonly string[] = [];
+      let min = 0;
       for (const child of node.nodes) {
         const part = literal(child);
+        min = Math.min(MAX_MIN_LENGTH, min + part.min);
+        // Of the parts that offer alternatives, the one with the fewest (the first, if equal).
+        if (part.anyOf.length > 0 && (anyOf.length === 0 || part.anyOf.length < anyOf.length)) anyOf = part.anyOf;
         if (part.exact !== null && run.length + part.exact.length <= MAX_LITERAL_LENGTH) {
           run += part.exact;
           continue;
@@ -321,13 +353,18 @@ function literal(node: Node): Literal {
         run = part.exact ?? "";
       }
       required = longer(required, run);
-      return { exact: exact ? run : null, required };
+      return { exact: exact ? run : null, required, anyOf: required === "" ? anyOf : [required], min };
     }
     case "repeat": {
-      if (node.min < 1) return { exact: null, required: "" };
+      if (node.min < 1) return { exact: null, required: "", anyOf: [], min: 0 };
       const part = literal(node.node);
       const once = node.min === 1 && node.max === 1;
-      return { exact: once ? part.exact : null, required: part.required };
+      return {
+        exact: once ? part.exact : null,
+        required: part.required,
+        anyOf: part.anyOf,
+        min: Math.min(MAX_MIN_LENGTH, part.min * node.min),
+      };
     }
   }
 }
@@ -457,12 +494,21 @@ function prepare(source: string): CompiledPattern {
     return matched(current);
   };
 
-  const { required } = literal(root);
+  const { required, anyOf, min } = literal(root);
+  const requiredAny: readonly string[] = Object.freeze(required === "" ? [...anyOf] : []);
+  /** Whether `value` can hold a match at all: long enough, and with a text every match contains. */
+  const possible = (value: string): boolean => {
+    if (value.length < min) return false;
+    if (required !== "") return value.includes(required);
+    return requiredAny.length === 0 || requiredAny.some((text) => value.includes(text));
+  };
   // Frozen: one object serves every caller that asks for the same text.
   return Object.freeze({
     test: (value: string) => run(value, false),
-    search: (value: string) => (required === "" || value.includes(required)) && run(value, true),
+    search: (value: string) => possible(value) && run(value, true),
     scan: (value: string) => run(value, true),
     required,
+    requiredAny,
+    shortest: min,
   });
 }
