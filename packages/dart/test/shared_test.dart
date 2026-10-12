@@ -56,6 +56,9 @@ void main() {
           expect(issues.map((i) => i.message),
               everyElement(isNot(contains(text))));
         }
+        if (c.containsKey('messages')) {
+          expect(issues.map((i) => i.message).toList(), c['messages']);
+        }
         for (final text in c['shown'] as List<dynamic>? ?? const <dynamic>[]) {
           expect(issues.map((i) => i.message), anyElement(contains(text)));
         }
@@ -322,10 +325,12 @@ void main() {
         if (c.containsKey('config')) {
           writeFile(dir, 'config.json', c['config'] as String);
         }
+        final warnings = <String>[];
         final contract = ContractFixtures(
           side: ContractSide.values.byName(kind),
           dir: dir,
           update: c['update'] as bool,
+          warn: warnings.add,
         );
         final request = ExchangeRequest.fromJson(
           observed['request'] as Map<String, dynamic>,
@@ -396,6 +401,7 @@ void main() {
         if (c.containsKey('differences')) expect(lines, c['differences']);
         if (c.containsKey('issues')) expect(issues, c['issues']);
         if (c.containsKey('message')) expect(message, c['message']);
+        expect(warnings, c['warnings'] ?? isEmpty);
         expect(after, c['written'] ?? storedText);
         final succeeded = c['outcome'] == 'ok' || c['outcome'] == 'written';
         expect(

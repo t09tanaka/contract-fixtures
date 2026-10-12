@@ -25,12 +25,14 @@ class ContractFixtures {
   /// [dir] defaults to the environment variable `CONTRACT_FIXTURES_DIR`, read when the
   /// directory is first used; a relative path is resolved against the working directory
   /// (the package root under `dart test` and `flutter test`). [update] defaults to
-  /// `CONTRACT_FIXTURES_UPDATE=1`.
+  /// `CONTRACT_FIXTURES_UPDATE=1`. [warn] receives a note that is not a failure; by default
+  /// it is written to standard error, which `dart test` and `flutter test` show.
   factory ContractFixtures({
     required ContractSide side,
     String? dir,
     bool? update,
     Map<String, String>? environment,
+    void Function(String message)? warn,
   }) {
     final env = environment ?? Platform.environment;
     var updating = update;
@@ -44,10 +46,19 @@ class ContractFixtures {
         );
       }
     }
-    return ContractFixtures._(side, updating, () => dir ?? env[dirEnv]);
+    return ContractFixtures._(
+      side,
+      updating,
+      () => dir ?? env[dirEnv],
+      warn ?? stderr.writeln,
+    );
   }
 
-  ContractFixtures._(this.side, this.update, this._given);
+  ContractFixtures._(this.side, this.update, this._given, this._warn);
+
+  /// Where a note goes that is not a failure (update mode wrote a 5xx over a response that
+  /// was none). One line on standard error unless the test passes `warn`.
+  final void Function(String message) _warn;
 
   /// The directory as it was passed, or as the environment has it when it is asked for.
   final String? Function() _given;
@@ -321,6 +332,20 @@ class ContractFixtures {
       if (late.isNotEmpty) throw invalid(late);
       target.parent.createSync(recursive: true);
       target.writeAsStringSync(canonicalJson(produced));
+      // Written all the same: a fixture of a 5xx may be meant. But a response that used to
+      // be something else and is a 5xx now is more often a test application that differs
+      // from the deployed one, and nothing else would say so.
+      final before = _statusOf(stored?.value);
+      final after = _statusOf(produced);
+      if (before is num && after is num && before < 500 && after >= 500) {
+        _warn(
+          'contract fixture $file was updated from status ${compactJson(before)} '
+          'to ${compactJson(after)}. '
+          'A fixture with a 5xx is rarely what the deployed API answers: before '
+          'committing it, check how this test assembles the application '
+          '(docs/adoption.md, "Which tests verify").',
+        );
+      }
     }
 
     if (stored == null) {
@@ -388,19 +413,20 @@ class ContractFixtures {
     appendLedger(dir, side, LedgerAction.verified, kind, name);
   }
 
+  /// The status of the response of a fixture, if it has one.
+  Object? _statusOf(Object? fixture) {
+    final response =
+        fixture is Map<String, dynamic> ? fixture['response'] : null;
+    return response is Map<String, dynamic> ? response['status'] : null;
+  }
+
   /// A line for the end of a refusal: that the status of the response is another one than
   /// the stored fixture has. A refusal prints no values, so without this line it would hide
   /// that the response as a whole is a different one (an error in the place of the expected
   /// answer). A status is a number, and no secret path can name it.
   String _statusChange(Object? stored, Object? produced) {
-    Object? status(Object? fixture) {
-      final response =
-          fixture is Map<String, dynamic> ? fixture['response'] : null;
-      return response is Map<String, dynamic> ? response['status'] : null;
-    }
-
-    final before = status(stored);
-    final after = status(produced);
+    final before = _statusOf(stored);
+    final after = _statusOf(produced);
     if (before is! num || after is! num || before == after) return '';
     return '\nThe status of the response is not the stored one either: '
         '${compactJson(before)} -> ${compactJson(after)}';

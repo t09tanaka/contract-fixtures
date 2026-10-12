@@ -1,5 +1,5 @@
 {
-  "description": "Cases for format validation. `value` is the parsed file (or `text` its raw text); `name` is the file name without .json. Every implementation must report exactly these issues, in this order. When a case has `forbidden`, validate with a configuration that forbids those patterns. When a case has `absent`, none of those strings may appear in the message of an issue. When a case has `shown`, each of those strings must appear in the message of at least one issue.",
+  "description": "Cases for format validation. `value` is the parsed file (or `text` its raw text); `name` is the file name without .json. Every implementation must report exactly these issues, in this order. When a case has `forbidden`, validate with a configuration that forbids those patterns. When a case has `absent`, none of those strings may appear in the message of an issue. When a case has `messages`, they are the messages of the issues, word for word and in order. When a case has `shown`, each of those strings must appear in the message of at least one issue.",
   "cases": [
     {
       "case": "valid provider fixture",
@@ -4885,6 +4885,163 @@
       ],
       "absent": [
         "sec_live_9fK27Q"
+      ]
+    },
+    {
+      "case": "forbidden: what to do depends on the place; only a value in headers or a body can be a secret",
+      "kind": "provider",
+      "name": "order.zz9",
+      "forbidden": [
+        "QQ|zz9"
+      ],
+      "value": {
+        "format": 1,
+        "name": "order.zz9",
+        "description": "An order for zz9",
+        "request": {
+          "method": "QQ",
+          "path": "/orders/zz9",
+          "headers": {
+            "x-key": "<token:zz9>"
+          },
+          "body": {
+            "k": "zz9",
+            "list": [
+              "zz9"
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "set-cookie": [
+              "a=1",
+              "b=zz9"
+            ]
+          },
+          "body": {
+            "n": "zz9",
+            "zz9": 1
+          }
+        },
+        "volatile": [
+          "response.body.zz9",
+          {
+            "path": "response.body.zz9",
+            "pattern": "^zz9$"
+          }
+        ],
+        "secret": {
+          "request.headers.x-key": "<token:zz9>"
+        }
+      },
+      "issues": [
+        {
+          "code": "volatile-pattern",
+          "path": "response.body.zz9"
+        },
+        {
+          "code": "forbidden",
+          "path": "description"
+        },
+        {
+          "code": "forbidden",
+          "path": "name"
+        },
+        {
+          "code": "forbidden",
+          "path": "request.body.k"
+        },
+        {
+          "code": "forbidden",
+          "path": "request.body.list.0"
+        },
+        {
+          "code": "forbidden",
+          "path": "request.headers.x-key"
+        },
+        {
+          "code": "forbidden",
+          "path": "request.method"
+        },
+        {
+          "code": "forbidden",
+          "path": "request.path"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.n"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.headers.set-cookie.1"
+        },
+        {
+          "code": "forbidden",
+          "path": "secret.request.headers.x-key"
+        },
+        {
+          "code": "forbidden",
+          "path": "volatile.0"
+        },
+        {
+          "code": "forbidden",
+          "path": "volatile.1.path"
+        },
+        {
+          "code": "forbidden",
+          "path": "volatile.1.pattern"
+        }
+      ],
+      "messages": [
+        "must be a string that matches the pattern ^zz9$ of volatile.1 (found number)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+        "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+        "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+        "contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)",
+        "contains what forbidden.0 of config.json describes (no secret path can name this place: change the text itself)"
+      ]
+    },
+    {
+      "case": "jwt: the same two ways out, by the place",
+      "kind": "consumer",
+      "name": "sign-in.request",
+      "value": {
+        "format": 1,
+        "name": "sign-in.request",
+        "description": "Sent with eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ",
+        "request": {
+          "method": "POST",
+          "path": "/sessions",
+          "headers": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsImtpZCI6ImV4YW1wbGUta2V5LTEifQ.eyJzdWIiOiJjdXN0b21lci0xIiwic2NvcGUiOiJvcmRlcnMifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtMDAwMQ"
+          }
+        }
+      },
+      "issues": [
+        {
+          "code": "jwt",
+          "path": "description"
+        },
+        {
+          "code": "jwt",
+          "path": "request.headers.authorization"
+        }
+      ],
+      "messages": [
+        "contains what looks like a JSON Web Token (no secret path can name this place: change the text itself)",
+        "contains what looks like a JSON Web Token (list this path in secret, so that a placeholder is stored instead)"
+      ],
+      "absent": [
+        "eyJhbGciOiJIUzI1NiIsImtpZCI6"
       ]
     }
   ]

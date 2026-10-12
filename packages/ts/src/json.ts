@@ -33,6 +33,22 @@ export function compactJson(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+/** The most code units of a value that a difference or an issue prints. */
+export const MAX_SHOWN_LENGTH = 200;
+
+/**
+ * `compactJson`, cut after `MAX_SHOWN_LENGTH` code units (one less when that would split a
+ * surrogate pair) and followed by `... (<n> more)`, n being the code units left out. A line
+ * of a difference stays readable that way; the whole value is in the fixture file.
+ */
+export function shownJson(value: unknown): string {
+  const text = compactJson(value);
+  if (text.length <= MAX_SHOWN_LENGTH) return text;
+  const last = text.charCodeAt(MAX_SHOWN_LENGTH - 1);
+  const cut = last >= 0xd800 && last <= 0xdbff ? MAX_SHOWN_LENGTH - 1 : MAX_SHOWN_LENGTH;
+  return `${text.slice(0, cut)}... (${text.length - cut} more)`;
+}
+
 /**
  * The text a fixture file is written as: two-space indentation, trailing newline,
  * integer-valued numbers without a fraction. Keys keep the order given, except that keys that

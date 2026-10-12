@@ -766,7 +766,7 @@
         }
       ],
       "hints": [],
-      "report": "{tool} check (provider side): 1 problem(s) in 5 fixture(s)\n  - provider/payment.started.json: invalid fixture: response.body.client_key contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)\nRun `{tool} reset` and the provider side's tests before this check."
+      "report": "{tool} check (provider side): 1 problem(s) in 5 fixture(s)\n  - provider/payment.started.json: invalid fixture: response.body.client_key contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "config: a configuration that is not valid is a problem, and forbids nothing meanwhile",

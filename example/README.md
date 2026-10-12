@@ -220,6 +220,7 @@ test shows what came back first, the status included, and the paths after it:
 ```
 ✖ order.created
   Error [ContractMismatchError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
+    response.status: 201 -> 500
     response.body.coupon_redeemed_at: null -> (absent)
     response.body.created_at: "2026-10-11T23:22:30.751Z" -> (absent)
     response.body.customer: "customer-1" -> (absent)
@@ -227,7 +228,6 @@ test shows what came back first, the status included, and the paths after it:
     response.body.id: "ord_mv4g7hsv1" -> (absent)
     response.body.status: "confirmed" -> (absent)
     response.body.total_minor: 1200 -> (absent)
-    response.status: 201 -> 500
   These volatile paths of the test match nothing in what the provider side produced:
     volatile.0: response.body.id matches nothing in this fixture
     volatile.1: response.body.**.created_at matches nothing in this fixture
@@ -241,6 +241,7 @@ is not valid. Its message has the same order:
 ```
 ✖ order.created
   Error [ContractFixtureError]: contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
+    response.status: 201 -> 500
     response.body.coupon_redeemed_at: null -> (absent)
     response.body.created_at: "2026-10-11T23:22:30.751Z" -> (absent)
     response.body.customer: "customer-1" -> (absent)
@@ -248,7 +249,6 @@ is not valid. Its message has the same order:
     response.body.id: "ord_mv4g7hsv1" -> (absent)
     response.body.status: "confirmed" -> (absent)
     response.body.total_minor: 1200 -> (absent)
-    response.status: 201 -> 500
   The fixture is not updated, because what this side produced is not a valid fixture:
     volatile.0: response.body.id matches nothing in this fixture
     volatile.1: response.body.**.created_at matches nothing in this fixture
@@ -256,5 +256,11 @@ is not valid. Its message has the same order:
 ```
 
 The fixtures of the errors this API really answers with (`order.out-of-stock` and the others)
-are rewritten by that run, with the 500 in them: they have no volatile paths, so nothing stops
-it. Look at what update mode changed before committing it.
+have no volatile paths, so nothing stops that run from rewriting them with the 500 in them.
+It says so for each, on standard error, and the fixture is written all the same:
+
+```
+contract fixture provider/order.out-of-stock.json was updated from status 409 to 500. A fixture with a 5xx is rarely what the deployed API answers: before committing it, check how this test assembles the application (docs/adoption.md, "Which tests verify").
+```
+
+Look at what update mode changed before committing it.

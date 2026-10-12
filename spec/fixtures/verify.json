@@ -1,5 +1,5 @@
 {
-  "description": "Cases for verifying. `storedText` is the file before (null: no file). When a case has `config`, it is the text of config.json in the contracts directory. Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed, refused (update mode would drop a secret path), invalid-config (config.json does not follow the format; `issues` are its issues) or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`, and `volatile` entries with a pattern (and `nullable`). `message` is the whole message of the error, character for character. `issues` are the codes and paths of what an invalid-observed or refused outcome reports, in order. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
+  "description": "Cases for verifying. `storedText` is the file before (null: no file). When a case has `config`, it is the text of config.json in the contracts directory. Verify `observed` as `kind` (provider: verifyResponse on the provider side; consumer: verifyRequest on the consumer side) with update mode on or off. `outcome` is ok, written, mismatch, missing, invalid-stored, invalid-observed, refused (update mode would drop a secret path), invalid-config (config.json does not follow the format; `issues` are its issues) or usage. `differences` are the lines of a mismatch. `written` is the file text afterwards when the file must have been (re)written, null when it must be unchanged. A ledger line is appended exactly when the outcome is ok or written. `observed` may carry `secret`, and `volatile` entries with a pattern (and `nullable`). `message` is the whole message of the error, character for character. `warnings` are the notes the verify gives without failing (to standard error, by default), word for word; a case without the key gives none. `issues` are the codes and paths of what an invalid-observed or refused outcome reports, in order. When a case has `absent`, none of those strings may appear in the message of the error, in any file under the contracts directory, or in the ledger afterwards.",
   "cases": [
     {
       "case": "a response that equals the stored fixture",
@@ -236,10 +236,10 @@
       "update": false,
       "outcome": "mismatch",
       "differences": [
+        "response.status: 201 -> 200",
         "response.body.state: (absent) -> \"confirmed\"",
         "response.body.status: \"confirmed\" -> (absent)",
-        "response.body.total_minor: 1200 -> 1250",
-        "response.status: 201 -> 200"
+        "response.body.total_minor: 1200 -> 1250"
       ],
       "written": null
     },
@@ -3534,14 +3534,14 @@
       "update": false,
       "outcome": "mismatch",
       "differences": [
+        "response.status: 201 -> 500",
         "response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)",
         "response.body.error: (absent) -> \"internal\"",
         "response.body.id: \"ord_81f3\" -> (absent)",
         "response.body.message: (absent) -> \"Unexpected token\"",
-        "response.body.status: \"confirmed\" -> (absent)",
-        "response.status: 201 -> 500"
+        "response.body.status: \"confirmed\" -> (absent)"
       ],
-      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)\n  response.body.error: (absent) -> \"internal\"\n  response.body.id: \"ord_81f3\" -> (absent)\n  response.body.message: (absent) -> \"Unexpected token\"\n  response.body.status: \"confirmed\" -> (absent)\n  response.status: 201 -> 500\nThese volatile paths of the test match nothing in what the provider side produced:\n  volatile.0: response.body.id matches nothing in this fixture\n  volatile.1: response.body.created_at matches nothing in this fixture\nIf the change is intended, take these paths out of the test, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.",
+      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.status: 201 -> 500\n  response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)\n  response.body.error: (absent) -> \"internal\"\n  response.body.id: \"ord_81f3\" -> (absent)\n  response.body.message: (absent) -> \"Unexpected token\"\n  response.body.status: \"confirmed\" -> (absent)\nThese volatile paths of the test match nothing in what the provider side produced:\n  volatile.0: response.body.id matches nothing in this fixture\n  volatile.1: response.body.created_at matches nothing in this fixture\nIf the change is intended, take these paths out of the test, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.",
       "written": null
     },
     {
@@ -3585,7 +3585,7 @@
           "path": "volatile.1"
         }
       ],
-      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)\n  response.body.error: (absent) -> \"internal\"\n  response.body.id: \"ord_81f3\" -> (absent)\n  response.body.message: (absent) -> \"Unexpected token\"\n  response.body.status: \"confirmed\" -> (absent)\n  response.status: 201 -> 500\nThe fixture is not updated, because what this side produced is not a valid fixture:\n  volatile.0: response.body.id matches nothing in this fixture\n  volatile.1: response.body.created_at matches nothing in this fixture",
+      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.status: 201 -> 500\n  response.body.created_at: \"2026-01-15T09:30:00Z\" -> (absent)\n  response.body.error: (absent) -> \"internal\"\n  response.body.id: \"ord_81f3\" -> (absent)\n  response.body.message: (absent) -> \"Unexpected token\"\n  response.body.status: \"confirmed\" -> (absent)\nThe fixture is not updated, because what this side produced is not a valid fixture:\n  volatile.0: response.body.id matches nothing in this fixture\n  volatile.1: response.body.created_at matches nothing in this fixture",
       "written": null
     },
     {
@@ -4146,7 +4146,7 @@
           "path": "response.body.client_key"
         }
       ],
-      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)",
+      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
       "written": null,
       "absent": [
         "sec_live_9fK27Q"
@@ -4180,7 +4180,7 @@
           "path": "response.body.client_key"
         }
       ],
-      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)",
+      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
       "written": null,
       "absent": [
         "sec_live_9fK27Q"
@@ -4270,7 +4270,7 @@
           "path": "response.body.client_key"
         }
       ],
-      "message": "contract fixture provider/payment.started.json does not follow the format:\n  response.body.client_key: contains what forbidden.0 of config.json describes (keep it out of the fixture: for a value in headers or a body, list its path in secret)",
+      "message": "contract fixture provider/payment.started.json does not follow the format:\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
       "written": null
     },
     {
@@ -4305,6 +4305,230 @@
         }
       ],
       "message": "config.json of the contracts directory does not follow the format:\n  forbiden: unknown key (allowed: format, forbidden)",
+      "written": null
+    },
+    {
+      "case": "update mode writes a 5xx over a response that was none, and says so",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"status\": \"confirmed\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n",
+      "warnings": [
+        "contract fixture provider/order.created.json was updated from status 201 to 500. A fixture with a 5xx is rarely what the deployed API answers: before committing it, check how this test assembles the application (docs/adoption.md, \"Which tests verify\")."
+      ]
+    },
+    {
+      "case": "update mode: a 4xx that becomes a 5xx is noted as well",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 404,\n    \"body\": {\n      \"error\": \"not_found\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 503,
+          "body": {
+            "error": "unavailable"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 503,\n    \"body\": {\n      \"error\": \"unavailable\"\n    }\n  }\n}\n",
+      "warnings": [
+        "contract fixture provider/order.created.json was updated from status 404 to 503. A fixture with a 5xx is rarely what the deployed API answers: before committing it, check how this test assembles the application (docs/adoption.md, \"Which tests verify\")."
+      ]
+    },
+    {
+      "case": "update mode: a 5xx that was a 5xx before is written without a note",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 503,
+          "body": {
+            "error": "unavailable"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 503,\n    \"body\": {\n      \"error\": \"unavailable\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "update mode: a new fixture with a 5xx is written without a note",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "update mode: a status below 500 is written without a note",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"status\": \"confirmed\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 409,
+          "body": {
+            "error": "out_of_stock"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 409,\n    \"body\": {\n      \"error\": \"out_of_stock\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "update mode: no note for a 5xx that is not written",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_1\"\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        },
+        "volatile": [
+          "response.body.id"
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile-unmatched",
+          "path": "volatile.0"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "outside update mode a 5xx is a difference like any other, without a note",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"status\": \"confirmed\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.status: 201 -> 500",
+        "response.body.error: (absent) -> \"internal\"",
+        "response.body.status: \"confirmed\" -> (absent)"
+      ],
+      "written": null
+    },
+    {
+      "case": "update mode: a stored file without a status gives nothing to compare with, so no note",
+      "kind": "provider",
+      "storedText": "{",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "a long value in the message of a mismatch is cut",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 200,\n    \"body\": {\n      \"report\": {\n        \"text\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\n      }\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders"
+        },
+        "response": {
+          "status": 500,
+          "body": {
+            "error": "internal"
+          }
+        }
+      },
+      "update": false,
+      "outcome": "mismatch",
+      "differences": [
+        "response.status: 200 -> 500",
+        "response.body.error: (absent) -> \"internal\"",
+        "response.body.report: {\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx... (111 more) -> (absent)"
+      ],
+      "message": "contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):\n  response.status: 200 -> 500\n  response.body.error: (absent) -> \"internal\"\n  response.body.report: {\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx... (111 more) -> (absent)\nIf the change is intended, rerun with CONTRACT_FIXTURES_UPDATE=1, then fix the other side's tests in the same change.",
       "written": null
     }
   ]

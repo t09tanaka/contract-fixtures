@@ -40,17 +40,23 @@ class FixtureSummary {
 
 final RegExp _plainKey = RegExp(r'^[A-Za-z0-9_.-]+$');
 
-/// The keys of an object with the JSON type of each value; objects are opened [depth]
-/// levels deep.
-String _members(Map<String, dynamic> value, int depth) {
+/// Whether the elements of an array have more than one JSON type.
+bool _mixed(List<dynamic> items) =>
+    items.any((item) => jsonType(item) != jsonType(items.first));
+
+/// A value with [depth] levels left to open. An object costs a level: its keys with what
+/// their values are. An array costs none: it stands for its first element, in brackets.
+String _opened(Object? value, int depth) {
+  if (depth < 1) return jsonType(value);
+  if (value is List) {
+    if (value.isEmpty) return '[]';
+    return _mixed(value) ? '[mixed]' : '[${_opened(value.first, depth)}]';
+  }
+  if (value is! Map<String, dynamic>) return jsonType(value);
   final parts = [
     for (final key in sortedKeys(value))
       '${_plainKey.hasMatch(key) ? key : compactJson(key)}: '
-          '${switch (value[key]) {
-        final Map<String, dynamic> child when depth > 1 =>
-          _members(child, depth - 1),
-        final child => jsonType(child),
-      }}',
+          '${_opened(value[key], depth - 1)}',
   ];
   return '{${parts.join(', ')}}';
 }
@@ -59,9 +65,13 @@ String _members(Map<String, dynamic> value, int depth) {
 String _shape(Map<String, dynamic>? response, int depth) {
   if (response == null || !response.containsKey('body')) return '-';
   final body = response['body'];
-  if (body is List) return 'array(${body.length})';
-  if (body is! Map<String, dynamic>) return jsonType(body);
-  return _members(body, depth);
+  if (body is List) {
+    // The top level of an array is its length; from depth 2 on, its first element follows.
+    final head = 'array(${body.length})';
+    if (depth < 2 || body.isEmpty) return head;
+    return '$head of ${_mixed(body) ? 'mixed' : _opened(body.first, depth - 1)}';
+  }
+  return _opened(body, depth);
 }
 
 /// The deepest level the summary opens.

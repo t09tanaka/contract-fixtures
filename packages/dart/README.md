@@ -155,6 +155,12 @@ fixture throws `ContractFixtureException`.
   constructor: a tool that only loads the test files, to collect other tests or to run
   mutation tests on a part of them, does not need the variable. A missing directory throws
   `ContractUsageException` at that first use.
+- `warn` (a `void Function(String)`) receives a note that is not a failure. There is one:
+  update mode wrote a fixture with a 5xx over one that held another status, which is more
+  often a test application that differs from the deployed one than a change of the API. By
+  default the note is one line on standard error.
+- A line of a difference shows at most 200 characters of a value (`... (<n> more)` after
+  that), and the difference of the status of a response comes first.
 - `update` defaults to `CONTRACT_FIXTURES_UPDATE=1`. In update mode a verify writes a missing or
   differing fixture and leaves a fixture that already agrees untouched. The environment variable
   is refused when `CI` is `true` or `1`.
@@ -338,8 +344,11 @@ class FixtureSequenceAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) {
+    // Every request is kept, also one the test has no response for.
     sent.add(options);
-    // One response per request, in order. A request too many fails: none is left for it.
+    if (sent.length > _adapters.length) {
+      throw StateError('no response left for request ${sent.length}');
+    }
     return _adapters[sent.length - 1].fetch(options, requestStream, cancelFuture);
   }
 
@@ -351,10 +360,16 @@ final adapter = FixtureSequenceAdapter([
   contract.readResponse('order.token-invalid').response,
   contract.readResponse('order.created').response,
 ]);
+
+// ... run the client code, assert what it made of the responses, then:
+expect(adapter.sent, hasLength(2));
 ```
 
-Each response is still a fixture of its own, read and recorded one by one; that the client
-sends the second request at all is what the test asserts (`adapter.sent` has both).
+Do not leave the last line out. The error for a request too many is thrown inside the HTTP
+client, which wraps it, and client code that turns every failed request into "failed" then
+passes a test that expects "failed"; counting the requests afterwards does not depend on what
+the client does with the error. Each response is still a fixture of its own, read and
+recorded one by one.
 
 dio decodes a body as JSON only when the response has a JSON `content-type`. If the client
 relies on that, the header is part of the agreement: record it in the provider's test, and it
@@ -404,7 +419,8 @@ entries at all, one line gives the number of fixtures in the place of the whole 
 `summary` prints one line per fixture, to compare them side by side: the request, the status,
 and the keys of the response body with their types. It takes no `--side` and does not touch
 the ledger. `--depth 2` opens the objects inside a body as well (`{data: object}` becomes
-`{data: {id: string, ...}}`), up to `--depth 9`; arrays are not opened.
+`{data: {id: string, ...}}`), up to `--depth 9`. An array that is reached shows its first
+element in brackets (`[{id: string}]`, `[]` when empty, `[mixed]` for more than one type).
 
 ```
 FIXTURE                        REQUEST       STATUS  RESPONSE BODY

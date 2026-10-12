@@ -638,6 +638,29 @@ void main() {
       );
     });
 
+    test(
+        'the note of update mode goes to standard error by default, and the fixture is written',
+        () {
+      final dir = tempDir();
+      final result = Process.runSync(
+        Platform.resolvedExecutable,
+        ['test/support/update_to_5xx.dart', dir],
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, isEmpty);
+      expect(
+        result.stderr,
+        'contract fixture provider/order.created.json was updated from status 201 to 500. '
+        'A fixture with a 5xx is rarely what the deployed API answers: before committing it, '
+        'check how this test assembles the application '
+        '(docs/adoption.md, "Which tests verify").\n',
+      );
+      final written = jsonDecode(
+              File('$dir/provider/order.created.json').readAsStringSync())
+          as Map<String, dynamic>;
+      expect((written['response'] as Map<String, dynamic>)['status'], 500);
+    });
+
     test('a file in the place of a directory of fixtures holds no fixtures',
         () {
       final dir = tempDir();

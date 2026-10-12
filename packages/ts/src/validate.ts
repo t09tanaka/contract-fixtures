@@ -11,7 +11,7 @@ import {
   volatileRule,
   type VolatileRule,
 } from "./volatile.js";
-import { compactJson, isObject, isUnsafeNumber, jsonType, sortedKeys } from "./json.js";
+import { isObject, isUnsafeNumber, jsonType, shownJson, sortedKeys } from "./json.js";
 import { parsePlaceholder } from "./placeholders.js";
 import { JWT_PATTERN, secretNodes, secretPathProblem } from "./secrets.js";
 import { FORMAT_VERSION, type Kind } from "./types.js";
@@ -216,7 +216,7 @@ function validateVolatile(
   const shown = (nodePath: string, value: string): string =>
     hidden.has(nodePath) || JWT_PATTERN.test(value) || forbidden.some((pattern) => pattern.search(value))
       ? ""
-      : `${compactJson(value)} `;
+      : `${shownJson(value)} `;
   volatile.forEach((entry: unknown, i: number) => {
     const path = `volatile.${i}`;
     const parts = entryParts(entry);
@@ -358,6 +358,18 @@ function validateSecret(
   }
 }
 
+/**
+ * What to do about a string that must not be stored, by where it is. A secret path names a
+ * value in headers or in a body, and nothing else: a description, a name, the path of a
+ * request or a pattern can only be worded differently.
+ */
+function wayOut(path: string): string {
+  const [root, part] = path.split(".");
+  return (root === "request" || root === "response") && (part === "headers" || part === "body")
+    ? "(list this path in secret, so that a placeholder is stored instead)"
+    : "(no secret path can name this place: change the text itself)";
+}
+
 /** A token that was not replaced by a placeholder must not be written or stay stored. */
 function validateNoJwt(issues: FormatIssue[], root: unknown): void {
   const walk = (node: unknown, path: string): void => {
@@ -366,8 +378,7 @@ function validateNoJwt(issues: FormatIssue[], root: unknown): void {
         issues.push({
           code: "jwt",
           path,
-          message:
-            "contains what looks like a JSON Web Token (list this path in secret, so that a placeholder is stored instead)",
+          message: `contains what looks like a JSON Web Token ${wayOut(path)}`,
         });
       }
     } else if (Array.isArray(node)) {
@@ -390,9 +401,7 @@ function validateNotForbidden(issues: FormatIssue[], root: unknown, forbidden: r
         issues.push({
           code: "forbidden",
           path,
-          message:
-            `contains what forbidden.${i} of config.json describes ` +
-            "(keep it out of the fixture: for a value in headers or a body, list its path in secret)",
+          message: `contains what forbidden.${i} of config.json describes ${wayOut(path)}`,
         });
       });
     } else if (Array.isArray(node)) {

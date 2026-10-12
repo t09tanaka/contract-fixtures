@@ -71,6 +71,21 @@ Object? _normalize(Object? value, {required bool sort}) {
 /// One-line JSON with sorted keys. Used to print values in differences.
 String compactJson(Object? value) => jsonEncode(_normalize(value, sort: true));
 
+/// The most code units of a value that a difference or an issue prints.
+const int maxShownLength = 200;
+
+/// [compactJson], cut after [maxShownLength] code units (one less when that would split a
+/// surrogate pair) and followed by `... (<n> more)`, n being the code units left out. A
+/// line of a difference stays readable that way; the whole value is in the fixture file.
+String shownJson(Object? value) {
+  final text = compactJson(value);
+  if (text.length <= maxShownLength) return text;
+  final last = text.codeUnitAt(maxShownLength - 1);
+  final cut =
+      last >= 0xd800 && last <= 0xdbff ? maxShownLength - 1 : maxShownLength;
+  return '${text.substring(0, cut)}... (${text.length - cut} more)';
+}
+
 /// The text a fixture file is written as: two-space indentation, trailing newline,
 /// integer-valued numbers without a fraction. Keys keep the order given, except that keys
 /// that are array indexes come first in ascending order (what JavaScript does to every

@@ -48,6 +48,10 @@ npm install --save-dev ../t09tanaka-contract-fixtures-0.1.0.tgz
 npx contract-fixtures --version
 ```
 
+After packing again without a new version number, run that `npm install --save-dev` line
+again: the file has the same name, and `package-lock.json` holds the checksum of the earlier
+one, so a plain `npm install` or `npm ci` keeps installing what the lockfile describes.
+
 Dart: name the repository and the directory of the package in `pubspec.yaml`,
 
 ```yaml
@@ -218,8 +222,12 @@ so they fit any HTTP library. Where the values come from in practice:
     return toFetchResponse(resolvePlaceholders(response, (kind, name) => `test ${kind} of ${name}`));
   };
   // ... run the client code with fakeFetch, assert what it made of the response, then:
+  assert.equal(sent.length, 1);
   contract.verifyRequest({ name: "create-order.request", description: "...", request: sent[0]! });
   ```
+
+  The line before the verify matters: this `fetch` answers every call, so a request the
+  client should not have sent would otherwise go unnoticed.
 
 - **A provider tested through an HTTP test client** (TypeScript). `exchangeFromTestResponse`
   reads the method, the path, the status and the body from the response object of the client,
@@ -369,7 +377,9 @@ that is compared exactly on every run, although the API returns a new key each t
   The patterns are those of `volatile`, except that one matches when a part of the string
   does (`Bearer sec_live_...` is found). A string that matches is not written, in update mode
   either, and a stored one fails `check` as `invalid`; the message names the path and never
-  the value. The answer is the same as for a token: list the path under `secret`. Both sides
+  the value. The answer is the same as for a token: list the path under `secret`, when the
+  string is a value in headers or a body; anywhere else (a description, a pattern, the path of
+  a request) the message says to change the text. Both sides
   and both packages read the same file; without it nothing changes.
 
 ### Requests and calculations
@@ -404,9 +414,11 @@ The intended workflow keeps both sides in **one change** (one pull request):
 A reviewer sees the changed fixture in the diff, next to the code on both sides.
 
 When the response is another one altogether (an error where the order used to be), the test
-shows that too: the status, the keys that went and the keys that came, and after them the
-volatile paths of the test that match nothing any more. Update mode does not write such a
-fixture. [`example/`](./example/README.md#break-it) has the output, under (h).
+shows that too: the status first, then the keys that went and the keys that came (a long
+value is cut after 200 characters), and after them the volatile paths of the test that match
+nothing any more. Update mode does not write such a fixture. Where it does write a 5xx over a
+response that was none, it says so in one line on standard error, because that is more often
+a test application that differs from the deployed one than a change of the API. [`example/`](./example/README.md#break-it) has the output, under (h).
 
 ## In CI
 
@@ -490,13 +502,14 @@ shows here as two lines that do not line up.
 
 The keys at the top are not always where the difference is. When every body is an envelope
 (`{data: object, ok: boolean}` on each line), `--depth 2` opens the objects inside it, and
-`--depth 3` those inside them (up to 9). Only objects are opened; an array inside the body
-stays `array`:
+`--depth 3` those inside them (up to 9). An array that is reached shows its first element in
+brackets, so the keys of a row of a list are there as soon as the list is (`[]` for an empty
+array, `[mixed]` for elements of more than one type):
 
 ```
 --depth 1   {data: object, ok: boolean}
 --depth 2   {data: {items: array, next: null, page: object}, ok: boolean}
---depth 3   {data: {items: array, next: null, page: {cursor: object, "of all": number, size: number}}, ok: boolean}
+--depth 3   {data: {items: [{id: string}], next: null, page: {cursor: object, "of all": number, size: number}}, ok: boolean}
 ```
 
 ## Command line

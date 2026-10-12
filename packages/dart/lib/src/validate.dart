@@ -266,7 +266,7 @@ void _validateVolatile(
           jwtPattern.hasMatch(value) ||
           forbidden.any((pattern) => pattern.search(value))
       ? ''
-      : '${compactJson(value)} ';
+      : '${shownJson(value)} ';
   for (var i = 0; i < volatile.length; i++) {
     final path = 'volatile.$i';
     final parts = entryParts(volatile[i] as Object?);
@@ -442,6 +442,19 @@ void _validateSecret(
   }
 }
 
+/// What to do about a string that must not be stored, by where it is. A secret path names
+/// a value in headers or in a body, and nothing else: a description, a name, the path of a
+/// request or a pattern can only be worded differently.
+String _wayOut(String path) {
+  final segments = path.split('.');
+  final secretable = segments.length > 1 &&
+      (segments[0] == 'request' || segments[0] == 'response') &&
+      (segments[1] == 'headers' || segments[1] == 'body');
+  return secretable
+      ? '(list this path in secret, so that a placeholder is stored instead)'
+      : '(no secret path can name this place: change the text itself)';
+}
+
 /// A token that was not replaced by a placeholder must not be written or stay stored.
 void _validateNoJwt(List<FormatIssue> issues, Object? root) {
   void walk(Object? node, String path) {
@@ -451,8 +464,7 @@ void _validateNoJwt(List<FormatIssue> issues, Object? root) {
           FormatIssue(
             'jwt',
             path,
-            'contains what looks like a JSON Web Token (list this path in secret, '
-                'so that a placeholder is stored instead)',
+            'contains what looks like a JSON Web Token ${_wayOut(path)}',
           ),
         );
       }
@@ -488,8 +500,7 @@ void _validateNotForbidden(
             'forbidden',
             path,
             'contains what forbidden.$i of config.json describes '
-                '(keep it out of the fixture: for a value in headers or a body, list '
-                'its path in secret)',
+                '${_wayOut(path)}',
           ),
         );
       }

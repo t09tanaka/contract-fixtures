@@ -504,10 +504,16 @@ that the net for tokens does not know. It works like that net:
   mode too, before anything is compared and whether or not the fixture exists (issue code
   `forbidden`). For a value in headers or a body, list the path in `secret`; the placeholder
   that is then stored is not what the pattern describes. A string elsewhere (the path of a
-  request, a description) cannot be a secret path and has to change.
+  request, a description, a pattern) cannot be a secret path and has to change.
 - A stored fixture that holds such a string is invalid (`forbidden`): it cannot be read, and
   the check reports it.
-- The message names the path and the index of the pattern (`forbidden.0`), never the value.
+- The message names the path and the index of the pattern (`forbidden.0`), never the value,
+  and says what to do, which depends on the place (the same holds for a token):
+
+  | The string is | The message ends with |
+  |---|---|
+  | a value in `request.headers`, `request.body`, `response.headers` or `response.body`, at any depth | `(list this path in secret, so that a placeholder is stored instead)` |
+  | anywhere else: `name`, `description`, `request.method`, `request.path`, a path or a `pattern` in `volatile`, a placeholder in `secret` | `(no secret path can name this place: change the text itself)` |
 - A pattern that matches the empty string would forbid every string, so it is not accepted.
 
 **(beyond the schema)** A configuration is invalid when
@@ -570,7 +576,23 @@ response.headers.set-cookie: array length 2 -> 1
 ```
 
 Object keys are visited in UTF-16 code unit order, so both packages print the same lines in the
-same order. Values are printed as compact JSON with keys in the same order. A key that contains
+same order, with one exception: **the difference at `response.status` comes first**. When a
+response is another one altogether, the status says most, and the lines of the body can be
+many and long. Every other line keeps its place.
+
+A printed value is at most 200 UTF-16 code units long. A longer one (the compact JSON of a
+large object, a long string) is cut after 200 code units, or after 199 when the 200th is the
+first half of a surrogate pair, and followed by `... (<n> more)`, where n is the number of
+code units left out:
+
+```
+response.body.report: {"text":"xxxxxxxxxx... (111 more) -> (absent)
+```
+
+(the line is shortened here; the cases have it in full). The stored side and the observed side
+of a line are cut each for itself, so both ends of `->` stay readable. The whole value is in
+the fixture file and in the real response. The same limit holds for the value in the message
+of a `volatile-pattern` issue. Values are printed as compact JSON with keys in the same order. A key that contains
 `.` is printed as it is, so its path can look like the path of a nested key.
 
 ### Messages of a verify
@@ -589,12 +611,12 @@ first and the paths after them, and the last line says that the paths have to go
 
 ```
 contract fixture provider/order.created.json no longer matches what the provider side produces (stored -> observed):
+  response.status: 201 -> 500
   response.body.created_at: "2026-01-15T09:30:00Z" -> (absent)
   response.body.error: (absent) -> "internal"
   response.body.id: "ord_81f3" -> (absent)
   response.body.message: (absent) -> "Unexpected token"
   response.body.status: "confirmed" -> (absent)
-  response.status: 201 -> 500
 These volatile paths of the test match nothing in what the provider side produced:
   volatile.0: response.body.id matches nothing in this fixture
   volatile.1: response.body.created_at matches nothing in this fixture
@@ -645,6 +667,19 @@ verify writes the fixture instead:
   fixture follows the format otherwise.
 - A fixture that already agrees (volatile paths considered) is left untouched, so volatile values
   do not churn.
+
+A response that was not a 5xx and is one now is written like any other change, because a
+fixture of a 5xx can be meant. But it is more often the sign of a test application that is
+not the deployed one, so the verify adds a note, without failing. When the stored fixture has
+a status below 500 and the fixture that was just written has one of 500 or more, one line
+goes to standard error (or to the function a test passes for it):
+
+```
+contract fixture provider/order.created.json was updated from status 201 to 500. A fixture with a 5xx is rarely what the deployed API answers: before committing it, check how this test assembles the application (docs/adoption.md, "Which tests verify").
+```
+
+There is no note for a new fixture, for a fixture that was a 5xx before, for a stored file
+without a status, outside update mode, or when nothing was written.
 
 Fixtures are written as JSON with two-space indentation, a trailing newline, and the key order
 `format`, `name`, `description`, `request`, `response`, `volatile`, `secret` (inside a request:
@@ -761,7 +796,8 @@ tables/order-total             -             -       2 row(s)
   UTF-16 code unit order, each with the JSON type of its value (`null`, `boolean`, `number`,
   `string`, `array`, `object`), as `{key: type, key: type}`; for an array, `array(<length>)`;
   for a scalar, its type; `-` without a body. With a depth of 2 or more (see below), a value
-  that is an object is written the same way in the place of `object`. A key that contains anything but `A`–`Z`,
+  that is an object is written the same way in the place of `object`, and an array as its
+  first element in brackets. A key that contains anything but `A`–`Z`,
   `a`–`z`, `0`–`9`, `_`, `.` and `-` is printed as a JSON string. For a table the cell holds
   `<n> row(s)`. A file that does not follow the format has `-` in the other cells and
   `(does not follow the format; see check)` here.
@@ -775,11 +811,24 @@ from 1 to 9; 1 is the default) is the number of levels of objects that are opene
 ```
 --depth 1   {data: object, ok: boolean}
 --depth 2   {data: {items: array, next: null, page: object}, ok: boolean}
---depth 3   {data: {items: array, next: null, page: {cursor: object, "of all": number, size: number}}, ok: boolean}
+--depth 3   {data: {items: [{id: string}], next: null, page: {cursor: object, "of all": number, size: number}}, ok: boolean}
 ```
 
-Only objects are opened. An array is `array` at every level but the top one, where it keeps
-its length; what its elements look like is not shown.
+An object costs a level. An array costs none: where an array may be opened (there is at
+least one level left), it is written as its **first element** in brackets, opened with the
+levels that are left. A list of rows therefore shows the keys of a row as soon as the list
+itself is reached: `{rows: [{id: number, owner: object, tags: array}]}` with a depth of 2.
+
+| The array | Written as |
+|---|---|
+| has no elements | `[]` |
+| has elements of more than one JSON type | `[mixed]` |
+| has elements of one JSON type | `[` the first element `]`: `[string]`, `[null]`, `[{id: number}]`, `[[number]]` |
+| is the body itself | `array(<length>)`, as with a depth of 1; from a depth of 2 on, followed by ` of ` and the first element opened with one level less (`array(2) of {id: number, tags: array}`), ` of mixed` for more than one type, and nothing for an empty array |
+
+Only the first element is looked at beyond its type: objects further down the array may have
+other keys, and the summary does not say so. With a depth of 1 nothing changes: an array is
+`array`, and `array(<length>)` at the top.
 
 Exit codes of the summary command: `0`, `1` when the directory holds no fixtures or the
 command cannot finish, `2` wrong usage. The cases in `fixtures/summary.json` pin the text.
