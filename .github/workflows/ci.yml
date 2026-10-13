@@ -78,7 +78,8 @@ jobs:
           sdk: ${{ matrix.sdk }}
       - name: Use the contract_fixtures of this repository
         # Not committed and not published: the manifest asks for the published package.
-        run: printf 'dependency_overrides:\n  contract_fixtures:\n    path: ../dart\n' > pubspec_overrides.yaml
+        run: |
+          printf 'dependency_overrides:\n  contract_fixtures:\n    path: ../dart\n' > pubspec_overrides.yaml
       - name: Get dependencies
         run: dart pub get
       - name: Format
