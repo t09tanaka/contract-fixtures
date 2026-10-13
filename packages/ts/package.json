@@ -1,6 +1,6 @@
 {
   "name": "@t09tanaka/contract-fixtures",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared request/response fixtures that keep an API and its clients in step: the provider verifies them against real responses, the consumer reads them.",
   "keywords": [
     "contract",
