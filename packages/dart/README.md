@@ -13,6 +13,8 @@ that already has tests, see the
 [adoption guide](https://github.com/t09tanaka/contract-fixtures/blob/main/docs/adoption.md).
 
 - Pure Dart (uses `dart:io`), no dependencies. Works under `dart test` and `flutter test`.
+  For a client built on dio there is a package of its own,
+  [`contract_fixtures_dio`](https://pub.dev/packages/contract_fixtures_dio).
 - Independent of the test framework: failures are thrown as ordinary exceptions.
 - Fixtures are read from the file system relative to the working directory (the package root
   during tests), so they do not have to be registered as assets.
@@ -290,6 +292,45 @@ several `set-cookie` values cannot be taken apart again after that.
 
 ### dio
 
+The package [`contract_fixtures_dio`](https://pub.dev/packages/contract_fixtures_dio) has an
+`HttpClientAdapter` that answers with a fixture, one that answers several requests in order,
+and a helper for the request:
+
+```sh
+dart pub add --dev contract_fixtures_dio
+```
+
+```dart
+import 'package:contract_fixtures_dio/contract_fixtures_dio.dart';
+import 'package:dio/dio.dart';
+
+final adapter = FixtureAdapter(contract.readResponse('order.created').response);
+final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'))..httpClientAdapter = adapter;
+
+// ... run the client code with `dio`, assert what it made of the response, then:
+contract.verifyRequest(
+  name: 'create-order.request',
+  description: 'The request the client sends to place an order',
+  request: exchangeRequestFromDio(
+    adapter.sent.single,
+    headers: ['authorization', 'content-type'],
+  ),
+  secret: {'request.headers.authorization': '<token:customer-1>'},
+);
+```
+
+dio decodes a body as JSON only when the response has a JSON `content-type`. A client built
+on dio relies on that, so the header is part of the agreement: **record it in the provider's
+test** (`responseHeaders: ["content-type"]` with `exchangeFromTestResponse`; `headers:
+{'content-type': ...}` in an `ExchangeResponse`), and it arrives here from the fixture. The
+adapter refuses a fixture that has a body and no such header, when it is created. Its
+[README](https://github.com/t09tanaka/contract-fixtures/tree/main/packages/dart_dio#readme)
+has the rest: several requests in one test, and what else is checked.
+
+**Without another dependency.** The adapter is short. A project that does not want the
+package can keep these lines in its tests instead; they are what the package did before it
+grew its checks:
+
 ```dart
 import 'dart:convert';
 import 'dart:typed_data';
@@ -331,81 +372,10 @@ class FixtureAdapter implements HttpClientAdapter {
   @override
   void close({bool force = false}) {}
 }
-
-final adapter = FixtureAdapter(contract.readResponse('order.created').response);
-final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'))..httpClientAdapter = adapter;
-
-// ... run the client code with `dio`, then:
-final options = adapter.sent.single;
-contract.verifyRequest(
-  name: 'create-order.request',
-  description: 'The request the client sends to place an order',
-  request: ExchangeRequest(
-    method: options.method,
-    path: options.uri.hasQuery ? '${options.uri.path}?${options.uri.query}' : options.uri.path,
-    headers: {
-      for (final name in const ['authorization', 'content-type'])
-        if (options.headers[name] != null) name: options.headers[name],
-    },
-    body: options.data,
-  ),
-  secret: {'request.headers.authorization': '<token:customer-1>'},
-);
 ```
 
-A test in which the client sends more than one request (it gets a 401, signs in again and
-repeats the request) needs one response after the other. Wrap one `FixtureAdapter` per
-response and hand them out in order:
-
-```dart
-class FixtureSequenceAdapter implements HttpClientAdapter {
-  FixtureSequenceAdapter(Iterable<ExchangeResponse> responses)
-      : _adapters = [for (final response in responses) FixtureAdapter(response)];
-
-  final List<FixtureAdapter> _adapters;
-  final sent = <RequestOptions>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) {
-    // Every request is kept, also one the test has no response for.
-    sent.add(options);
-    if (sent.length > _adapters.length) {
-      throw StateError('no response left for request ${sent.length}');
-    }
-    return _adapters[sent.length - 1].fetch(options, requestStream, cancelFuture);
-  }
-
-  @override
-  void close({bool force = false}) {}
-}
-
-final adapter = FixtureSequenceAdapter([
-  contract.readResponse('order.token-invalid').response,
-  contract.readResponse('order.created').response,
-]);
-
-// ... run the client code, assert what it made of the responses, then:
-expect(adapter.sent, hasLength(2));
-```
-
-Do not leave the last line out. The error for a request too many is thrown inside the HTTP
-client, which wraps it, and client code that turns every failed request into "failed" then
-passes a test that expects "failed"; counting the requests afterwards does not depend on what
-the client does with the error. Each response is still a fixture of its own, read and
-recorded one by one.
-
-dio decodes a body as JSON only when the response has a JSON `content-type`. A client built
-on dio relies on that, so the header is part of the agreement: **record it in the provider's
-test** (`responseHeaders: ["content-type"]` with `exchangeFromTestResponse`; `headers:
-{'content-type': ...}` in an `ExchangeResponse`), and it arrives here from the fixture.
-Without it the client's code gets a string where it expects a map, and code that turns every
-failure into the same outcome then passes a test of an error response without having read
-the error. The adapter above throws in that case instead of answering. The request headers
-of dio include `content-length`; name the ones that matter, as above.
+The request is then built by hand, as for `package:http` above, from `options.method`,
+`options.uri`, the headers that matter (dio adds `content-length`) and `options.data`.
 
 ### Numbers
 

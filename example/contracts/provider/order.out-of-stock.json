@@ -15,6 +15,9 @@
   },
   "response": {
     "status": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
     "body": {
       "error": "out_of_stock",
       "available": 0

@@ -5,8 +5,19 @@ publish_to: none
 environment:
   sdk: ^3.5.0
 
+dependencies:
+  dio: ^5.0.0
+
 dev_dependencies:
   contract_fixtures:
     path: ../../packages/dart
+  contract_fixtures_dio:
+    path: ../../packages/dart_dio
   lints: ^5.0.0
   test: ^1.25.0
+
+# contract_fixtures_dio asks for the published contract_fixtures; here both come from this
+# repository.
+dependency_overrides:
+  contract_fixtures:
+    path: ../../packages/dart

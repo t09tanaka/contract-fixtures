@@ -11,7 +11,8 @@ other side's tests fail.
 
 - A language-independent fixture format: [`spec/format.md`](./spec/format.md) (with JSON Schemas).
 - A TypeScript package: [`packages/ts`](./packages/ts) (`@t09tanaka/contract-fixtures`).
-- A Dart package: [`packages/dart`](./packages/dart) (`contract_fixtures`).
+- A Dart package: [`packages/dart`](./packages/dart) (`contract_fixtures`), and next to it
+  [`packages/dart_dio`](./packages/dart_dio) (`contract_fixtures_dio`) for clients built on dio.
 - A runnable example with a TypeScript API, a Dart client and a TypeScript client:
   [`example/`](./example).
 - A guide for putting it into a project that already has tests:
@@ -24,6 +25,7 @@ Either language can be on either side.
 ```sh
 npm install --save-dev @t09tanaka/contract-fixtures   # TypeScript: Node.js 20 or later
 dart pub add --dev contract_fixtures                  # Dart 3.5 or later
+dart pub add --dev contract_fixtures_dio              # with it, for a client built on dio
 ```
 
 ### From the repository
@@ -257,10 +259,11 @@ so they fit any HTTP library. Where the values come from in practice:
   ```
 
 - **A Dart client on `package:http` or dio.** The Dart package has no HTTP dependency; its
-  README shows the few lines that put a fixture behind a `MockClient` or an
-  `HttpClientAdapter`, and how to answer several requests of one test in order. dio decodes
-  a body only when the response has a JSON `content-type`, so the provider's test has to
-  record that header.
+  README shows the few lines that put a fixture behind a `MockClient`. For dio there is
+  [`contract_fixtures_dio`](./packages/dart_dio): an `HttpClientAdapter` that answers with a
+  fixture, one that answers several requests of one test in order, and a helper for the
+  request. dio decodes a body only when the response has a JSON `content-type`, so the
+  provider's test has to record that header; the adapter refuses a fixture without it.
 
 These helpers record what a test hands them and nothing else, like the rest of the tool:
 response headers by name only, and real credentials replaced through `secret`. See the
@@ -683,6 +686,7 @@ instead.
 spec/            the format (format.md, JSON Schemas) and cases both packages must pass
 packages/ts/     @t09tanaka/contract-fixtures
 packages/dart/   contract_fixtures
+packages/dart_dio/   contract_fixtures_dio: the dio adapter, which depends on contract_fixtures and dio
 example/         a TypeScript API with two clients (Dart, TypeScript) that share one contracts directory
 docs/            the adoption guide
 ```
@@ -702,20 +706,37 @@ npm run example                                 # the example: provider side and
 
 cd packages/dart && dart pub get
 dart format --output=none --set-exit-if-changed . && dart analyze --fatal-infos && dart test
+
+# the dio adapter, against the contract_fixtures of this repository
+cd ../dart_dio
+printf 'dependency_overrides:\n  contract_fixtures:\n    path: ../dart\n' > pubspec_overrides.yaml
+dart pub get
+dart format --output=none --set-exit-if-changed . && dart analyze --fatal-infos && dart test
 ```
+
+`pubspec_overrides.yaml` is not committed and not published: the manifest of
+`contract_fixtures_dio` asks for the published `contract_fixtures` of its own version.
 
 ### Releasing
 
-Both packages have the same version. For a release:
+All packages have the same version. For a release:
 
 1. Set the version in `packages/ts/package.json`, `packages/ts/src/version.ts`,
    `packages/dart/pubspec.yaml` and `packages/dart/lib/src/version.dart`. A test in each
-   package fails when the constant and the manifest differ.
+   package fails when the constant and the manifest differ. Set the same version in
+   `packages/dart_dio/pubspec.yaml`, there also in the constraint on `contract_fixtures`
+   (`^<version>`), and give `packages/dart_dio/CHANGELOG.md` a heading for it; a test of that
+   package fails when one of the three is missing.
 2. In `CHANGELOG.md`, replace `(unreleased)` in the heading of the version with the date, and
    copy the file to `packages/ts/CHANGELOG.md` and `packages/dart/CHANGELOG.md`. A test in each
    package fails when a copy differs.
 3. `npm pack --dry-run` in `packages/ts` and `dart pub publish --dry-run` in `packages/dart`
    must list the README, the licence and the changelog, and give no warning.
+4. Publish in this order: `@t09tanaka/contract-fixtures` and `contract_fixtures` first, then
+   `contract_fixtures_dio`. Its manifest depends on the `contract_fixtures` of the same
+   version from pub.dev, so until that one is published its `dart pub publish --dry-run`
+   cannot be final: run it again, without `pubspec_overrides.yaml`, once
+   `contract_fixtures` is there, and publish only when it gives no warning.
 
 ## Related tools
 

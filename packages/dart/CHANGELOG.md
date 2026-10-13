@@ -32,8 +32,16 @@ directory that does not use readers is laid out as before, ledger included.
   `config.json`, and their check reports the configuration as invalid. Move every side of a
   directory to 0.2.0 before declaring readers. A `config.json` without `readers`, and a
   directory without the file, are read by old and new versions alike.
+- **Dart: a package for dio.** `contract_fixtures_dio` has the adapter that the README of
+  `contract_fixtures` gave as lines to copy: `FixtureAdapter`, `FixtureSequenceAdapter`, and
+  `exchangeRequestFromDio` for the request. An adapter checks the response of its fixture
+  when it is created, the JSON `content-type` included. `contract_fixtures` still has no
+  dependencies; the lines to copy are kept in its README for a project that wants none
+  either. The new package has the version of the others and is published after
+  `contract_fixtures`.
 - The example has one contracts directory for its two clients, and the adoption guide says
-  how to get there from one directory per client.
+  how to get there from one directory per client. Its app is built on dio and tested with
+  `contract_fixtures_dio`, and its provider records the `content-type` of every response.
 
 ## 0.1.1 (2026-10-13)
 

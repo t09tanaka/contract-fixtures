@@ -1,13 +1,19 @@
 // The consumer side of the contract, for the app: the reader `app` of the directory.
 //
-// - provider fixtures: feed the responses the API really gave (../contracts/provider/,
-//   verified by the provider's tests) to the client's real response handling. Where the
-//   API returned a secret, the fixture holds a placeholder.
-// - consumer fixtures: verify the requests the client really builds against
+// The app sends its requests with dio. These tests give it a dio whose adapter answers with
+// a fixture and keeps the request (package:contract_fixtures_dio), so the client's own code
+// builds the request and dio decodes the response, as in the app.
+//
+// - provider fixtures: the responses the API really gave (../contracts/provider/, verified
+//   by the provider's tests) reach the client's real response handling. Where the API
+//   returned a secret, the fixture holds a placeholder.
+// - consumer fixtures: the requests the client really sends are verified against
 //   ../contracts/consumer/app.* (the provider's tests pass those to the real handler).
 // - tables: run the shared rows through this side's calculation.
 import 'package:contract_fixtures/contract_fixtures.dart';
+import 'package:contract_fixtures_dio/contract_fixtures_dio.dart';
 import 'package:contract_fixtures_example_consumer/orders_client.dart';
+import 'package:dio/dio.dart';
 import 'package:test/test.dart';
 
 final contract = ContractFixtures(
@@ -16,12 +22,25 @@ final contract = ContractFixtures(
   dir: '../contracts',
 );
 
-/// What the app does, as a string, so the expectations below read as a table.
-String outcome(ProviderFixture fixture) {
-  final result = readCreateOrderResponse(
-    fixture.response.status,
-    fixture.response.body,
+/// A client whose dio answers with [response]; the adapter collects what it sends.
+({OrdersClient client, FixtureAdapter adapter}) clientAnsweredBy(
+  ExchangeResponse response,
+) {
+  final adapter = FixtureAdapter(response);
+  final dio = Dio(BaseOptions(baseUrl: 'https://orders.example.test'))
+    ..httpClientAdapter = adapter;
+  return (
+    client: OrdersClient(dio, authorization: '<token:customer-1>'),
+    adapter: adapter,
   );
+}
+
+/// What the app does, as a string, so the expectations below read as a table.
+Future<String> outcome(String name) async {
+  final (:client, :adapter) =
+      clientAnsweredBy(contract.readResponse(name).response);
+  final result = await client.placeOrder(sku: 'tea-100', quantity: 2);
+  expect(adapter.sent, hasLength(1));
   return switch (result) {
     OrderPlaced(:final totalMinor) => 'placed, total $totalMinor',
     OutOfStock(:final available) => 'out of stock, $available left',
@@ -72,17 +91,11 @@ void main() {
     });
 
     for (final entry in receiptExpectations.entries) {
-      test(entry.key, () {
+      test(entry.key, () async {
         final response = contract.readResponse(entry.key).response;
-        // One value per name, as this client's HTTP library would give them. (Joining is
-        // right for the headers of this response; it would not be for set-cookie.)
-        final headers = {
-          for (final name in response.headers?.keys ?? const <String>[])
-            name: response.headerValues(name).join(', '),
-        };
 
         final result =
-            readReceiptResponse(response.status, headers, response.body);
+            await clientAnsweredBy(response).client.loadReceipt('ord_demo1');
 
         // The id is the one of the order the provider's test happened to place.
         final orderId = (response.body as Map<String, dynamic>)['order_id'];
@@ -109,14 +122,20 @@ void main() {
     });
 
     for (final entry in paymentExpectations.entries) {
-      test(entry.key, () {
-        final fixture = contract.readResponse(entry.key);
+      test(entry.key, () async {
+        final response = contract.readResponse(entry.key).response;
         final body = resolvePlaceholders(
-          fixture.response.body,
+          response.body,
           (kind, name) => kind == 'key' ? 'the key of $name' : null,
         );
 
-        final result = readStartPaymentResponse(fixture.response.status, body);
+        final result = await clientAnsweredBy(
+          ExchangeResponse(
+            status: response.status,
+            headers: response.headers,
+            body: body,
+          ),
+        ).client.startPayment('ord_demo1');
 
         expect(
           switch (result) {
@@ -139,55 +158,55 @@ void main() {
     });
 
     for (final entry in expectations.entries) {
-      test(entry.key, () {
-        expect(outcome(contract.readResponse(entry.key)), entry.value);
+      test(entry.key, () async {
+        expect(await outcome(entry.key), entry.value);
       });
     }
 
-    test('order.created: the id of a real response can be read', () {
-      final fixture = contract.readResponse('order.created');
-      final result = readCreateOrderResponse(
-          fixture.response.status, fixture.response.body);
+    test('order.created: the id of a real response can be read', () async {
+      final response = contract.readResponse('order.created').response;
+      final result = await clientAnsweredBy(response)
+          .client
+          .placeOrder(sku: 'tea-100', quantity: 2);
       expect((result as OrderPlaced).id, startsWith('ord_'));
     });
   });
 
   group('consumer fixtures: the requests the client really builds', () {
-    void verify(String name, String description, ApiRequest request) {
+    /// Sends one request to a client answered by `order.created`, and verifies what dio
+    /// was given: the headers that are part of the agreement, not the ones dio adds.
+    Future<void> verify(
+      String name,
+      String description,
+      Future<void> Function(OrdersClient client) send,
+    ) async {
+      final (:client, :adapter) =
+          clientAnsweredBy(contract.readResponse('order.created').response);
+      await send(client);
       contract.verifyRequest(
         name: name,
         description: description,
-        request: ExchangeRequest(
-          method: request.method,
-          path: request.path,
-          headers: request.headers,
-          body: request.body,
+        request: exchangeRequestFromDio(
+          adapter.sent.single,
+          headers: ['authorization', 'content-type'],
         ),
       );
     }
 
-    test('app.create-order.request', () {
-      verify(
+    test('app.create-order.request', () async {
+      await verify(
         'app.create-order.request',
         'The request the client sends to place an order',
-        buildCreateOrderRequest(
-          authorization: '<token:customer-1>',
-          sku: 'tea-100',
-          quantity: 2,
-        ),
+        (client) => client.placeOrder(sku: 'tea-100', quantity: 2),
       );
     });
 
-    test('app.create-order.with-coupon.request', () {
-      verify(
+    test('app.create-order.with-coupon.request', () async {
+      await verify(
         'app.create-order.with-coupon.request',
         'The request the client sends to place an order with a coupon',
-        buildCreateOrderRequest(
-          authorization: '<token:customer-1>',
-          sku: 'tin-300',
-          quantity: 1,
-          coupon: 'SAVE10',
-        ),
+        (client) =>
+            client.placeOrder(sku: 'tin-300', quantity: 1, coupon: 'SAVE10'),
       );
     });
   });

@@ -15,6 +15,9 @@
   },
   "response": {
     "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
     "body": {
       "error": "invalid_request",
       "field": "quantity"
