@@ -2,7 +2,7 @@
 
 Both packages are versioned together.
 
-## 0.1.1 (unreleased)
+## 0.1.1 (2026-10-13)
 
 Nothing in it breaks a test written for 0.1.0, and the fixture format is the same.
 
