@@ -312,11 +312,12 @@ import:
 
 ```ts
 const sent: ExchangeRequest[] = [];
-globalThis.fetch = async (input, init) => {
+const answerWithFixture: typeof fetch = async (input, init) => {
   sent.push(await requestFromFetch(input, init));
   const { response } = contract.readResponse(name);
   return toFetchResponse(resolvePlaceholders(response, (kind, id) => `test ${kind} of ${id}`));
 };
+globalThis.fetch = answerWithFixture;
 // Only now: the module keeps the fetch it finds when it is evaluated.
 const { client } = await import("../src/generated/client.js");
 ```

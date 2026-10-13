@@ -236,8 +236,8 @@ message names what is wrong. There are two ways out, and neither needs a depende
 
 - **Run the contract tests in the Node.js environment.** A test that hands a fixture to a
   client through `fetch` needs no DOM. Test runners take the environment per file: the
-  docblock `/** @jest-environment node */` at the top of the file in Jest, the comment
-  `// @vitest-environment node` in Vitest.
+  docblock pragma `@jest-environment node` at the top of the file in Jest, the comment
+  pragma `@vitest-environment node` in Vitest.
 - **Give the browser-like environment the classes of Node.js.** In Jest, a test environment
   of the project's own does it. The file runs outside the sandbox of the tests, where the
   globals are those of Node.js:
@@ -254,8 +254,8 @@ message names what is wrong. There are two ways out, and neither needs a depende
   };
   ```
 
-  Name it as `testEnvironment` in the configuration, or per file with
-  `/** @jest-environment ./jsdom-with-fetch.js */`. Remove the stand-in then: a setup file
+  Name it as `testEnvironment` in the configuration, or per file with the docblock pragma
+  `@jest-environment ./jsdom-with-fetch.js`. Remove the stand-in then: a setup file
   that still assigns `global.Response` would put it back.
 
 Whether the body is decoded as the standard says cannot be seen without reading it, which
