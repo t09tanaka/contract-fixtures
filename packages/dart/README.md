@@ -27,8 +27,9 @@ To install a version that is not on pub.dev, from the repository, see
 [Install](https://github.com/t09tanaka/contract-fixtures#install)
 in the repository README.
 
-A Flutter project that keeps its tests under `lib/`, next to the sources, needs the package
-under `dependencies`, not `dev_dependencies` (`dart pub add contract_fixtures`): the lint
+**Tests under `lib/`.** A Flutter project that keeps its tests under `lib/`, next to the
+sources, needs the package under `dependencies`, not `dev_dependencies`
+(`dart pub add contract_fixtures`): the lint
 `depend_on_referenced_packages` does not accept an import from `lib/` of a package that is
 only a dev dependency.
 
@@ -40,6 +41,12 @@ import 'package:contract_fixtures/contract_fixtures.dart';
 // One object per test file.
 final contract = ContractFixtures(side: ContractSide.consumer, dir: '../contracts');
 ```
+
+**`dir` is relative to the current directory of the process, not to the test file.**
+`dart test` and `flutter test` run with the package root (the directory of `pubspec.yaml`)
+as the current directory, so `'../contracts'` is a directory next to the package. A tool
+that starts the tests from somewhere else needs `CONTRACT_FIXTURES_DIR` with an absolute
+path instead.
 
 ### Consumer side
 
@@ -138,14 +145,14 @@ final headers = resolvePlaceholders(recorded.headers ?? {}, (kind, name) => secr
 
 | Member | Side | What it does |
 |---|---|---|
-| `verifyResponse(name:, description:, request:, response:, volatile:, secret:)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatch` listing the differences. Writes the file in update mode. |
+| `verifyResponse(name:, description:, request:, response:, volatile:, secret:)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatch` listing the differences. Writes the file in update mode. Returns a `Verified` (`file`, `written`). |
 | `verifyRequest(name:, description:, request:, volatile:, secret:)` | consumer | The same for `consumer/<name>.json`. |
 | `readResponse(name)` | consumer | Reads and validates `provider/<name>.json`; returns a `ProviderFixture`. |
 | `readRequest(name)` | provider | Reads and validates `consumer/<name>.json`; returns a `ConsumerFixture`. |
 | `readTable(name)` | both | Reads and validates `tables/<name>.json`; returns a `TableFixture`. |
 | `list(kind, prefix:)` | both | Sorted fixture names of a `FixtureKind`. |
-| `assertCovers(kind, names, prefix:)` | both | Throws `ContractCoverageException` unless `names` are exactly the fixtures on disk (those that start with `prefix`). |
-| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageException` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. |
+| `assertCovers(kind, names, prefix:)` | both | Throws `ContractCoverageException` unless `names` are exactly the fixtures on disk (those that start with `prefix`). Returns the names it looked at. |
+| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageException` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. Returns the names it looked at. |
 
 Calling a method from the wrong side throws `ContractUsageException`. A missing or invalid
 fixture throws `ContractFixtureException`.
@@ -166,7 +173,8 @@ fixture throws `ContractFixtureException`.
   is refused when `CI` is `true` or `1`.
 - `volatile` lists the values that change between runs. An entry is a path
   (`'response.body.note'`: only the JSON type is compared) or a
-  `VolatilePattern(path, pattern)` (a string that must match the pattern as a whole). In a
+  `VolatilePattern(path, pattern)` (a string that must match the pattern as a whole). A map
+  works too, `{'path': ..., 'pattern': ...}`, and `{'path': ...}` alone is the path. In a
   path, `*` is one key or index and `**` any number of them: `response.body.**.created_at`. A
   path that ends in `**` compares keys and types of everything below and cannot have a
   pattern. `request.path` can be volatile too:
@@ -189,6 +197,16 @@ fixture throws `ContractFixtureException`.
   nothing, or a value that is not a string, throws `ContractFixtureException`. So does update
   mode when the stored fixture lists a secret path that the test does not pass: remove the
   path from the stored file by hand if it is no longer a secret.
+- A helper that verifies many requests names a credential that only some of them carry (no
+  `authorization` or `cookie` on a request that is not signed in). For such a path pass
+  `OptionalSecret('<token:customer-1>')` in the place of the placeholder: where the path
+  matches nothing the entry is left out, and where it matches it is a secret like any other.
+  The default stays strict, because a secret that disappears is a change. The fixture holds
+  path and placeholder in both cases.
+- A project whose lint asks for an `expect` in every test can end a test in one: the helpers
+  that throw on failure return what they did.
+  `expect(contract.verifyResponse(...).file, 'provider/order.created.json')`, and
+  `expect(contract.assertCovers(FixtureKind.provider, expectations.keys), isNotEmpty)`.
 - A fixture that contains a string of the shape of a JSON Web Token is not written (in update
   mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
   recognised, unless the contracts directory has a `config.json` that describes them:
@@ -291,6 +309,15 @@ class FixtureAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     sent.add(options);
+    // dio decodes a body only when the response has a JSON content-type. Without this
+    // check the client would get the body as a string, or not at all.
+    final type = response.headerValues('content-type').join();
+    if (response.body != null && !type.toLowerCase().contains('json')) {
+      throw StateError(
+        'the fixture has a body and no JSON content-type, so dio would not decode it: '
+        'record the content-type of the response in the test of the provider',
+      );
+    }
     return ResponseBody.fromBytes(
       response.body == null ? const [] : utf8.encode(jsonEncode(response.body)),
       response.status,
@@ -371,10 +398,14 @@ passes a test that expects "failed"; counting the requests afterwards does not d
 the client does with the error. Each response is still a fixture of its own, read and
 recorded one by one.
 
-dio decodes a body as JSON only when the response has a JSON `content-type`. If the client
-relies on that, the header is part of the agreement: record it in the provider's test, and it
-arrives here from the fixture. The request headers of dio include `content-length`; name the
-ones that matter, as above.
+dio decodes a body as JSON only when the response has a JSON `content-type`. A client built
+on dio relies on that, so the header is part of the agreement: **record it in the provider's
+test** (`responseHeaders: ["content-type"]` with `exchangeFromTestResponse`; `headers:
+{'content-type': ...}` in an `ExchangeResponse`), and it arrives here from the fixture.
+Without it the client's code gets a string where it expects a map, and code that turns every
+failure into the same outcome then passes a test of an error response without having read
+the error. The adapter above throws in that case instead of answering. The request headers
+of dio include `content-length`; name the ones that matter, as above.
 
 ### Numbers
 

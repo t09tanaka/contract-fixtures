@@ -4,6 +4,8 @@
  * test client on the provider side. Nothing here depends on a library; the test client is
  * read by the shape of its objects.
  */
+import { Buffer } from "node:buffer";
+
 import { ContractUsageError } from "./errors.js";
 import { asciiLowerCase } from "./json.js";
 import type { ExchangeRequest, ExchangeResponse } from "./types.js";
@@ -38,9 +40,18 @@ export function toFetchResponse(response: ExchangeResponse): Response {
       `contract-fixtures: a Response with the status ${status} cannot have a body, but the fixture has one`,
     );
   }
+  const scope = globalThis as { Headers?: unknown; Response?: unknown };
+  if (typeof scope.Headers !== "function" || typeof scope.Response !== "function") {
+    throw notStandard("toFetchResponse", "Response", "there is no global Response or Headers");
+  }
   const headers = new Headers();
+  if (typeof (headers as Partial<Headers>).append !== "function") {
+    throw notStandard("toFetchResponse", "Response", "its Headers have no append");
+  }
+  const expected = new Map<string, string>();
   for (const [name, value] of Object.entries(response.headers ?? {})) {
-    for (const item of Array.isArray(value) ? value : [value]) {
+    const items = Array.isArray(value) ? value : [value];
+    for (const item of items) {
       try {
         headers.append(name, item);
       } catch {
@@ -51,10 +62,62 @@ export function toFetchResponse(response: ExchangeResponse): Response {
         );
       }
     }
+    // What `get` of the standard gives: the values without the white space around them, joined.
+    if (items.every((item) => typeof item === "string")) {
+      const lower = asciiLowerCase(name);
+      const values = items.map((item) => item.replace(/^[\t ]+|[\t ]+$/g, ""));
+      expected.set(lower, [...(expected.has(lower) ? [expected.get(lower)!] : []), ...values].join(", "));
+    }
   }
   // Bytes, not a string: a string would make the Response invent `content-type: text/plain`.
-  const bytes = hasBody ? new TextEncoder().encode(JSON.stringify(body)) : null;
-  return new Response(bytes, { status, headers });
+  // From node:buffer, because a browser-like test environment may have no TextEncoder.
+  const bytes = hasBody ? Buffer.from(JSON.stringify(body), "utf8") : null;
+  let made: Response;
+  try {
+    made = new Response(bytes, { status, headers });
+  } catch {
+    throw notStandard("toFetchResponse", "Response", "it cannot be made from bytes, a status and Headers");
+  }
+  const lacking = responseFault(made, status, expected);
+  if (lacking !== null) throw notStandard("toFetchResponse", "Response", lacking);
+  return made;
+}
+
+/**
+ * The error for a `Response` or a `Request` that is not the one of the standard. Some test
+ * environments have none, and a project then puts a stand-in of a few lines into the global
+ * scope. A fixture answered through such a stand-in reaches the client code as something
+ * else (no `ok`, no headers, another body), and a test of an error response can pass without
+ * having checked anything. So a stand-in is refused, with the way out.
+ */
+function notStandard(helper: string, name: "Response" | "Request", fault: string): ContractUsageError {
+  return new ContractUsageError(
+    `contract-fixtures: ${helper} needs the ${name} of the fetch standard, and the one of this test ` +
+      `environment is not (${fault}). Run this test file in the Node.js environment of the test runner, ` +
+      "or give the test environment the fetch, Request, Response and Headers of Node.js instead of a stand-in " +
+      '(see "Test environments without the fetch classes" in the README of the package).',
+  );
+}
+
+/**
+ * What shows that `made` is not a `Response` of the standard for this status and these
+ * headers, or `null`. Only what can be seen without reading the body, which would use it up.
+ * Header values are not shown: they may be credentials.
+ */
+function responseFault(made: Response, status: number, headers: ReadonlyMap<string, string>): string | null {
+  const like = made as Partial<Response> | null;
+  if (typeof like !== "object" || like === null) return "it gives no object";
+  if (like.status !== status) return `its status is not the ${status} it was made with`;
+  if (like.ok !== (status >= 200 && status <= 299)) return `its ok is not ${status >= 200 && status <= 299}`;
+  if (typeof like.json !== "function" || typeof like.text !== "function" || typeof like.clone !== "function") {
+    return "it lacks json, text or clone";
+  }
+  if (like.bodyUsed !== false) return "its bodyUsed is not false before the body was read";
+  if (typeof like.headers?.get !== "function") return "its headers have no get";
+  for (const [name, value] of headers) {
+    if (like.headers.get(name) !== value) return `its headers do not give ${JSON.stringify(name)} back`;
+  }
+  return null;
 }
 
 /** A base for request URLs without an origin; only the path and the query are used. */
@@ -68,6 +131,24 @@ function isRequest(value: unknown): value is Request {
     typeof (value as Request).clone === "function" &&
     typeof (value as Request).text === "function"
   );
+}
+
+/**
+ * What shows that `request` is not a `Request` of the standard for these arguments of
+ * `fetch`, or `null`. Neither the URL nor a header value is shown.
+ */
+function requestFault(request: Request, input: string | URL | Request, init: RequestInit | undefined): string | null {
+  const like = request as Partial<Request> | null;
+  if (typeof like !== "object" || like === null) return "it gives no object";
+  if (typeof like.url !== "string" || typeof like.method !== "string") return "it lacks url or method";
+  if (typeof like.text !== "function") return "it lacks text";
+  if (typeof like.headers?.forEach !== "function") return "its headers have no forEach";
+  if (!isRequest(input) && like.url !== new URL(String(input), NO_ORIGIN).href) {
+    return "its url is not the one it was made with";
+  }
+  const method = typeof init?.method === "string" ? init.method : isRequest(input) ? input.method : "GET";
+  if (like.method.toUpperCase() !== String(method).toUpperCase()) return "its method is not the one it was made with";
+  return null;
 }
 
 /** The named headers, or all of them when `names` is undefined, with lower-case names. */
@@ -110,6 +191,9 @@ export async function requestFromFetch(
   init?: RequestInit,
   options: { headers?: readonly string[] } = {},
 ): Promise<ExchangeRequest> {
+  if (typeof (globalThis as { Request?: unknown }).Request !== "function") {
+    throw notStandard("requestFromFetch", "Request", "there is no global Request");
+  }
   let request: Request;
   try {
     if (isRequest(input)) {
@@ -125,12 +209,20 @@ export async function requestFromFetch(
         "(a URL that cannot be parsed or that holds a user name, or an init that Request refuses)",
     );
   }
+  const fault = requestFault(request, input, init);
+  if (fault !== null) throw notStandard("requestFromFetch", "Request", fault);
   const url = new URL(request.url, NO_ORIGIN);
   const all: HeaderMap = {};
   request.headers.forEach((value, name) => {
     all[asciiLowerCase(name)] = value;
   });
-  const text = await request.text();
+  const text: unknown = await request.text();
+  // A stand-in that drops the body would record a request without one.
+  // Compared as fetch would send it: a lone surrogate in a string becomes U+FFFD.
+  const given = typeof init?.body === "string" ? Buffer.from(init.body, "utf8").toString("utf8") : undefined;
+  if (typeof text !== "string" || (given !== undefined && text !== given)) {
+    throw notStandard("requestFromFetch", "Request", "its text is not the body it was made with");
+  }
   let body: unknown;
   if (text !== "") {
     try {

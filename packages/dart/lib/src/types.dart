@@ -150,3 +150,33 @@ class TableFixture {
   List<Map<String, dynamic>> get rows =>
       (json['rows'] as List<dynamic>).cast<Map<String, dynamic>>();
 }
+
+/// A value of `secret` for a path that need not be there: `secret:
+/// {'request.headers.authorization': OptionalSecret('<token:customer-1>')}` in a helper
+/// that verifies requests with and without a credential. Where the path matches nothing,
+/// the entry is left out; where it matches, it is a secret like any other.
+class OptionalSecret {
+  const OptionalSecret(this.placeholder);
+
+  /// What is stored in the place of the real value, such as `<token:customer-1>`.
+  final String placeholder;
+
+  Map<String, dynamic> toJson() => {
+        'placeholder': placeholder,
+        'optional': true,
+      };
+}
+
+/// What a verify did, for a test that wants to assert on it. A verify that fails throws.
+class Verified {
+  const Verified(this.file, {required this.written});
+
+  /// The fixture, as `check` names it: `provider/order.created.json`.
+  final String file;
+
+  /// Whether update mode wrote the file in this call.
+  final bool written;
+
+  @override
+  String toString() => written ? '$file (written)' : file;
+}

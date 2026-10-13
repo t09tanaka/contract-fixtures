@@ -8,6 +8,8 @@
  *   `../contracts`) and the web client (TypeScript, `../contracts-web`). A response that both
  *   depend on is verified into both directories.
  */
+import assert from "node:assert/strict";
+
 import request from "supertest";
 
 import {
@@ -64,6 +66,9 @@ export async function send(client: ReturnType<typeof api>, call: Call): Promise<
 
 /** Verifies a response of the API into the directory of every reader that depends on it. */
 export function verify(scenario: Scenario, res: request.Response): void {
+  // No scenario here expects a 5xx. One would come from a test application that differs
+  // from the deployed one, and must fail the test before it can become a fixture.
+  assert.ok(res.status < 500, `${scenario.name}: the status ${res.status} is not a response to record`);
   const exchange = exchangeFromTestResponse(res, {
     requestHeaders: ["authorization"],
     responseHeaders: scenario.responseHeaders,

@@ -6,6 +6,7 @@ happens and what to do. The code is from the [example](../example) in this repos
 is built the way this guide recommends.
 
 - [Which tests verify](#which-tests-verify)
+- [The first fixtures](#the-first-fixtures)
 - [The provider side](#the-provider-side)
 - [The consumer side](#the-consumer-side)
 - [More than one reader, and readers outside the repository](#more-than-one-reader-and-readers-outside-the-repository)
@@ -98,6 +99,63 @@ deployed, and compare. Update mode points at this section when it happens: when 
 (`contract fixture ... was updated from status 201 to 500. ...`). The fixture is written all
 the same, because a 5xx can be what a fixture is meant to hold.
 
+### When the application cannot be assembled the same way
+
+**What happens.** The tests build the application through a helper of their own, the
+deployed one is built by the entry point, and making both call one function is a change
+nobody can make now. The helper was written for other tests, and it may add what the entry
+point does not have: validation of input that is stricter, a filter that shapes errors, a
+layer that marks a response as coming from a test.
+
+**What to do.** Read the helper next to the entry point, line by line, and write down what
+each registers that the other does not. Then record only the responses that have the same
+form in both, and let an assertion in front of `verifyResponse` stop the others, so that
+nobody records one later without noticing. In the example the wrapper of the project does
+it for the status ([`support.ts`](../example/provider/test/support.ts)):
+
+```ts
+export function verify(scenario: Scenario, res: request.Response): void {
+  // No scenario here expects a 5xx. One would come from a test application that differs
+  // from the deployed one, and must fail the test before it can become a fixture.
+  assert.ok(res.status < 500, `${scenario.name}: the status ${res.status} is not a response to record`);
+```
+
+The same place takes an assertion on a body: if the test application marks what it shaped
+(a key that only its error filter writes, the wording of its validator), assert that the
+mark is absent. A response that fails such an assertion is one the fixtures cannot hold
+until the two applications agree; leave it to a test of the deployed application. This is
+a way to start, not a replacement for the one function: every difference the comparison of
+the two files missed is still recorded faithfully.
+
+## The first fixtures
+
+**What happens.** The two sides depend on each other's files, so the first recording does
+not finish in one pass. The provider's tests that read `consumer/*.json` have nothing to
+read until the consumer recorded its requests, and the consumer's tests have no responses to
+read until the provider recorded them. A `check` in between fails, and that says nothing
+about the code.
+
+**What to do.** Go round twice, in this order:
+
+1. **Provider.** Write the tests that verify responses and run them with
+   `CONTRACT_FIXTURES_UPDATE=1`. `provider/*.json` exists now. Leave the provider's `check`
+   for later.
+2. **Consumer.** Write the tests that read those responses, and the tests that verify the
+   requests the client builds; run them with `CONTRACT_FIXTURES_UPDATE=1`. `consumer/*.json`
+   exists now, and the consumer's `reset`, tests and `check` pass.
+3. **Provider again.** Write the tests that read `consumer/*.json` and send each request to
+   the API. Now the provider's `reset`, tests and `check` pass too.
+
+Commit after the third step, or commit each step and expect the checks to be red until the
+last one.
+
+Do not guess `volatile` before the first recording. Record once, read the file, and run the
+same test again without update mode: the differences it prints are the values that change
+(an id, a timestamp). Name each of them, take the pattern from the two values you have now
+seen, and record again. A value that did not change between two runs but will (a date that
+only moves at midnight, a counter) shows up in CI later; give it a pattern then, the same
+way. Starting from `response.body.**` instead hides what the fixture is there to compare.
+
 ## The provider side
 
 ### From the response of a test client to `verifyResponse`
@@ -111,6 +169,7 @@ the project ([`support.ts`](../example/provider/test/support.ts)):
 
 ```ts
 export function verify(scenario: Scenario, res: request.Response): void {
+  // ...
   const exchange = exchangeFromTestResponse(res, {
     requestHeaders: ["authorization"],
     responseHeaders: scenario.responseHeaders,
@@ -131,6 +190,23 @@ export function verify(scenario: Scenario, res: request.Response): void {
 Headers are recorded by name only. A response over HTTP carries `date`, `connection` and
 `content-length`, and a fixture should hold the agreement, not the wire. In Dart, build the
 `ExchangeRequest` and `ExchangeResponse` from the values of the test in the same way.
+
+### Response headers the client's HTTP library needs
+
+**What happens.** A fixture holds only the response headers a test names, and the first
+tests name none. The reader's HTTP library, however, looks at one before the client's code
+sees anything: dio decodes a body as JSON only when the response has a JSON `content-type`.
+Fed from a fixture without the header, the client gets a string where it expects a map, and
+a client that turns every failure into the same outcome passes its test of an error response
+without having read the error.
+
+**What to do.** Record `content-type` on the provider side for every response with a body
+that a client on such a library reads: `responseHeaders: ["content-type"]` in
+`exchangeFromTestResponse`, as the example does for the receipt and for a body that is not
+JSON. The header then is part of the agreement, which it is: without it the deployed client
+would not decode the response either. The dio adapter in the
+[Dart README](../packages/dart/README.md#dio) refuses a fixture that has a body and no JSON
+`content-type`.
 
 ### Request headers that change the response
 
@@ -222,6 +298,66 @@ and an `HttpClientAdapter` of dio.
 `toFetchResponse` adds no `content-type`. If the client looks at it, the provider's test
 should record it, as the example does for the receipt.
 
+### A client that takes `fetch` when it is loaded
+
+**What happens.** The test replaces `globalThis.fetch`, the client is called, and the real
+network is tried all the same (or an earlier stub answers). A client generated from an
+OpenAPI document, like many hand-written ones, reads `fetch` once, when its module is
+evaluated or when the client object is created, and keeps what it found. A static `import`
+at the top of the test file is evaluated before any line of the test, so the client already
+holds the other `fetch`.
+
+**What to do.** Put the function in place first and load the client after it, with a dynamic
+import:
+
+```ts
+const sent: ExchangeRequest[] = [];
+const answerWithFixture: typeof fetch = async (input, init) => {
+  sent.push(await requestFromFetch(input, init));
+  const { response } = contract.readResponse(name);
+  return toFetchResponse(resolvePlaceholders(response, (kind, id) => `test ${kind} of ${id}`));
+};
+globalThis.fetch = answerWithFixture;
+// Only now: the module keeps the fetch it finds when it is evaluated.
+const { client } = await import("../src/generated/client.js");
+```
+
+A module is evaluated once per process (per test file, in runners that isolate files), so
+set `fetch` once, before the first import, to a function that looks up which fixture to
+answer with; assigning `globalThis.fetch` again in a later test does not reach the client.
+If the generated client takes a `fetch` as an option, pass it there instead: that needs none
+of this.
+
+### A test environment without `Response`
+
+**What happens.** The client's tests run in a browser-like environment (jsdom), which has
+no `Response`, `Request` or `Headers`, and the project has a stand-in of a few lines in a
+setup file. `toFetchResponse` then throws `ContractUsageError` and names what the stand-in
+lacks. That is intended: through a stand-in the fixture would arrive as another response,
+and a test of an error response would pass whatever the fixture says.
+
+**What to do.** Run the contract tests in the Node.js environment of the test runner (they
+need no DOM), or give the browser-like environment the classes of Node.js. Both are shown in
+the [TypeScript README](../packages/ts/README.md#test-environments-without-the-fetch-classes).
+
+### Where a Dart test finds the contracts directory
+
+**What happens.** `ContractFixtures(dir: '../contracts')` works from the command line and
+fails in another setup with "does not exist", or writes fixtures into a directory nobody
+expected. A relative `dir` is resolved against the **current directory of the process**,
+not against the test file. `dart test` and `flutter test` run with the package root as the
+current directory; a tool that starts the tests from the repository root, or from a
+workspace above the package, does not.
+
+**What to do.** Write `dir` relative to the package root (the directory of `pubspec.yaml`),
+and start the tests from there. Where that cannot be arranged, set `CONTRACT_FIXTURES_DIR`
+to an absolute path in the command that runs the tests, and pass no `dir`. The commands
+follow the same rule: `--dir` is relative to where `dart run contract_fixtures` is started.
+
+A Flutter project that keeps its tests under `lib/`, next to the sources, also needs the
+package under `dependencies` instead of `dev_dependencies`; the
+[Dart README](../packages/dart/README.md#install) says why.
+
 ### Numbers in Dart
 
 **What happens.** `jsonDecode` gives an `int` for `10` and a `double` for `10.5`. A client
@@ -278,6 +414,17 @@ change of the API changes both, and each reader's tests fail on their own. The p
 ```
 
 The directories also show at a glance which reader depends on what.
+
+Where to put them: next to each other, at a place both the provider and the reader reach
+with a relative path (the example has them beside the three projects), and named after the
+reader (`contracts-web`, `contracts-app`). A reader in another language changes nothing:
+the web client reads with the TypeScript package, the mobile app with the Dart package, and
+the provider writes both directories with whichever it uses.
+
+Expect two sets: a response both readers depend on is recorded twice, an update of the API
+changes two files, and a review shows both. `summary` runs per directory. The work of
+keeping them is the provider's and is done by the test helper, which is why the helper takes
+the list of readers per scenario.
 
 ### An API and a screen in one application
 
@@ -408,6 +555,35 @@ The job fails when a test fails or when the check exits with 1; the exit codes a
 the [README](../README.md#command-line).
 (`npm run build` builds the package of this repository; a project that installs it from the
 registry has no such step.)
+
+### When the check runs only in CI
+
+**What happens.** `reset`, the tests and `check` are a CI job, and nothing on a developer's
+machine runs the check: the test command alone passes without it. That is a reasonable
+choice (the check needs **all** tests of a side, which is slow for a hook before a push). But
+then the check exists only while CI runs. While the workflow is switched off, is not
+started for a path (see below), or cannot run for a reason outside the repository, nobody
+checks: a fixture can lose its reading test, or stop being verified, and every test still
+passes.
+
+**What to do.** Give each side one command that does all three, and say in the project's
+notes when to run it by hand. In the example it is the script `contract` of each side:
+
+```json
+"contract": "npm run reset && npm test && npm run check",
+```
+
+Run it for both sides before merging a change that touches a contracts directory, the code
+of a client that reads one, or the routes behind one, whenever CI did not. From
+`example/provider`:
+
+```
+$ npx contract-fixtures check --side provider --dir ../contracts
+contract-fixtures check (provider side): OK (11 fixture(s), all verified or read by this side's tests)
+```
+
+A check that last ran weeks ago says nothing about today: when CI comes back, run both sides
+once on the main branch before trusting the first green pull request.
 
 ### A change of the fixtures starts both sides
 

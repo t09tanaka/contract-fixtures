@@ -30,9 +30,12 @@ export type {
   Kind,
   ObservedRequest,
   ObservedResponse,
+  ObservedSecret,
+  ObservedVolatileEntry,
   ProviderFixture,
   Side,
   TableFixture,
+  Verified,
 } from "./types.js";
 export { validateFixture, validateFixtureFile, validateFixtureValue } from "./validate.js";
 export type { FormatIssue } from "./validate.js";

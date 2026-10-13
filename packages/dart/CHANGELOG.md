@@ -2,6 +2,37 @@
 
 Both packages are versioned together.
 
+## 0.1.1 (2026-10-13)
+
+Nothing in it breaks a test written for 0.1.0, and the fixture format is the same.
+
+- TypeScript: `toFetchResponse` and `requestFromFetch` refuse a `Response` or a `Request`
+  that is not the one of the fetch standard. In a test environment that has a stand-in of a
+  few lines for these classes (or none), a fixture reached the client code as another
+  response, without `ok` and without headers, and a test of an error response could pass
+  without having checked anything. Both functions now look at what they made and throw
+  `ContractUsageError`, which names what is wrong and says how to run the test with the
+  classes of Node.js. `toFetchResponse` no longer needs a global `TextEncoder`.
+- Dart: the dio adapter in the README refuses a fixture that has a body and no JSON
+  `content-type`, because dio would not decode it.
+- An entry of `volatile` may be `{ path }` alone. It means the same as the path as a string
+  and is written as that.
+- A value of `secret` may say that its path need not be there:
+  `{ placeholder: "<token:customer-1>", optional: true }` in TypeScript,
+  `OptionalSecret('<token:customer-1>')` in Dart. Where the path matches nothing, the entry
+  is left out, for a helper that verifies requests with and without a credential. Without
+  `optional`, a path that matches nothing fails as before.
+- `verifyResponse` and `verifyRequest` return the file they verified and whether they wrote
+  it; `assertCovers` and `assertPrefixesCover` return the names they looked at. A test under
+  a lint rule that asks for an assertion can end in one.
+- A shared case holds both packages to listing every string that `forbidden` of
+  `config.json` matches in one message.
+- The adoption guide gained sections on the order of the first recording, on an application
+  that cannot be assembled the way the deployed one is, on response headers the reader's
+  HTTP library needs, on a client that takes `fetch` when it is loaded, on test environments
+  without `Response`, on where a Dart test finds the contracts directory, and on a check that
+  runs only in CI.
+
 ## 0.1.0 (2026-10-12)
 
 First version.

@@ -1296,4 +1296,105 @@ void main() {
       expect(pattern.test('a' * 300), isTrue);
     });
   });
+
+  group('what the helpers return, for a test that has to end in an expect', () {
+    test('a verify returns the file, and whether it wrote it', () {
+      final dir = tempDir();
+      final recording =
+          ContractFixtures(side: ContractSide.provider, dir: dir, update: true);
+      Verified verify() => recording.verifyResponse(
+            name: 'order.out-of-stock',
+            description: 'The item is out of stock',
+            request: _request,
+            response: const ExchangeResponse(status: 409),
+          );
+      final first = verify();
+      expect(first.file, 'provider/order.out-of-stock.json');
+      expect(first.written, isTrue);
+      expect('$first', 'provider/order.out-of-stock.json (written)');
+      final second = verify();
+      expect(second.written, isFalse);
+      expect('$second', 'provider/order.out-of-stock.json');
+      final consumer =
+          ContractFixtures(side: ContractSide.consumer, dir: dir, update: true);
+      final request = consumer.verifyRequest(
+        name: 'create-order.request',
+        description: 'An order',
+        request: _request,
+      );
+      expect(request.file, 'consumer/create-order.request.json');
+      expect(request.written, isTrue);
+    });
+
+    test('the coverage helpers return the names they looked at', () {
+      final contract =
+          ContractFixtures(side: ContractSide.consumer, dir: copyOfContracts());
+      const names = ['order.created', 'order.out-of-stock'];
+      expect(
+        contract.assertCovers(FixtureKind.provider, names.reversed),
+        names,
+      );
+      expect(
+        contract.assertCovers(
+          FixtureKind.provider,
+          const ['order.created'],
+          prefix: 'order.c',
+        ),
+        const ['order.created'],
+      );
+      expect(
+        contract.assertPrefixesCover(FixtureKind.provider, const ['order.']),
+        names,
+      );
+    });
+
+    test('takes a map of placeholders as it was typed before', () {
+      final contract = ContractFixtures(
+        side: ContractSide.provider,
+        dir: tempDir(),
+        update: true,
+      );
+      const typed = <String, String>{
+        'request.headers.authorization': '<token:customer-1>',
+      };
+      contract.verifyResponse(
+        name: 'order.out-of-stock',
+        description: 'The item is out of stock',
+        request: _request,
+        response: const ExchangeResponse(status: 409, body: {'error': 'x'}),
+        volatile: const [
+          {'path': 'response.body.error'},
+        ],
+        secret: {
+          ...typed,
+          'request.headers.cookie': const OptionalSecret('<cookie:session-1>'),
+          'request.headers.x-api-key': const {
+            'placeholder': '<key:customer-1>',
+            'optional': true,
+          },
+        },
+      );
+      final written = jsonDecode(
+        File('${contract.dir}/provider/order.out-of-stock.json')
+            .readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(written['volatile'], ['response.body.error']);
+      expect(written['secret'], typed);
+      // A map typed as before is still accepted as it is.
+      expect(
+        contract
+            .verifyResponse(
+              name: 'order.out-of-stock',
+              description: 'The item is out of stock',
+              request: _request,
+              response:
+                  const ExchangeResponse(status: 409, body: {'error': 'y'}),
+              volatile: const ['response.body.error'],
+              secret: typed,
+            )
+            .written,
+        isFalse,
+      );
+    });
+  });
 }

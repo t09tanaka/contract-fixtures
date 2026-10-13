@@ -4599,6 +4599,442 @@
       "update": true,
       "outcome": "written",
       "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\"\n  },\n  \"response\": {\n    \"status\": 500,\n    \"body\": {\n      \"error\": \"internal\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "volatile: an entry that is { path } alone is the path, and is written as a string",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id"
+          },
+          {
+            "path": "response.body.note",
+            "pattern": "^[a-z]+$"
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"note\": \"thanks\"\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    {\n      \"path\": \"response.body.note\",\n      \"pattern\": \"^[a-z]+$\"\n    }\n  ]\n}\n"
+    },
+    {
+      "case": "volatile: { path } alone agrees with a stored fixture that holds the path as a string",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"note\": \"thanks\"\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\"\n  ]\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_zz99",
+            "note": "thanks"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id"
+          }
+        ]
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "volatile: { path, nullable } without a pattern is still no entry",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "volatile": [
+          {
+            "path": "response.body.id",
+            "nullable": true
+          }
+        ]
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "volatile",
+          "path": "volatile.0"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "secret: an optional path that is there is replaced like any other",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "Bearer test-token-of-customer-1"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": {
+            "placeholder": "<token:customer-1>",
+            "optional": true
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"note\": \"thanks\"\n    }\n  },\n  \"secret\": {\n    \"request.headers.authorization\": \"<token:customer-1>\"\n  }\n}\n",
+      "absent": [
+        "test-token-of-customer-1"
+      ]
+    },
+    {
+      "case": "secret: an optional path that matches nothing is left out",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": {
+            "placeholder": "<token:customer-1>",
+            "optional": true
+          },
+          "request.headers.cookie": {
+            "placeholder": "<cookie:session-1>",
+            "optional": true
+          }
+        }
+      },
+      "update": true,
+      "outcome": "written",
+      "written": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"note\": \"thanks\"\n    }\n  }\n}\n"
+    },
+    {
+      "case": "secret: an optional path that matches nothing agrees with a stored fixture without it",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"note\": \"thanks\"\n    }\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": {
+            "placeholder": "<token:customer-1>",
+            "optional": true
+          }
+        }
+      },
+      "update": false,
+      "outcome": "ok",
+      "written": null
+    },
+    {
+      "case": "secret: a placeholder in an object is strict without optional, and with optional: false",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": {
+            "placeholder": "<token:customer-1>"
+          },
+          "request.headers.cookie": {
+            "placeholder": "<cookie:session-1>",
+            "optional": false
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-unmatched",
+          "path": "secret.request.headers.authorization"
+        },
+        {
+          "code": "secret-unmatched",
+          "path": "secret.request.headers.cookie"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "secret: an optional path whose value is not a string is still refused",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": 7
+          }
+        },
+        "secret": {
+          "response.body.id": {
+            "placeholder": "<id:order-1>",
+            "optional": true
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret-value",
+          "path": "response.body.id"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "secret: an object of another shape is no placeholder",
+      "kind": "provider",
+      "storedText": null,
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "headers": {
+            "authorization": "Bearer test-token-of-customer-1"
+          },
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": {
+            "placeholder": "<token:customer-1>",
+            "optional": "yes"
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "secret",
+          "path": "secret.request.headers.authorization"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "secret: update mode does not drop a stored path because the test made it optional",
+      "kind": "provider",
+      "storedText": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"note\": \"thanks\"\n    }\n  },\n  \"secret\": {\n    \"request.headers.authorization\": \"<token:customer-1>\"\n  }\n}\n",
+      "observed": {
+        "name": "order.created",
+        "description": "An order is accepted",
+        "request": {
+          "method": "POST",
+          "path": "/orders",
+          "body": {
+            "sku": "tea-100",
+            "quantity": 2
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "id": "ord_81f3",
+            "note": "thanks"
+          }
+        },
+        "secret": {
+          "request.headers.authorization": {
+            "placeholder": "<token:customer-1>",
+            "optional": true
+          }
+        }
+      },
+      "update": true,
+      "outcome": "refused",
+      "issues": [
+        {
+          "code": "secret-removed",
+          "path": "secret.request.headers.authorization"
+        }
+      ],
+      "written": null
+    },
+    {
+      "case": "config: every string the configuration forbids is listed, not only the first",
+      "kind": "provider",
+      "storedText": null,
+      "config": "{ \"format\": 1, \"forbidden\": [\"sec_(live|test)_[A-Za-z0-9]+\", \"^hook_\"] }",
+      "observed": {
+        "name": "payment.started",
+        "description": "A payment is started",
+        "request": {
+          "method": "POST",
+          "path": "/payments",
+          "headers": {
+            "authorization": "Bearer sec_test_9fK27Q"
+          }
+        },
+        "response": {
+          "status": 201,
+          "body": {
+            "client_key": "sec_live_4eC39H",
+            "hooks": [
+              "hook_a1",
+              "sec_test_b2"
+            ]
+          }
+        }
+      },
+      "update": true,
+      "outcome": "invalid-observed",
+      "issues": [
+        {
+          "code": "forbidden",
+          "path": "request.headers.authorization"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.client_key"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.hooks.0"
+        },
+        {
+          "code": "forbidden",
+          "path": "response.body.hooks.1"
+        }
+      ],
+      "message": "contract fixture provider/payment.started.json: what this side produced is not a valid fixture:\n  request.headers.authorization: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)\n  response.body.client_key: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)\n  response.body.hooks.0: contains what forbidden.1 of config.json describes (list this path in secret, so that a placeholder is stored instead)\n  response.body.hooks.1: contains what forbidden.0 of config.json describes (list this path in secret, so that a placeholder is stored instead)",
+      "written": null,
+      "absent": [
+        "sec_test_9fK27Q",
+        "sec_live_4eC39H",
+        "hook_a1",
+        "sec_test_b2"
+      ]
     }
   ]
 }

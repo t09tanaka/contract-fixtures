@@ -98,14 +98,14 @@ contract.verifyRequest({
 
 | Member | Side | What it does |
 |---|---|---|
-| `verifyResponse(observed)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatchError` listing the differences. Writes the file in update mode. |
+| `verifyResponse(observed)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatchError` listing the differences. Writes the file in update mode. Returns `{ file, written }`. |
 | `verifyRequest(observed)` | consumer | The same for `consumer/<name>.json`. |
 | `readResponse(name)` | consumer | Reads and validates `provider/<name>.json`. |
 | `readRequest(name)` | provider | Reads and validates `consumer/<name>.json`. |
 | `readTable<Row>(name)` | both | Reads and validates `tables/<name>.json`. |
 | `list(kind, { prefix? })` | both | Sorted fixture names of `"provider"`, `"consumer"` or `"tables"`. |
-| `assertCovers(kind, names, { prefix? })` | both | Throws `ContractCoverageError` unless `names` are exactly the fixtures on disk (those that start with `prefix`). |
-| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageError` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. |
+| `assertCovers(kind, names, { prefix? })` | both | Throws `ContractCoverageError` unless `names` are exactly the fixtures on disk (those that start with `prefix`). Returns the names it looked at. |
+| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageError` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. Returns the names it looked at. |
 
 Calling a method from the wrong side throws `ContractUsageError`. A missing or invalid fixture
 throws `ContractFixtureError`.
@@ -126,7 +126,8 @@ throws `ContractFixtureError`.
   is refused when `CI` is `true` or `1`.
 - `observed.volatile` lists the values that change between runs. An entry is a path
   (`"response.body.note"`: only the JSON type is compared) or `{ path, pattern }` (a string
-  that must match the pattern as a whole; type `VolatileEntry`). In a path, `*` is one key or
+  that must match the pattern as a whole; type `VolatileEntry`). `{ path }` alone is the
+  path, and is written as the string. In a path, `*` is one key or
   index and `**` any number of them: `response.body.**.created_at`. A path that ends in `**`
   compares keys and types of everything below and cannot have a pattern. `request.path` can
   be volatile too: `{ path: "request.path", pattern: "^/orders/ord_[a-z0-9]+/receipt$" }`.
@@ -149,6 +150,16 @@ throws `ContractFixtureError`.
   nothing, or a value that is not a string, throws `ContractFixtureError`. So does update mode
   when the stored fixture lists a secret path that the test does not pass: remove the path
   from the stored file by hand if it is no longer a secret.
+- A helper that verifies many requests names a credential that only some of them carry (no
+  `authorization` or `cookie` on a request that is not signed in). For such a path pass
+  `{ placeholder: "<token:customer-1>", optional: true }` in the place of the placeholder:
+  where the path matches nothing the entry is left out, and where it matches it is a secret
+  like any other. The default stays strict, because a secret that disappears is a change.
+  The fixture holds path and placeholder in both cases.
+- A project whose lint asks for an `expect` in every test can end a test in one: the helpers
+  that throw on failure return what they did.
+  `expect(contract.verifyResponse({ ... }).file).toBe("provider/order.created.json")`, and
+  `expect(contract.assertCovers("provider", Object.keys(expectations))).not.toHaveLength(0)`.
 - A fixture that contains a string of the shape of a JSON Web Token is not written (in update
   mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
   recognised, unless the contracts directory has a `config.json` that describes them:
@@ -197,7 +208,9 @@ like the first one, and nothing fails by itself.
   at that header, the provider's test should record it. An array of values becomes one header
   per value (`set-cookie`). What a `Response` cannot be built from throws
   `ContractUsageError`: a status outside 200 to 599, a body with 204, 205 or 304, a header
-  name or value that `fetch` does not accept.
+  name or value that `fetch` does not accept. So does a `Response` of the test environment
+  that is not the one of the standard (see
+  [below](#test-environments-without-the-fetch-classes)).
 - `await requestFromFetch(input, init?, { headers? })` returns `{ method, path, headers, body }`
   for the arguments of `fetch` or for a `Request`. `path` is the path and the query string
   (the origin is dropped). `headers` are those of the request, including the `content-type`
@@ -206,6 +219,48 @@ like the first one, and nothing fails by itself.
   in lower case, which then fails the verify). `body` is parsed as JSON; a body that is not
   JSON throws, without showing it. Pass the result to `verifyRequest`, with `secret` for the
   credentials in it.
+
+### Test environments without the fetch classes
+
+`toFetchResponse` and `requestFromFetch` need the `Response`, `Request` and `Headers` of the
+fetch standard, which Node.js has. A browser-like test environment (jsdom) may have none of
+them, and a project then often puts a stand-in of a few lines into the global scope. A
+fixture answered through such a stand-in arrives as something else: no `ok`, no headers,
+another body. Client code that reads an error response then takes every answer for the same
+failure, and its test passes without having checked anything.
+
+So both functions look at what they made, and throw `ContractUsageError` when it is not what
+the standard says: a `Response` whose `status`, `ok`, headers or methods are not those of the
+fixture, a `Request` that lost its URL, its method or its body, or no such class at all. The
+message names what is wrong. There are two ways out, and neither needs a dependency:
+
+- **Run the contract tests in the Node.js environment.** A test that hands a fixture to a
+  client through `fetch` needs no DOM. Test runners take the environment per file: the
+  docblock pragma `@jest-environment node` at the top of the file in Jest, the comment
+  pragma `@vitest-environment node` in Vitest.
+- **Give the browser-like environment the classes of Node.js.** In Jest, a test environment
+  of the project's own does it. The file runs outside the sandbox of the tests, where the
+  globals are those of Node.js:
+
+  ```js
+  // jsdom-with-fetch.js
+  const { TestEnvironment } = require("jest-environment-jsdom");
+
+  module.exports = class extends TestEnvironment {
+    async setup() {
+      await super.setup();
+      Object.assign(this.global, { fetch, Request, Response, Headers });
+    }
+  };
+  ```
+
+  Name it as `testEnvironment` in the configuration, or per file with the docblock pragma
+  `@jest-environment ./jsdom-with-fetch.js`. Remove the stand-in then: a setup file
+  that still assigns `global.Response` would put it back.
+
+Whether the body is decoded as the standard says cannot be seen without reading it, which
+would use it up; the checks cover what can be seen before that. A stand-in that passes them
+all is very nearly the real class.
 
 ### A provider tested through an HTTP test client
 
