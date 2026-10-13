@@ -106,7 +106,7 @@ describe("consumer fixtures: requests the readers really build", () => {
     "web.download-receipt.request": { status: 200, totalMinor: 1200 },
   };
 
-  it("every consumer fixture has an expectation here", () => {
+  it("no request of a reader is left without an expectation", () => {
     contract.assertCovers("consumer", Object.keys(expectations));
   });
 
