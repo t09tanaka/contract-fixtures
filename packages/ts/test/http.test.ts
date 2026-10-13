@@ -201,6 +201,151 @@ describe("requestFromFetch", () => {
   });
 });
 
+/** Runs `body` with stand-ins in the global scope, and puts the real classes back. */
+async function withGlobals(standIns: Record<string, unknown>, body: () => unknown): Promise<void> {
+  const scope = globalThis as Record<string, unknown>;
+  const real = Object.fromEntries(Object.keys(standIns).map((name) => [name, scope[name]]));
+  Object.assign(scope, standIns);
+  try {
+    await body();
+  } finally {
+    Object.assign(scope, real);
+  }
+}
+
+describe("a test environment without the fetch classes of the standard", () => {
+  const fixture = { status: 422, headers: { "content-type": "application/json" }, body: { error: "invalid" } };
+  const refused = (helper: string, fault: string) => (error: unknown) => {
+    assert.ok(error instanceof ContractUsageError);
+    assert.ok(error.message.startsWith(`contract-fixtures: ${helper} needs the `), error.message);
+    assert.ok(error.message.includes(`(${fault})`), error.message);
+    assert.match(error.message, /Run this test file in the Node\.js environment/);
+    assert.doesNotMatch(error.message, /invalid|application\/json/);
+    return true;
+  };
+
+  it("refuses a stand-in Response that keeps the body and nothing else", async () => {
+    // The few lines a project writes when its test environment has no Response.
+    class StandIn {
+      constructor(
+        private readonly content: unknown,
+        readonly init: unknown,
+      ) {}
+      json(): Promise<unknown> {
+        return Promise.resolve(this.content);
+      }
+    }
+    await withGlobals({ Response: StandIn }, () => {
+      assert.throws(() => toFetchResponse(fixture), refused("toFetchResponse", "its status is not the 422 it was made with"));
+    });
+  });
+
+  it("refuses a stand-in Response for each thing that is not as the standard says", async () => {
+    const real = Response;
+    const standIn = (change: (response: Record<string, unknown>) => void): unknown =>
+      function (this: unknown, bytes: Uint8Array | null, init: ResponseInit) {
+        const made = new real(bytes, init);
+        const copy: Record<string, unknown> = {
+          status: made.status,
+          ok: made.ok,
+          bodyUsed: false,
+          headers: made.headers,
+          json: () => made.json(),
+          text: () => made.text(),
+          clone: () => made.clone(),
+        };
+        change(copy);
+        return copy;
+      };
+    const cases: [string, (response: Record<string, unknown>) => void][] = [
+      ["its ok is not false", (r) => delete r.ok],
+      ["its ok is not false", (r) => (r.ok = true)],
+      ["it lacks json, text or clone", (r) => delete r.text],
+      ["its bodyUsed is not false before the body was read", (r) => (r.bodyUsed = true)],
+      ["its headers have no get", (r) => (r.headers = { "content-type": "application/json" })],
+      ['its headers do not give "content-type" back', (r) => (r.headers = new Headers())],
+    ];
+    for (const [fault, change] of cases) {
+      await withGlobals({ Response: standIn(change) }, () => {
+        assert.throws(() => toFetchResponse(fixture), refused("toFetchResponse", fault));
+      });
+    }
+    await withGlobals({ Response: standIn(() => {}) }, () => {
+      assert.equal(toFetchResponse(fixture).status, 422);
+    });
+  });
+
+  it("refuses a Response that cannot be made, and an environment that has none", async () => {
+    const throwing = function (): never {
+      throw new TypeError("not a constructor of the standard");
+    };
+    await withGlobals({ Response: throwing }, () => {
+      assert.throws(
+        () => toFetchResponse(fixture),
+        refused("toFetchResponse", "it cannot be made from bytes, a status and Headers"),
+      );
+    });
+    for (const missing of [{ Response: undefined }, { Headers: undefined }]) {
+      await withGlobals(missing, () => {
+        assert.throws(() => toFetchResponse(fixture), refused("toFetchResponse", "there is no global Response or Headers"));
+      });
+    }
+    await withGlobals({ Headers: class {} }, () => {
+      assert.throws(() => toFetchResponse(fixture), refused("toFetchResponse", "its Headers have no append"));
+    });
+  });
+
+  it("still gives the real Response of Node.js, for every status and header of a fixture", async () => {
+    for (const status of [200, 204, 301, 404, 500]) {
+      const response = toFetchResponse({
+        status,
+        headers: { "set-cookie": ["a=1", " b=2 "], "x-note": "\t padded " },
+        ...(status === 204 ? {} : { body: { status } }),
+      });
+      assert.ok(response instanceof Response);
+      assert.equal(response.ok, status === 200 || status === 204);
+      if (status !== 204) assert.deepEqual(await response.json(), { status });
+    }
+  });
+
+  it("refuses a stand-in Request, and an environment that has none", async () => {
+    const real = Request;
+    const standIn = (change: (request: Record<string, unknown>) => void): unknown =>
+      function (this: unknown, input: string | URL | Request, init?: RequestInit) {
+        const made = new real(input, init);
+        const copy: Record<string, unknown> = {
+          url: made.url,
+          method: made.method,
+          headers: made.headers,
+          text: () => made.text(),
+        };
+        change(copy);
+        return copy;
+      };
+    const init = { method: "post", headers: { authorization: "Bearer invalid" }, body: '{"sku":"tea-100"}' };
+    const cases: [string, (request: Record<string, unknown>) => void][] = [
+      ["it lacks url or method", (r) => delete r.method],
+      ["it lacks text", (r) => delete r.text],
+      ["its headers have no forEach", (r) => (r.headers = { authorization: "Bearer invalid" })],
+      ["its url is not the one it was made with", (r) => (r.url = "/orders")],
+      ["its method is not the one it was made with", (r) => (r.method = "GET")],
+      ["its text is not the body it was made with", (r) => (r.text = () => Promise.resolve(""))],
+      ["its text is not the body it was made with", (r) => (r.text = () => Promise.resolve(undefined))],
+    ];
+    for (const [fault, change] of cases) {
+      await withGlobals({ Request: standIn(change) }, async () => {
+        await assert.rejects(requestFromFetch("https://api.example.test/orders", init), refused("requestFromFetch", fault));
+      });
+    }
+    await withGlobals({ Request: standIn(() => {}) }, async () => {
+      assert.equal((await requestFromFetch("https://api.example.test/orders", init)).method, "POST");
+    });
+    await withGlobals({ Request: undefined }, async () => {
+      await assert.rejects(requestFromFetch("/orders"), refused("requestFromFetch", "there is no global Request"));
+    });
+  });
+});
+
 describe("exchangeFromTestResponse", () => {
   /** The shape of the response object of an HTTP test client. */
   const testResponse = () => ({

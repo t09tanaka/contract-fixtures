@@ -291,6 +291,15 @@ class FixtureAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     sent.add(options);
+    // dio decodes a body only when the response has a JSON content-type. Without this
+    // check the client would get the body as a string, or not at all.
+    final type = response.headerValues('content-type').join();
+    if (response.body != null && !type.toLowerCase().contains('json')) {
+      throw StateError(
+        'the fixture has a body and no JSON content-type, so dio would not decode it: '
+        'record the content-type of the response in the test of the provider',
+      );
+    }
     return ResponseBody.fromBytes(
       response.body == null ? const [] : utf8.encode(jsonEncode(response.body)),
       response.status,
@@ -371,10 +380,14 @@ passes a test that expects "failed"; counting the requests afterwards does not d
 the client does with the error. Each response is still a fixture of its own, read and
 recorded one by one.
 
-dio decodes a body as JSON only when the response has a JSON `content-type`. If the client
-relies on that, the header is part of the agreement: record it in the provider's test, and it
-arrives here from the fixture. The request headers of dio include `content-length`; name the
-ones that matter, as above.
+dio decodes a body as JSON only when the response has a JSON `content-type`. A client built
+on dio relies on that, so the header is part of the agreement: **record it in the provider's
+test** (`responseHeaders: ["content-type"]` with `exchangeFromTestResponse`; `headers:
+{'content-type': ...}` in an `ExchangeResponse`), and it arrives here from the fixture.
+Without it the client's code gets a string where it expects a map, and code that turns every
+failure into the same outcome then passes a test of an error response without having read
+the error. The adapter above throws in that case instead of answering. The request headers
+of dio include `content-length`; name the ones that matter, as above.
 
 ### Numbers
 

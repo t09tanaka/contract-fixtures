@@ -227,6 +227,12 @@ so they fit any HTTP library. Where the values come from in practice:
   The line before the verify matters: this `fetch` answers every call, so a request the
   client should not have sent would otherwise go unnoticed.
 
+  Both helpers need the `Response` and `Request` of the fetch standard, as Node.js has them.
+  In a test environment that has a stand-in for them, or nothing, they throw instead of
+  handing the client an answer that is not the fixture; the
+  [TypeScript README](./packages/ts/README.md#test-environments-without-the-fetch-classes)
+  has the two ways out.
+
 - **A provider tested through an HTTP test client** (TypeScript). `exchangeFromTestResponse`
   reads the method, the path, the status and the body from the response object of the client,
   and the headers a test names:
