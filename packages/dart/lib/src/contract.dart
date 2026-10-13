@@ -27,8 +27,15 @@ class ContractFixtures {
   /// (the package root under `dart test` and `flutter test`). [update] defaults to
   /// `CONTRACT_FIXTURES_UPDATE=1`. [warn] receives a note that is not a failure; by default
   /// it is written to standard error, which `dart test` and `flutter test` show.
+  ///
+  /// [reader] is for the consumer side of a directory with more than one consumer: the
+  /// name of this one. A reader has a ledger of its own (`.ledger/consumer.<reader>.jsonl`),
+  /// verifies the consumer fixtures whose names start with `<reader>.`, and reads the
+  /// provider fixtures and tables that `readers` in `config.json` lists for it (all of
+  /// them when it lists none).
   factory ContractFixtures({
     required ContractSide side,
+    String? reader,
     String? dir,
     bool? update,
     Map<String, String>? environment,
@@ -46,15 +53,28 @@ class ContractFixtures {
         );
       }
     }
+    // Refuses a reader on the provider side, and a name no reader can have.
+    ledgerName(side, reader);
     return ContractFixtures._(
       side,
+      reader,
       updating,
       () => dir ?? env[dirEnv],
       warn ?? stderr.writeln,
     );
   }
 
-  ContractFixtures._(this.side, this.update, this._given, this._warn);
+  ContractFixtures._(
+    this.side,
+    this.reader,
+    this.update,
+    this._given,
+    this._warn,
+  );
+
+  /// The name of the reader these helpers act for, if the consumer side has more than
+  /// one.
+  final String? reader;
 
   /// Where a note goes that is not a failure (update mode wrote a 5xx over a response that
   /// was none). One line on standard error unless the test passes `warn`.
@@ -85,11 +105,16 @@ class ContractFixtures {
   final bool update;
 
   /// Names of the fixtures of one kind, sorted; optionally only those that start with
-  /// [prefix].
-  List<String> list(FixtureKind kind, {String prefix = ''}) => [
-        for (final name in listFixtureNames(dir, kind))
-          if (name.startsWith(prefix)) name,
-      ];
+  /// [prefix]. For a reader: of the fixtures that reader verifies or reads.
+  List<String> list(FixtureKind kind, {String prefix = ''}) {
+    final config = reader == null ? null : _config();
+    return [
+      for (final name in listFixtureNames(dir, kind))
+        if (name.startsWith(prefix) &&
+            (config == null || config.readerTakes(reader, kind, name)))
+          name,
+    ];
+  }
 
   /// Fails unless [expected] names exactly the fixtures of [kind] (that start with
   /// [prefix]).
@@ -236,10 +261,15 @@ class ContractFixtures {
       TableFixture(_read(FixtureKind.tables, name));
 
   /// What the `config.json` of the directory says. Nothing is verified or read while it is
-  /// not valid.
+  /// not valid, and a consumer has to be one the configuration can mean.
   ContractsConfig _config() {
     final result = readConfig(dir);
-    if (result.issues.isEmpty) return result.config;
+    if (result.issues.isEmpty) {
+      if (side == ContractSide.consumer) {
+        result.config.requireDeclaredReader(reader);
+      }
+      return result.config;
+    }
     throw ContractFixtureException(
       '$configFile of the contracts directory does not follow the format:\n'
       '${formatIssues(result.issues)}',
@@ -297,6 +327,12 @@ class ContractFixtures {
     final file = '${kind.name}/$name.json';
     final target = File('$dir/$file');
     final config = _config();
+    if (!config.readerTakes(reader, kind, name)) {
+      throw ContractUsageException(
+        'contract_fixtures: the consumer fixtures of the reader $reader have names '
+        'that start with "$reader.", and ${jsonEncode(name)} does not',
+      );
+    }
     final Object? produced;
     try {
       produced = jsonRoundTrip(observed);
@@ -434,7 +470,7 @@ class ContractFixtures {
         if (late.isNotEmpty) throw invalid(late);
       }
     }
-    appendLedger(dir, side, LedgerAction.verified, kind, name);
+    appendLedger(dir, side, LedgerAction.verified, kind, name, reader);
     return Verified(file, written: written);
   }
 
@@ -581,6 +617,12 @@ class ContractFixtures {
     final config = _config();
     final file = '${kind.name}/$name.json';
     final source = File('$dir/$file');
+    if (!config.readerTakes(reader, kind, name)) {
+      throw ContractUsageException(
+        'contract_fixtures: $file is not a fixture the reader $reader reads '
+        '(readers.$reader.${kind.name} in $configFile does not name it)',
+      );
+    }
     if (!source.existsSync()) {
       throw ContractFixtureException(
           'contract fixture $file does not exist.', file);
@@ -594,7 +636,7 @@ class ContractFixtures {
         result.issues,
       );
     }
-    appendLedger(dir, side, LedgerAction.read, kind, name);
+    appendLedger(dir, side, LedgerAction.read, kind, name, reader);
     return result.value as Map<String, dynamic>;
   }
 }

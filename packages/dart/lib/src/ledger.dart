@@ -1,13 +1,35 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'configuration.dart';
 import 'errors.dart';
 import 'types.dart';
 
 enum LedgerAction { verified, read }
 
-File ledgerFile(String dir, ContractSide side) =>
-    File('$dir/.ledger/${side.name}.jsonl');
+/// The name of a ledger without `.jsonl`: the side, and for a consumer that is one reader
+/// of several, the name of the reader after it (`consumer.web`).
+///
+/// Throws [ContractUsageException] for a reader on the provider side and for a name no
+/// reader can have.
+String ledgerName(ContractSide side, [String? reader]) {
+  if (reader == null) return side.name;
+  if (side != ContractSide.consumer) {
+    throw const ContractUsageException(
+      'contract_fixtures: a reader is a consumer: there is none on the provider side',
+    );
+  }
+  if (!readerPattern.hasMatch(reader)) {
+    throw ContractUsageException(
+      'contract_fixtures: ${jsonEncode(reader)} is not the name of a reader '
+      '(lower-case letters, digits and -)',
+    );
+  }
+  return '${side.name}.$reader';
+}
+
+File ledgerFile(String dir, ContractSide side, [String? reader]) =>
+    File('$dir/.ledger/${ledgerName(side, reader)}.jsonl');
 
 /// Whether [file] may be there although it cannot be looked at: `typeSync` answers "not
 /// found" for every path it cannot reach, also for one in a directory that cannot be
@@ -28,8 +50,7 @@ bool _hidden(File file) {
 /// Runs one operation on a ledger; [operation] is told whether the file exists. Whatever
 /// goes wrong with the file (a directory in its place, a path that cannot be read or
 /// written) is reported in the same words by every implementation, and never passed over.
-T _onLedger<T>(
-    ContractSide side, File file, T Function(bool exists) operation) {
+T _onLedger<T>(String name, File file, T Function(bool exists) operation) {
   try {
     final type = FileSystemEntity.typeSync(file.path);
     if (type == FileSystemEntityType.file ||
@@ -40,7 +61,7 @@ T _onLedger<T>(
     // reported below
   }
   throw ContractUsageException(
-    'contract_fixtures: the ledger .ledger/${side.name}.jsonl cannot be used '
+    'contract_fixtures: the ledger .ledger/$name.jsonl cannot be used '
     '(it is not a file, or it cannot be read or written)',
   );
 }
@@ -50,26 +71,32 @@ void appendLedger(
   ContractSide side,
   LedgerAction action,
   FixtureKind kind,
-  String name,
-) {
-  final file = ledgerFile(dir, side);
+  String name, [
+  String? reader,
+]) {
+  final file = ledgerFile(dir, side, reader);
   final entry = {
     'side': side.name,
     'action': action.name,
     'file': '${kind.name}/$name.json',
   };
-  _onLedger(side, file, (_) {
+  _onLedger(ledgerName(side, reader), file, (_) {
     file.parent.createSync(recursive: true);
     file.writeAsStringSync('${jsonEncode(entry)}\n', mode: FileMode.append);
   });
 }
 
-/// Forgets what earlier test runs of one side did. Run it before that side's tests.
+/// Forgets what earlier test runs of one side did (with [reader], of that reader alone).
+/// Run it before that side's tests.
 ///
 /// Throws [ContractUsageException] when the ledger cannot be removed.
-void resetLedger({required String dir, required ContractSide side}) {
-  final file = ledgerFile(dir, side);
-  _onLedger(side, file, (exists) {
+void resetLedger({
+  required String dir,
+  required ContractSide side,
+  String? reader,
+}) {
+  final file = ledgerFile(dir, side, reader);
+  _onLedger(ledgerName(side, reader), file, (exists) {
     if (exists) file.deleteSync();
   });
 }
@@ -84,14 +111,15 @@ final RegExp _blank = RegExp(r'^[ \t\r]*$');
 ({Set<String> done, List<String> files, List<int> badLines, bool exists})
     readLedger(
   String dir,
-  ContractSide side,
-) {
+  ContractSide side, [
+  String? reader,
+]) {
   final done = <String>{};
   final files = <String>[];
   final badLines = <int>[];
-  final file = ledgerFile(dir, side);
+  final file = ledgerFile(dir, side, reader);
   final bytes = _onLedger(
-    side,
+    ledgerName(side, reader),
     file,
     (exists) => exists ? file.readAsBytesSync() : null,
   );

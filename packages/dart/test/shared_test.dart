@@ -78,6 +78,17 @@ void main() {
         );
         expect(result.issues.map((i) => i.message), everyElement(isNotEmpty));
         expect(result.config.forbidden, c['forbidden']);
+        expect(
+          {
+            for (final reader in result.config.readers.entries)
+              reader.key: {
+                if (reader.value.provider != null)
+                  'provider': reader.value.provider,
+                if (reader.value.tables != null) 'tables': reader.value.tables,
+              },
+          },
+          c['readers'] ?? const <String, dynamic>{},
+        );
       });
     }
   });
@@ -203,15 +214,18 @@ void main() {
         final other = side == ContractSide.provider ? 'consumer' : 'provider';
         String lines(Object? list) =>
             (list as List<dynamic>).map((l) => '$l\n').join();
+        final reader = c['reader'] as String?;
+        final own = reader == null ? side.name : '${side.name}.$reader';
         if (c['noLedger'] != true) {
-          writeFile(dir, '.ledger/${side.name}.jsonl', lines(c['ledger']));
+          writeFile(dir, '.ledger/$own.jsonl', lines(c['ledger']));
         }
         if (c.containsKey('otherLedger')) {
           writeFile(dir, '.ledger/$other.jsonl', lines(c['otherLedger']));
         }
 
-        final result = checkContracts(dir: dir, side: side);
+        final result = checkContracts(dir: dir, side: side, reader: reader);
 
+        expect(result.reader, reader);
         expect(result.fixtures, c['fixtures']);
         expect(
           [
@@ -238,6 +252,10 @@ void main() {
     for (final c in loadCases('cli.json')) {
       test(c['case'], () {
         final dir = c['empty'] == true ? tempDir() : copyOfContracts();
+        final files = c['files'] as Map<String, dynamic>? ?? const {};
+        for (final entry in files.entries) {
+          writeFile(dir, entry.key, entry.value as String);
+        }
         final ledger = c['ledger'] as Map<String, dynamic>? ?? const {};
         for (final entry in ledger.entries) {
           writeFile(
