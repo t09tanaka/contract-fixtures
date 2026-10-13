@@ -94,7 +94,7 @@ contract.verifyRequest({
 
 ## API
 
-`contractFixtures({ side, dir?, update? })` returns an object with:
+`contractFixtures({ side, reader?, dir?, update? })` returns an object with:
 
 | Member | Side | What it does |
 |---|---|---|
@@ -323,11 +323,16 @@ npx contract-fixtures --version                                  # also -v; --he
 `tables/`, not the directory of a package. It defaults to the environment variable
 `CONTRACT_FIXTURES_DIR`, not to the current directory.
 
+With more than one consumer of one API, each is a reader with a name: `reader` when the
+directory is opened, `--reader <name>` with `--side consumer` for `reset` and `check`. A
+reader has a ledger of its own, and `readers` in `config.json` may list what each one reads.
+See [More than one consumer](https://github.com/t09tanaka/contract-fixtures#more-than-one-consumer).
+
 | Exit code | `reset` | `check` | `summary` |
 |---|---|---|---|
 | 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
-| 1 | The ledger could not be removed (it is not a file, or its directory cannot be written) | At least one problem: a fixture or `config.json` is `invalid`, a fixture is `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures. Also when the command could not finish (a ledger that is not a file, a fixture that cannot be read) | The directory holds no fixtures, or the command could not finish |
-| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, a `--depth`, no contracts directory, or a `--dir` that is not a directory | The same | The same, a `--side`, or a `--depth` that is not a whole number from 1 to 9 |
+| 1 | The ledger could not be removed (it is not a file, or its directory cannot be written) | At least one problem: a fixture or `config.json` is `invalid`, a fixture is `unverified`, `unread` or (for the provider, with readers) `unclaimed`, the ledger has a line that is not an entry of this side, or there are no fixtures. Also when the command could not finish (a ledger that is not a file, a fixture that cannot be read) | The directory holds no fixtures, or the command could not finish |
+| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, a wrong `--reader`, a `--depth`, no contracts directory, or a `--dir` that is not a directory | The same | The same, a `--side`, or a `--depth` that is not a whole number from 1 to 9 |
 
 A `reset`, and a `check` without problems, print one line to standard output:
 

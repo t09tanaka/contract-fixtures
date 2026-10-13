@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'check.dart';
+import 'configuration.dart';
 import 'contract.dart';
 import 'errors.dart';
 import 'ledger.dart';
@@ -12,7 +13,7 @@ import 'version.dart';
 const String usage = '''
 $executable — shared request/response fixtures that keep an API and its clients in step
 
-Usage: $executable <reset|check> --side <provider|consumer> [--dir <contracts>]
+Usage: $executable <reset|check> --side <provider|consumer> [--reader <name>] [--dir <contracts>]
        $executable summary [--dir <contracts>] [--depth <n>]
 
 Commands:
@@ -24,6 +25,9 @@ Commands:
 
 Options:
   --side <provider|consumer>  The side whose tests ran. Not for summary
+  --reader <name>             With --side consumer, in a directory with more than one
+                              consumer: the reader whose tests ran. Without it, every
+                              reader that config.json declares, one after the other
   --dir <contracts>           The contracts directory: the one that holds provider/, consumer/
                               and tables/, not the directory of a package
                               (default: the environment variable $dirEnv)
@@ -35,7 +39,8 @@ Options:
 Exit codes: 0 no problems, 1 problems found (summary: no fixtures) or the command could
 not finish, 2 wrong usage''';
 
-final RegExp _option = RegExp(r'^--(side|dir|depth)(?:=(.*))?$', dotAll: true);
+final RegExp _option =
+    RegExp(r'^--(side|reader|dir|depth)(?:=(.*))?$', dotAll: true);
 final RegExp _depth = RegExp(r'^[1-9]$');
 
 /// Runs the command line and returns the exit code.
@@ -85,8 +90,10 @@ int runCli(
     return wrong('unknown command: $command');
   }
   var side = ContractSide.provider;
+  final reader = values['reader'];
   if (command == 'summary') {
     if (values.containsKey('side')) return wrong('summary takes no --side');
+    if (reader != null) return wrong('summary takes no --reader');
     if (values.containsKey('depth') && !_depth.hasMatch(values['depth']!)) {
       return wrong('--depth must be a whole number from 1 to 9');
     }
@@ -101,6 +108,14 @@ int runCli(
     }
     if (values.containsKey('depth')) {
       return wrong('--depth is for summary only');
+    }
+    if (reader != null && side != ContractSide.consumer) {
+      return wrong('--reader is for --side consumer only');
+    }
+    if (reader != null && !readerPattern.hasMatch(reader)) {
+      return wrong(
+        '--reader must be the name of a reader (lower-case letters, digits and -)',
+      );
     }
   }
   final given = values['dir'] ?? (environment ?? Platform.environment)[dirEnv];
@@ -124,22 +139,36 @@ int runCli(
       out(formatSummary(rows));
       return 0;
     }
-    if (command == 'reset') {
-      resetLedger(dir: dir, side: side);
-      out(
-        '$executable reset (${side.name} side): '
-        'OK (no entries in .ledger/${side.name}.jsonl)',
-      );
-      return 0;
+    // On the consumer side of a directory that declares readers, a command without
+    // --reader is for each of them in turn. Everywhere else there is one ledger.
+    final config = readConfig(dir).config;
+    if (side == ContractSide.consumer && reader != null) {
+      config.requireDeclaredReader(reader);
     }
-    final result = checkContracts(dir: dir, side: side);
-    final report = formatCheckResult(result);
-    if (result.problems.isNotEmpty) {
-      err(report);
-      return 1;
+    final declared = side == ContractSide.consumer && reader == null
+        ? config.declaredReaders
+        : const <String>[];
+    var code = 0;
+    for (final one in declared.isNotEmpty ? declared : [reader]) {
+      final of = one == null ? '' : ', reader $one';
+      if (command == 'reset') {
+        resetLedger(dir: dir, side: side, reader: one);
+        out(
+          '$executable reset (${side.name} side$of): '
+          'OK (no entries in .ledger/${ledgerName(side, one)}.jsonl)',
+        );
+        continue;
+      }
+      final result = checkContracts(dir: dir, side: side, reader: one);
+      final report = formatCheckResult(result);
+      if (result.problems.isNotEmpty) {
+        err(report);
+        code = 1;
+      } else {
+        out(report);
+      }
     }
-    out(report);
-    return 0;
+    return code;
   } on ContractUsageException catch (error) {
     // A ledger that cannot be used says so in words of its own.
     err(error.message);

@@ -4304,7 +4304,7 @@
           "path": "forbiden"
         }
       ],
-      "message": "config.json of the contracts directory does not follow the format:\n  forbiden: unknown key (allowed: format, forbidden)",
+      "message": "config.json of the contracts directory does not follow the format:\n  forbiden: unknown key (allowed: format, forbidden, readers)",
       "written": null
     },
     {

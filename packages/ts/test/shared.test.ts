@@ -100,6 +100,7 @@ describe("spec/fixtures/configuration.json", () => {
     case: string;
     text: string;
     forbidden: string[];
+    readers?: Record<string, { provider?: string[]; tables?: string[] }>;
     issues: { code: string; path: string }[];
   }
   for (const c of loadCases<Case>("configuration.json")) {
@@ -110,7 +111,7 @@ describe("spec/fixtures/configuration.json", () => {
         c.issues,
       );
       for (const issue of issues) assert.notEqual(issue.message, "");
-      assert.deepEqual(config, { forbidden: c.forbidden });
+      assert.deepEqual(config, { forbidden: c.forbidden, readers: c.readers ?? {} });
     });
   }
 });
@@ -198,6 +199,7 @@ describe("spec/fixtures/check.json", () => {
   interface Case {
     case: string;
     side: Side;
+    reader?: string;
     ledger: string[];
     noLedger?: boolean;
     otherLedger?: string[];
@@ -213,13 +215,15 @@ describe("spec/fixtures/check.json", () => {
       const dir = c.empty ? tempDir() : copyOfContracts();
       for (const [file, text] of Object.entries(c.files ?? {})) writeFile(dir, file, text);
       const other = c.side === "provider" ? "consumer" : "provider";
-      if (!c.noLedger) writeFile(dir, `.ledger/${c.side}.jsonl`, c.ledger.map((l) => l + "\n").join(""));
+      const own = c.reader === undefined ? c.side : `${c.side}.${c.reader}`;
+      if (!c.noLedger) writeFile(dir, `.ledger/${own}.jsonl`, c.ledger.map((l) => l + "\n").join(""));
       if (c.otherLedger) {
         writeFile(dir, `.ledger/${other}.jsonl`, c.otherLedger.map((l) => l + "\n").join(""));
       }
 
-      const result = checkContracts({ dir, side: c.side });
+      const result = checkContracts({ dir, side: c.side, reader: c.reader });
 
+      assert.equal(result.reader, c.reader);
       assert.equal(result.fixtures, c.fixtures);
       assert.deepEqual(
         result.problems.map((p) => ({ file: p.file, code: p.code })),
@@ -237,6 +241,7 @@ describe("spec/fixtures/cli.json", () => {
     args: string[];
     env?: Record<string, string>;
     empty?: boolean;
+    files?: Record<string, string>;
     ledger?: Record<string, string[]>;
     ledgerDirectory?: string[];
     ledgerAfter?: Record<string, string[] | null>;
@@ -254,6 +259,7 @@ describe("spec/fixtures/cli.json", () => {
   for (const c of loadCases<Case>("cli.json")) {
     it(c.case, () => {
       const dir = c.empty ? tempDir() : copyOfContracts();
+      for (const [file, text] of Object.entries(c.files ?? {})) writeFile(dir, file, text);
       for (const [side, lines] of Object.entries(c.ledger ?? {})) {
         writeFile(dir, `.ledger/${side}.jsonl`, lines.map((l) => l + "\n").join(""));
       }

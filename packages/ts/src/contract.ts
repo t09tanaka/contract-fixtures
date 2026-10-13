@@ -2,7 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { listFixtureNames } from "./check.js";
-import { CONFIG_FILE, readConfig, type ContractsConfig } from "./configuration.js";
+import {
+  CONFIG_FILE,
+  readConfig,
+  readerTakes,
+  requireDeclaredReader,
+  type ContractsConfig,
+} from "./configuration.js";
 import { differences, formatDifferences } from "./differences.js";
 import {
   ContractCoverageError,
@@ -19,7 +25,7 @@ import {
   NotJsonError,
   sortedKeys,
 } from "./json.js";
-import { appendLedger } from "./ledger.js";
+import { appendLedger, ledgerName } from "./ledger.js";
 import { replaceSecrets, secretNodes, secretPathProblem } from "./secrets.js";
 import type { VolatileEntry } from "./volatile.js";
 import {
@@ -50,6 +56,13 @@ export interface ContractFixturesOptions {
   /** The side whose tests are running. */
   side: Side;
   /**
+   * Consumer side, when the directory has more than one consumer: the name of this one. A
+   * reader has a ledger of its own (`.ledger/consumer.<reader>.jsonl`), verifies the consumer
+   * fixtures whose names start with `<reader>.`, and reads the provider fixtures and tables
+   * that `readers` in `config.json` lists for it (all of them when it lists none).
+   */
+  reader?: string;
+  /**
    * The contracts directory. Defaults to the environment variable `CONTRACT_FIXTURES_DIR`,
    * read when the directory is first used.
    */
@@ -65,6 +78,8 @@ export interface ContractFixturesOptions {
 
 export interface ContractFixtures {
   readonly side: Side;
+  /** The name of the reader these helpers act for, if the consumer side has more than one. */
+  readonly reader: string | undefined;
   /**
    * Absolute path of the contracts directory. Looked up at the first use (of this or of any
    * method), which is when a missing directory throws `ContractUsageError`.
@@ -72,7 +87,10 @@ export interface ContractFixtures {
   readonly dir: string;
   readonly update: boolean;
 
-  /** Names of the fixtures of one kind, sorted; optionally only those that start with `prefix`. */
+  /**
+   * Names of the fixtures of one kind, sorted; optionally only those that start with `prefix`.
+   * For a reader: of the fixtures that reader verifies or reads.
+   */
   list(kind: Kind, options?: { prefix?: string }): string[];
 
   /**
@@ -304,10 +322,18 @@ function updateFromEnvironment(env: Record<string, string | undefined>): boolean
  * test framework: they throw ordinary errors, which every framework reports as a failure.
  */
 export function contractFixtures(options: ContractFixturesOptions): ContractFixtures {
-  const { side } = options;
+  const { side, reader } = options;
   if (side !== "provider" && side !== "consumer") {
     throw new ContractUsageError(`contract-fixtures: side must be "provider" or "consumer"`);
   }
+  // Refuses a reader on the provider side, and a name no reader can have.
+  ledgerName(side, reader);
+  /** The configuration, for a consumer only where it can be the one it says it is. */
+  const configFor = (dir: string): ContractsConfig => {
+    const config = configOf(dir);
+    if (side === "consumer") requireDeclaredReader(config, reader);
+    return config;
+  };
   // Asked for at the first use, not here: a tool that only loads a test file (to collect
   // other tests, say) has no reason to know the directory.
   let resolved: string | undefined;
@@ -352,7 +378,13 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     const dir = resolveDir();
     const file = `${kind}/${name}.json`;
     const filePath = path.join(dir, kind, `${name}.json`);
-    const config = configOf(dir);
+    const config = configFor(dir);
+    if (!readerTakes(config, reader, kind, name)) {
+      throw new ContractUsageError(
+        `contract-fixtures: the consumer fixtures of the reader ${reader} have names that start with ` +
+          `"${reader}.", and ${JSON.stringify(name)} does not`,
+      );
+    }
     const produced = candidate(file, observed);
     const exists = fs.existsSync(filePath);
     const stored = exists ? validateFixtureFile(kind, name, filePath, config) : null;
@@ -447,7 +479,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
         if (late.length > 0) throw invalid(late);
       }
     }
-    appendLedger(dir, side, "verified", kind, name);
+    appendLedger(dir, side, "verified", kind, name, reader);
     return { file, written };
   };
 
@@ -457,9 +489,15 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       throw new ContractUsageError(`contract-fixtures: ${JSON.stringify(name)} is not a fixture name`);
     }
     const dir = resolveDir();
-    const config = configOf(dir);
+    const config = configFor(dir);
     const file = `${kind}/${name}.json`;
     const filePath = path.join(dir, kind, `${name}.json`);
+    if (!readerTakes(config, reader, kind, name)) {
+      throw new ContractUsageError(
+        `contract-fixtures: ${file} is not a fixture the reader ${reader} reads ` +
+          `(readers.${reader}.${kind} in ${CONFIG_FILE} does not name it)`,
+      );
+    }
     if (!fs.existsSync(filePath)) {
       throw new ContractFixtureError(`contract fixture ${file} does not exist.`, file);
     }
@@ -471,17 +509,21 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
         issues,
       );
     }
-    appendLedger(dir, side, "read", kind, name);
+    appendLedger(dir, side, "read", kind, name, reader);
     return value;
   };
 
   const list = (kind: Kind, listOptions: { prefix?: string } = {}): string[] => {
     const prefix = listOptions.prefix ?? "";
-    return listFixtureNames(resolveDir(), kind).filter((name) => name.startsWith(prefix));
+    const names = listFixtureNames(resolveDir(), kind).filter((name) => name.startsWith(prefix));
+    if (reader === undefined) return names;
+    const config = configFor(resolveDir());
+    return names.filter((name) => readerTakes(config, reader, kind, name));
   };
 
   return {
     side,
+    reader,
     get dir() {
       return resolveDir();
     },

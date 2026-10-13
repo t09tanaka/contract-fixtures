@@ -1,5 +1,5 @@
 {
-  "description": "Cases for <contracts>/config.json. `text` is the text of the file. Every implementation must report exactly these issues, in this order. `forbidden` is the list of patterns the configuration holds afterwards: those of the file when there are no issues, none otherwise.",
+  "description": "Cases for <contracts>/config.json. `text` is the text of the file. Every implementation must report exactly these issues, in this order. `forbidden` is the list of patterns the configuration holds afterwards, and `readers` (no readers when the case has no such key) what it declares: those of the file when there are no issues, none otherwise.",
   "cases": [
     {
       "case": "the format alone",
@@ -24,7 +24,7 @@
     },
     {
       "case": "a byte order mark is ignored",
-      "text": "\ufeff{\n  \"format\": 1,\n  \"forbidden\": [\n    \"x\"\n  ]\n}\n",
+      "text": "﻿{\n  \"format\": 1,\n  \"forbidden\": [\n    \"x\"\n  ]\n}\n",
       "forbidden": [
         "x"
       ],
@@ -158,6 +158,87 @@
         {
           "code": "pattern",
           "path": "forbidden.4"
+        }
+      ]
+    },
+    {
+      "case": "readers: one that reads everything, one that reads a part",
+      "text": "{ \"format\": 1, \"readers\": { \"web\": { \"provider\": [\"order.created\", \"receipt.*\"], \"tables\": [] }, \"app\": {} } }",
+      "forbidden": [],
+      "readers": {
+        "app": {},
+        "web": {
+          "provider": [
+            "order.created",
+            "receipt.*"
+          ],
+          "tables": []
+        }
+      },
+      "issues": []
+    },
+    {
+      "case": "readers: names, values, keys and entries that are none",
+      "text": "{ \"format\": 1, \"readers\": { \"Web\": {}, \"a.b\": {}, \"app\": [], \"ios\": { \"consumer\": [], \"provider\": \"order.*\", \"tables\": [\"*\", \"a*b\", 1, \"order-total\"] }, \"tv\": { \"provider\": [\"\"] } } }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "readers",
+          "path": "readers.Web"
+        },
+        {
+          "code": "readers",
+          "path": "readers.a.b"
+        },
+        {
+          "code": "readers",
+          "path": "readers.app"
+        },
+        {
+          "code": "unknown-key",
+          "path": "readers.ios.consumer"
+        },
+        {
+          "code": "readers",
+          "path": "readers.ios.provider"
+        },
+        {
+          "code": "readers",
+          "path": "readers.ios.tables.0"
+        },
+        {
+          "code": "readers",
+          "path": "readers.ios.tables.1"
+        },
+        {
+          "code": "readers",
+          "path": "readers.ios.tables.2"
+        },
+        {
+          "code": "readers",
+          "path": "readers.tv.provider.0"
+        }
+      ]
+    },
+    {
+      "case": "readers: an object without a reader declares nothing",
+      "text": "{ \"format\": 1, \"readers\": {} }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "readers",
+          "path": "readers"
+        }
+      ]
+    },
+    {
+      "case": "readers: not an object",
+      "text": "{ \"format\": 1, \"readers\": [\"web\"] }",
+      "forbidden": [],
+      "issues": [
+        {
+          "code": "readers",
+          "path": "readers"
         }
       ]
     }

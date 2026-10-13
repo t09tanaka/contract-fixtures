@@ -1397,4 +1397,220 @@ void main() {
       );
     });
   });
+  group('a consumer that is one reader of several', () {
+    String declared() {
+      final dir = copyOfContracts();
+      writeFile(
+        dir,
+        'config.json',
+        '{"format":1,"readers":{"app":{},'
+            '"web":{"provider":["order.created"],"tables":[]}}}',
+      );
+      return dir;
+    }
+
+    Matcher usage(String message) => throwsA(
+          isA<ContractUsageException>()
+              .having((e) => e.message, 'message', message),
+        );
+
+    test('has a ledger of its own, next to the ledgers of the others', () {
+      final dir = declared();
+      final web = ContractFixtures(
+        side: ContractSide.consumer,
+        reader: 'web',
+        dir: dir,
+        update: true,
+      );
+      final app = ContractFixtures(
+          side: ContractSide.consumer, reader: 'app', dir: dir);
+      expect(web.reader, 'web');
+      web.readResponse('order.created');
+      web.verifyRequest(
+        name: 'web.place-order.request',
+        description: 'An order',
+        request: _request,
+      );
+      app.readTable('order-total');
+      expect(ledgerLines(dir, 'consumer.web'), [
+        '{"side":"consumer","action":"read","file":"provider/order.created.json"}',
+        '{"side":"consumer","action":"verified","file":"consumer/web.place-order.request.json"}',
+      ]);
+      expect(ledgerLines(dir, 'consumer.app'), hasLength(1));
+      expect(ledgerLines(dir, 'consumer'), isEmpty);
+      expect(
+        checkContracts(dir: dir, side: ContractSide.consumer, reader: 'web')
+            .problems,
+        isEmpty,
+      );
+      resetLedger(dir: dir, side: ContractSide.consumer, reader: 'web');
+      expect(ledgerLines(dir, 'consumer.web'), isEmpty);
+      expect(ledgerLines(dir, 'consumer.app'), hasLength(1));
+    });
+
+    test('lists, and covers, the fixtures it takes and no others', () {
+      final dir = declared();
+      writeFile(dir, 'consumer/web.place-order.request.json', '{}');
+      final web = ContractFixtures(
+          side: ContractSide.consumer, reader: 'web', dir: dir);
+      expect(web.list(FixtureKind.provider), ['order.created']);
+      expect(web.list(FixtureKind.tables), isEmpty);
+      expect(web.list(FixtureKind.consumer), ['web.place-order.request']);
+      expect(
+        web.assertCovers(FixtureKind.provider, ['order.created']),
+        ['order.created'],
+      );
+      final app = ContractFixtures(
+          side: ContractSide.consumer, reader: 'app', dir: dir);
+      expect(
+        app.list(FixtureKind.provider),
+        ['order.created', 'order.out-of-stock'],
+      );
+      expect(app.list(FixtureKind.consumer), isEmpty);
+    });
+
+    test('does not read a fixture the configuration does not list for it', () {
+      final dir = declared();
+      final web = ContractFixtures(
+          side: ContractSide.consumer, reader: 'web', dir: dir);
+      expect(
+        () => web.readResponse('order.out-of-stock'),
+        usage(
+          'contract_fixtures: provider/order.out-of-stock.json is not a fixture '
+          'the reader web reads (readers.web.provider in config.json does not name it)',
+        ),
+      );
+      expect(
+        () => web.readTable('order-total'),
+        usage(
+          'contract_fixtures: tables/order-total.json is not a fixture '
+          'the reader web reads (readers.web.tables in config.json does not name it)',
+        ),
+      );
+      expect(ledgerLines(dir, 'consumer.web'), isEmpty);
+    });
+
+    test('verifies requests under its own name only', () {
+      final dir = declared();
+      final web = ContractFixtures(
+        side: ContractSide.consumer,
+        reader: 'web',
+        dir: dir,
+        update: true,
+      );
+      expect(
+        () => web.verifyRequest(
+          name: 'app.place-order.request',
+          description: 'An order',
+          request: _request,
+        ),
+        usage(
+          'contract_fixtures: the consumer fixtures of the reader web have names '
+          'that start with "web.", and "app.place-order.request" does not',
+        ),
+      );
+      expect(
+        File('$dir/consumer/app.place-order.request.json').existsSync(),
+        isFalse,
+      );
+    });
+
+    test(
+        'has to be one of the readers the configuration declares, and has to say which',
+        () {
+      final dir = declared();
+      final ios = ContractFixtures(
+          side: ContractSide.consumer, reader: 'ios', dir: dir);
+      final none = usage(
+        'contract_fixtures: config.json declares no reader named ios '
+        '(declared: app, web)',
+      );
+      expect(() => ios.readResponse('order.created'), none);
+      expect(() => ios.list(FixtureKind.provider), none);
+      expect(
+        () => checkContracts(
+            dir: dir, side: ContractSide.consumer, reader: 'ios'),
+        none,
+      );
+      final nobody = ContractFixtures(
+        side: ContractSide.consumer,
+        dir: dir,
+        update: true,
+      );
+      final which = usage(
+        'contract_fixtures: config.json declares readers (app, web): '
+        'say which one this is',
+      );
+      expect(() => nobody.readResponse('order.created'), which);
+      expect(
+        () => nobody.verifyRequest(
+          name: 'create-order.request',
+          description: 'An order',
+          request: _request,
+        ),
+        which,
+      );
+      expect(
+        () => checkContracts(dir: dir, side: ContractSide.consumer),
+        which,
+      );
+      expect(ledgerLines(dir, 'consumer'), isEmpty);
+      // The provider side has no readers: it verifies and reads for all of them.
+      ContractFixtures(side: ContractSide.provider, dir: dir)
+          .readRequest('create-order.request');
+    });
+
+    test('needs no declaration to read everything', () {
+      final dir = copyOfContracts();
+      final web = ContractFixtures(
+          side: ContractSide.consumer, reader: 'web', dir: dir);
+      expect(
+        web.list(FixtureKind.provider),
+        ['order.created', 'order.out-of-stock'],
+      );
+      web.readResponse('order.out-of-stock');
+      expect(ledgerLines(dir, 'consumer.web'), hasLength(1));
+    });
+
+    test(
+        'is refused on the provider side, and with a name that could leave the directory',
+        () {
+      expect(
+        () => ContractFixtures(
+          side: ContractSide.provider,
+          reader: 'web',
+          dir: '.',
+        ),
+        usage(
+          'contract_fixtures: a reader is a consumer: '
+          'there is none on the provider side',
+        ),
+      );
+      final notAName = throwsA(
+        isA<ContractUsageException>().having(
+          (e) => e.message,
+          'message',
+          contains('is not the name of a reader'),
+        ),
+      );
+      for (final reader in const ['../web', 'Web', 'a.b', '']) {
+        expect(
+          () => ContractFixtures(
+            side: ContractSide.consumer,
+            reader: reader,
+            dir: '.',
+          ),
+          notAName,
+        );
+        expect(
+          () => resetLedger(
+            dir: '.',
+            side: ContractSide.consumer,
+            reader: reader,
+          ),
+          notAName,
+        );
+      }
+    });
+  });
 }

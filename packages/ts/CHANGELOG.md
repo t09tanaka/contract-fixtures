@@ -2,6 +2,39 @@
 
 Both packages are versioned together.
 
+## 0.2.0 (unreleased)
+
+Nothing in it breaks a test written for 0.1.x, and the fixture format is the same. A
+directory that does not use readers is laid out as before, ledger included.
+
+- **Readers.** An API with more than one consumer (an app and a web client) can keep one
+  contracts directory and one set of provider fixtures. A consumer names itself: `reader`
+  when the directory is opened (TypeScript and Dart), `--reader <name>` for `reset` and
+  `check`. Each reader has a ledger of its own, `.ledger/consumer.<reader>.jsonl`, so the
+  tests of two readers can run in separate processes and languages. The provider side still
+  verifies each response once and runs one check.
+- `config.json` may declare the readers and list what each one reads:
+  `"readers": { "app": {}, "web": { "provider": ["order.created", "receipt.*"], "tables": [] } }`.
+  An entry is the name of a fixture, or the start of names followed by `*`; a key that is
+  left out means every fixture of that kind. The check of a reader asks for the fixtures
+  listed for it, its `list` and `assertCovers` look at those, and a read of another fixture
+  fails. Where readers are declared, a consumer has to be one of them.
+- The requests a reader builds are consumer fixtures whose names start with the name of the
+  reader and a dot (`consumer/web.place-order.request.json`), so two readers never write the
+  same file. The format of a fixture did not change.
+- `check --side consumer` and `reset --side consumer` without `--reader`, in a directory
+  that declares readers, act for every declared reader in turn.
+- The check of the provider side reports a fixture that no declared reader takes
+  (`unclaimed`). It and the check of that reader report an entry of a reader that names no
+  fixture.
+- **Older versions and `readers`.** 0.1.0 and 0.1.1 do not know the key. They report it as
+  `unknown-key`: every verify and read in that directory fails with a message that names
+  `config.json`, and their check reports the configuration as invalid. Move every side of a
+  directory to 0.2.0 before declaring readers. A `config.json` without `readers`, and a
+  directory without the file, are read by old and new versions alike.
+- The example has one contracts directory for its two clients, and the adoption guide says
+  how to get there from one directory per client.
+
 ## 0.1.1 (2026-10-13)
 
 Nothing in it breaks a test written for 0.1.0, and the fixture format is the same.

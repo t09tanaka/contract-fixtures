@@ -13,7 +13,12 @@ export 'src/check.dart'
         requiredAction;
 export 'src/cli.dart' show runCli, usage;
 export 'src/configuration.dart'
-    show ConfigValidation, ContractsConfig, readConfig, validateConfig;
+    show
+        ConfigValidation,
+        ContractsConfig,
+        ReaderConfig,
+        readConfig,
+        validateConfig;
 export 'src/contract.dart' show ContractFixtures, dirEnv, updateEnv;
 export 'src/differences.dart'
     show Difference, DifferenceKind, differences, formatDifferences;

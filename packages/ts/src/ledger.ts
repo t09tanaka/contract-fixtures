@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { READER_PATTERN } from "./configuration.js";
 import { ContractUsageError } from "./errors.js";
 import type { Kind, Side } from "./types.js";
 
@@ -13,8 +14,26 @@ export interface LedgerEntry {
   file: string;
 }
 
-export function ledgerPath(dir: string, side: Side): string {
-  return path.join(dir, ".ledger", `${side}.jsonl`);
+/**
+ * The name of a ledger without `.jsonl`: the side, and for a consumer that is one reader of
+ * several, the name of the reader after it (`consumer.web`). Throws `ContractUsageError`
+ * for a reader on the provider side and for a name no reader can have.
+ */
+export function ledgerName(side: Side, reader?: string): string {
+  if (reader === undefined) return side;
+  if (side !== "consumer") {
+    throw new ContractUsageError("contract-fixtures: a reader is a consumer: there is none on the provider side");
+  }
+  if (typeof reader !== "string" || !READER_PATTERN.test(reader)) {
+    throw new ContractUsageError(
+      `contract-fixtures: ${JSON.stringify(reader)} is not the name of a reader (lower-case letters, digits and -)`,
+    );
+  }
+  return `${side}.${reader}`;
+}
+
+export function ledgerPath(dir: string, side: Side, reader?: string): string {
+  return path.join(dir, ".ledger", `${ledgerName(side, reader)}.jsonl`);
 }
 
 /**
@@ -35,7 +54,7 @@ function ledgerKind(file: string): "file" | "absent" | "other" {
  * Runs one operation on a ledger. Whatever goes wrong with the file is reported in the same
  * words by every implementation, and never passed over.
  */
-function onLedger<T>(side: Side, file: string, operation: (kind: "file" | "absent") => T): T {
+function onLedger<T>(name: string, file: string, operation: (kind: "file" | "absent") => T): T {
   const kind = ledgerKind(file);
   if (kind !== "other") {
     try {
@@ -45,27 +64,34 @@ function onLedger<T>(side: Side, file: string, operation: (kind: "file" | "absen
     }
   }
   throw new ContractUsageError(
-    `contract-fixtures: the ledger .ledger/${side}.jsonl cannot be used ` +
+    `contract-fixtures: the ledger .ledger/${name}.jsonl cannot be used ` +
       "(it is not a file, or it cannot be read or written)",
   );
 }
 
-export function appendLedger(dir: string, side: Side, action: LedgerAction, kind: Kind, name: string): void {
-  const file = ledgerPath(dir, side);
+export function appendLedger(
+  dir: string,
+  side: Side,
+  action: LedgerAction,
+  kind: Kind,
+  name: string,
+  reader?: string,
+): void {
+  const file = ledgerPath(dir, side, reader);
   const entry: LedgerEntry = { side, action, file: `${kind}/${name}.json` };
-  onLedger(side, file, () => {
+  onLedger(ledgerName(side, reader), file, () => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.appendFileSync(file, JSON.stringify(entry) + "\n");
   });
 }
 
 /**
- * Forgets what earlier test runs of one side did. Run it before that side's tests. Throws
- * `ContractUsageError` when the ledger cannot be removed.
+ * Forgets what earlier test runs of one side did (with `reader`, of that reader alone). Run
+ * it before that side's tests. Throws `ContractUsageError` when the ledger cannot be removed.
  */
-export function resetLedger(options: { dir: string; side: Side }): void {
-  const file = ledgerPath(options.dir, options.side);
-  onLedger(options.side, file, (kind) => {
+export function resetLedger(options: { dir: string; side: Side; reader?: string }): void {
+  const file = ledgerPath(options.dir, options.side, options.reader);
+  onLedger(ledgerName(options.side, options.reader), file, (kind) => {
     if (kind === "file") fs.rmSync(file);
   });
 }
@@ -77,11 +103,12 @@ export function resetLedger(options: { dir: string; side: Side }): void {
 export function readLedger(
   dir: string,
   side: Side,
+  reader?: string,
 ): { entries: LedgerEntry[]; badLines: number[]; exists: boolean } {
-  const file = ledgerPath(dir, side);
+  const file = ledgerPath(dir, side, reader);
   const entries: LedgerEntry[] = [];
   const badLines: number[] = [];
-  const text = onLedger(side, file, (kind) => (kind === "file" ? fs.readFileSync(file, "utf8") : null));
+  const text = onLedger(ledgerName(side, reader), file, (kind) => (kind === "file" ? fs.readFileSync(file, "utf8") : null));
   if (text === null) return { entries, badLines, exists: false };
   // A byte order mark is not a part of the first line. A line is blank when it holds nothing
   // but spaces, tabs and carriage returns (the same in every implementation).

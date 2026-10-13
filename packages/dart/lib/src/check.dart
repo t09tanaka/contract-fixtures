@@ -14,7 +14,7 @@ class CheckProblem {
   /// directory as a whole.
   final String file;
 
-  /// `invalid`, `unverified`, `unread`, `ledger` or `empty`.
+  /// `invalid`, `unverified`, `unread`, `unclaimed`, `ledger` or `empty`.
   final String code;
   final String message;
 }
@@ -25,7 +25,8 @@ class CheckResult {
     this.fixtures,
     this.problems, [
     this.hints = const [],
-  ]) : untouched = false;
+  ])  : untouched = false,
+        reader = null;
 
   const CheckResult._(
     this.side,
@@ -33,11 +34,16 @@ class CheckResult {
     this.problems,
     this.hints,
     this.untouched,
+    this.reader,
   );
 
   final ContractSide side;
 
-  /// Number of fixture files found.
+  /// The reader that was checked, when the consumer side has more than one.
+  final String? reader;
+
+  /// Number of fixture files found (with a reader: of those the reader verifies or
+  /// reads).
   final int fixtures;
   final List<CheckProblem> problems;
 
@@ -71,17 +77,24 @@ List<String> listFixtureNames(String dir, FixtureKind kind) {
 
 /// Compares the fixtures on disk with one side's ledger: every fixture must follow the
 /// format, and this side's tests must have verified or read each of them since the last
-/// reset.
-CheckResult checkContracts({required String dir, required ContractSide side}) {
+/// reset. With [reader], the fixtures are those that reader verifies or reads, and the
+/// ledger is its own.
+CheckResult checkContracts({
+  required String dir,
+  required ContractSide side,
+  String? reader,
+}) {
   final problems = <CheckProblem>[];
-  final ledger = readLedger(dir, side);
-  final onDisk = <String>{};
-  var fixtures = 0;
-  var asked = 0;
-  var missing = 0;
+  final ledgerFile = '.ledger/${ledgerName(side, reader)}.jsonl';
   // A configuration that is not valid is a problem of its own; the fixtures are then
   // checked as if there were none.
   final configuration = readConfig(dir);
+  final config = configuration.config;
+  if (side == ContractSide.consumer) config.requireDeclaredReader(reader);
+  final ledger = readLedger(dir, side, reader);
+  var fixtures = 0;
+  var asked = 0;
+  var missing = 0;
   for (final issue in configuration.issues) {
     problems.add(
       CheckProblem(
@@ -92,16 +105,47 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
     );
   }
 
+  // An entry of a reader that names nothing exempts nothing, and is most likely a name
+  // that was mistyped or a fixture that is gone. The provider side looks at every reader.
+  final readers = config.declaredReaders;
+  final names = {
+    for (final kind in FixtureKind.values) kind: listFixtureNames(dir, kind),
+  };
+  for (final declared in readers) {
+    if (side != ContractSide.provider && declared != reader) continue;
+    for (final kind in const [FixtureKind.provider, FixtureKind.tables]) {
+      final entries = (kind == FixtureKind.provider
+              ? config.readers[declared]!.provider
+              : config.readers[declared]!.tables) ??
+          const <String>[];
+      for (final (i, entry) in entries.indexed) {
+        if (names[kind]!.any((fixture) => entryNames(entry, fixture))) continue;
+        problems.add(
+          CheckProblem(
+            configFile,
+            'invalid',
+            'invalid configuration: readers.$declared.${kind.name}.$i '
+                'names no fixture in ${kind.name}/ ($entry)',
+          ),
+        );
+      }
+    }
+  }
+  final onDisk = {
+    for (final kind in FixtureKind.values)
+      for (final fixture in names[kind]!) '${kind.name}/$fixture.json',
+  };
+
   for (final kind in FixtureKind.values) {
-    for (final name in listFixtureNames(dir, kind)) {
+    for (final name in names[kind]!) {
+      if (!config.readerTakes(reader, kind, name)) continue;
       fixtures++;
       final file = '${kind.name}/$name.json';
-      onDisk.add(file);
       final issues = validateFixtureFile(
         kind,
         name,
         File('$dir/${kind.name}/$name.json'),
-        configuration.config,
+        config,
       ).issues;
       if (issues.isNotEmpty) {
         for (final issue in issues) {
@@ -137,10 +181,30 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
       }
     }
   }
+  // With readers, no check of a reader asks for a fixture that none of them takes. The
+  // provider side sees the whole directory, so it is the one to say so.
+  if (side == ContractSide.provider && readers.isNotEmpty) {
+    for (final kind in FixtureKind.values) {
+      for (final name in names[kind]!) {
+        if (readers.any((r) => config.readerTakes(r, kind, name))) continue;
+        problems.add(
+          CheckProblem(
+            '${kind.name}/$name.json',
+            'unclaimed',
+            kind == FixtureKind.consumer
+                ? 'verified by no reader of $configFile (the name of a consumer '
+                    'fixture starts with the name of its reader and a dot)'
+                : 'read by no reader of $configFile '
+                    '(list it for a reader under readers, or delete it)',
+          ),
+        );
+      }
+    }
+  }
   for (final line in ledger.badLines) {
     problems.add(
       CheckProblem(
-        '.ledger/${side.name}.jsonl',
+        ledgerFile,
         'ledger',
         'line $line is not a ledger entry of the ${side.name} side',
       ),
@@ -160,6 +224,7 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
       : ContractSide.provider;
   final hints = _checkHints(
     side: side.name,
+    ledger: ledgerFile,
     other: other.name,
     asked: asked,
     missing: missing,
@@ -174,6 +239,7 @@ CheckResult checkContracts({required String dir, required ContractSide side}) {
     problems,
     hints,
     ledger.files.isEmpty && asked > 0,
+    reader,
   );
 }
 
@@ -197,6 +263,7 @@ int _otherEntries(String dir, ContractSide other) {
 /// names that are not in the directory.
 List<String> _checkHints({
   required String side,
+  required String ledger,
   required String other,
   required int asked,
   required int missing,
@@ -207,7 +274,6 @@ List<String> _checkHints({
 }) {
   if (missing == 0) return const [];
   final hints = <String>[];
-  final ledger = '.ledger/$side.jsonl';
   if (lines == 0) {
     final what =
         ledgerExists ? '$ledger has no entries' : '$ledger does not exist';
@@ -247,7 +313,9 @@ const String executable = 'contract_fixtures';
 
 /// The report the `check` command prints.
 String formatCheckResult(CheckResult result) {
-  final head = '$executable check (${result.side.name} side)';
+  final reader = result.reader;
+  final head = '$executable check (${result.side.name} side'
+      "${reader == null ? '' : ', reader $reader'})";
   if (result.problems.isEmpty) {
     return "$head: OK (${result.fixtures} fixture(s), all verified or read by this side's tests)";
   }
@@ -265,6 +333,10 @@ String formatCheckResult(CheckResult result) {
         '  - none of the $count fixture(s) that follow the format was verified or read by '
             "the ${result.side.name} side's tests (they are not listed one by one)",
     for (final hint in result.hints) 'Hint: $hint',
-    "Run `$executable reset` and the ${result.side.name} side's tests before this check.",
+    if (reader == null)
+      "Run `$executable reset` and the ${result.side.name} side's tests before this check."
+    else
+      'Run `$executable reset --side consumer --reader $reader` and the tests of that '
+          'reader before this check.',
   ].join('\n');
 }

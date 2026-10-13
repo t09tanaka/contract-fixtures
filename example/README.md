@@ -9,29 +9,31 @@ A deliberately tiny, made-up order API with two readers.
   decides what the app does with a response; `test/contract_test.dart` is its side.
 - [`consumer-web/`](./consumer-web): the web client, in TypeScript. `src/orders-client.ts`
   calls `fetch`; `test/contract.test.ts` gives it a `fetch` that answers with fixtures.
-- [`contracts/`](./contracts): the fixtures the API shares with the app.
-- [`contracts-web/`](./contracts-web): the fixtures the API shares with the web client.
+- [`contracts/`](./contracts): the fixtures the API shares with both.
 
-## Two readers, two directories
+## Two readers, one directory
 
-A contracts directory is the agreement between **one** provider and **one** consumer: the
-check asks the consumer side to read every provider fixture in it. The web client does not
-start payments and knows nothing of coupons, so in a shared directory its check would fail
-for fixtures it has no use for. Each reader therefore has a directory of its own, with the
-exchanges that reader depends on:
+The API has one contracts directory, and every response is recorded in it once. The two
+clients are its **readers**, `app` and `web`. Each opens the directory under its name and
+has a ledger of its own (`.ledger/consumer.app.jsonl`, `.ledger/consumer.web.jsonl`), so
+their tests run separately, in two languages, without touching each other's records.
 
-| | `contracts/` (app) | `contracts-web/` (web client) |
+The web client does not start payments and knows nothing of coupons. What each reader reads
+is listed in [`contracts/config.json`](./contracts/config.json), and the check of a reader
+asks for those fixtures only:
+
+| | `app` | `web` |
 |---|---|---|
-| `order.created`, `order.out-of-stock`, `order.token-invalid`, `receipt.downloaded` | yes | yes |
-| `order.created-with-coupon`, `order.coupon-unknown`, `order.invalid-quantity`, `payment.started` | yes | |
-| `order.body-not-json` (answered by the HTTP layer, before the handler) | | yes |
-| requests the reader builds (`consumer/`) | 2 | 2 |
-| `tables/order-total` | yes | |
+| `order.created`, `order.out-of-stock`, `order.token-invalid`, `receipt.downloaded` | reads | reads |
+| `order.created-with-coupon`, `order.coupon-unknown`, `order.invalid-quantity`, `payment.started` | reads | |
+| `order.body-not-json` (answered by the HTTP layer, before the handler) | | reads |
+| requests the reader builds (`consumer/app.*`, `consumer/web.*`) | verifies 2 | verifies 2 |
+| `tables/order-total` | reads | |
 
-The provider's tests name the readers of each scenario and verify the same real response into
-the directory of each ([`provider/test/support.ts`](./provider/test/support.ts)). When the API
-changes a response both depend on, both files change, and both readers' tests fail. The
-provider runs `reset` and `check` once per directory; each reader runs them on its own.
+The provider's tests know nothing of this: they verify each response once
+([`provider/test/support.ts`](./provider/test/support.ts)), replay the requests of both
+readers, and run one `reset` and one `check`. When the API changes a response both readers
+depend on, one file changes, and the tests of both fail.
 
 Placing an order (`POST /orders`) shows responses, requests and a shared calculation. Starting
 the payment of an order (`POST /payments`) shows a response with a **secret** in it: the API
@@ -66,18 +68,26 @@ From the repository root:
 ```sh
 npm ci && npm run build
 
-# provider: reset both ledgers, run the tests, check both directories
+# provider: reset, run the tests, check
 npm run contract -w example/provider
 
-# web client
+# web client (reader web)
 npm run contract -w example/consumer-web
 
-# app
+# app (reader app)
 cd example/consumer
 dart pub get
-dart run contract_fixtures reset --side consumer --dir ../contracts
+dart run contract_fixtures reset --side consumer --reader app --dir ../contracts
 dart test
-dart run contract_fixtures check --side consumer --dir ../contracts
+dart run contract_fixtures check --side consumer --reader app --dir ../contracts
+```
+
+With the ledgers of both readers in place, one command checks them all:
+
+```
+$ dart run contract_fixtures check --side consumer --dir ../contracts
+contract_fixtures check (consumer side, reader app): OK (11 fixture(s), all verified or read by this side's tests)
+contract_fixtures check (consumer side, reader web): OK (7 fixture(s), all verified or read by this side's tests)
 ```
 
 ## Break it
@@ -95,8 +105,7 @@ Each of these was run against this example; the output is what the tools printed
 ```
 
 **(b) Update the fixture.** `CONTRACT_FIXTURES_UPDATE=1 npm test -w example/provider` rewrites
-`order.out-of-stock.json` in both directories, because both readers depend on that response.
-Now the tests of both readers fail, because neither client recognises the error any more:
+`order.out-of-stock.json`, the one file both readers read. Now the tests of both readers fail, because neither client recognises the error any more:
 
 ```
 provider fixtures: what the app makes of real responses order.out-of-stock [E]
@@ -112,16 +121,23 @@ provider fixtures: what the app makes of real responses order.out-of-stock [E]
 ```
 
 **(c) Add a fixture nobody touches.** Put a valid `contracts/provider/order.cancelled.json` in
-place. The check of that directory fails on both sides, and so does the app's coverage test:
+place. The check of the provider fails twice over: no test produces the file, and no reader
+is listed for it. The checks of the readers pass, because neither was asked to read it:
 
 ```
-contract-fixtures check (provider side): 1 problem(s) in 12 fixture(s)
+contract-fixtures check (provider side): 2 problem(s) in 15 fixture(s)
   - provider/order.cancelled.json: not verified by the provider side's tests (stale: delete it, or restore the test that produces it)
+  - provider/order.cancelled.json: read by no reader of config.json (list it for a reader under readers, or delete it)
 Run `contract-fixtures reset` and the provider side's tests before this check.
+```
 
-contract_fixtures check (consumer side): 1 problem(s) in 12 fixture(s)
+List it for the app (`"order.cancelled"` under `readers.app.provider` in `config.json`), and
+the check of that reader fails, and so does the app's coverage test:
+
+```
+contract_fixtures check (consumer side, reader app): 1 problem(s) in 12 fixture(s)
   - provider/order.cancelled.json: not read by the consumer side's tests (add a test that feeds it to the real code)
-Run `contract_fixtures reset` and the consumer side's tests before this check.
+Run `contract_fixtures reset --side consumer --reader app` and the tests of that reader before this check.
 
 provider fixtures: what the app makes of real responses every provider fixture has an expectation here [E]
   the expectations of this test do not cover the fixtures in provider/order.*:
@@ -132,8 +148,8 @@ provider fixtures: what the app makes of real responses every provider fixture h
 send the quantity as a string. The consumer's test fails:
 
 ```
-consumer fixtures: the requests the client really builds create-order.request [E]
-  contract fixture consumer/create-order.request.json no longer matches what the consumer side produces (stored -> observed):
+consumer fixtures: the requests the client really builds app.create-order.request [E]
+  contract fixture consumer/app.create-order.request.json no longer matches what the consumer side produces (stored -> observed):
     request.body.quantity: 2 -> "2"
 ```
 
@@ -141,7 +157,7 @@ After `CONTRACT_FIXTURES_UPDATE=1 dart test` on the consumer, the provider's tes
 the real handler rejects the request:
 
 ```
-✖ app: create-order.request
+✖ app.create-order.request
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
 
   422 !== 201

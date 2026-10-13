@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "readers": {
+    "app": {
+      "provider": [
+        "order.coupon-unknown",
+        "order.created",
+        "order.created-with-coupon",
+        "order.invalid-quantity",
+        "order.out-of-stock",
+        "order.token-invalid",
+        "payment.*",
+        "receipt.*"
+      ]
+    },
+    "web": {
+      "provider": [
+        "order.body-not-json",
+        "order.created",
+        "order.out-of-stock",
+        "order.token-invalid",
+        "receipt.*"
+      ],
+      "tables": []
+    }
+  }
+}

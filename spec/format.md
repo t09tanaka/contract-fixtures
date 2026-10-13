@@ -27,6 +27,7 @@ shape; the rules marked **(beyond the schema)** below are enforced by the packag
   tables/<name>.json      tables: rows of input and expected output for a shared calculation
   config.json             optional: what is particular to this directory (see Configuration)
   .ledger/<side>.jsonl    written by the helpers during a test run; not committed
+  .ledger/consumer.<reader>.jsonl   the same for a consumer that is one reader of several
 ```
 
 - One fixture per file. The file name without `.json` is the fixture's `name`.
@@ -487,6 +488,7 @@ the same file. Without the file nothing changes.
 |---|---|---|
 | `format` | yes | The integer `1`. |
 | `forbidden` | no | An array of [patterns](#patterns). No string of a fixture may contain what one of them describes. |
+| `readers` | no | The consumers of the directory, when there is more than one, and what each of them reads. See [Readers](#readers). |
 
 No other keys are allowed. The file is UTF-8, like a fixture, and a byte order mark is
 ignored.
@@ -523,10 +525,11 @@ that the net for tokens does not know. It works like that net:
 |---|---|
 | `json` | `config.json` is not a file, not valid JSON, or not valid UTF-8. |
 | `root` | it is not an object. |
-| `unknown-key` | it has a key other than `format` and `forbidden`. |
+| `unknown-key` | it has a key other than `format`, `forbidden` and `readers`, or a reader has a key other than `provider` and `tables`. |
 | `format` | `format` is not `1`. |
 | `forbidden` | `forbidden` is not an array, or an entry is not a string. |
 | `pattern` | an entry is not a pattern, or matches the empty string (reported at `forbidden.<index>`). |
+| `readers` | `readers` is not an object or names no reader; a name is not the name of a reader; what a reader reads is not an object; `provider` or `tables` is not an array; or an entry is neither a fixture name nor the start of names followed by `*` (reported at `readers.<name>.<kind>.<index>`). |
 
 While the configuration is invalid, no helper verifies or reads a fixture of that directory
 (the error names `config.json` and the issues), and the check reports every issue as a
@@ -539,6 +542,49 @@ which every match contains one (`abc_` and `abd_` for `abc_x+|abd_y+`), or it is
 than any match (32 code units for `[A-Za-z0-9]{32}`); the result is the same, and the cases of
 `fixtures/search.json` hold the two ways against each other (that file is written by
 `generate-search.mjs`, from a fixed seed).
+
+### Readers
+
+A contracts directory has one provider. It may have more than one consumer: an app and a web
+client of the same API. Each of them is a **reader**, with a name
+(`^[a-z0-9][a-z0-9-]*$`: lower case, so that two names never differ only in case). The
+provider fixtures exist once, whoever reads them; what is kept per reader is the ledger.
+
+```json
+{
+  "format": 1,
+  "readers": {
+    "app": {},
+    "web": { "provider": ["order.created", "order.out-of-stock", "receipt.*"], "tables": [] }
+  }
+}
+```
+
+- A consumer says which reader it is when it opens the directory (the option `reader` of
+  the helpers, `--reader <name>` of the commands). Its verifies and reads are recorded in
+  `.ledger/consumer.<reader>.jsonl`, and its check looks at that file only. The provider
+  side has no reader: it verifies every provider fixture once and reads every consumer
+  fixture and table.
+- A reader **reads** the provider fixtures that `provider` lists and the tables that
+  `tables` lists. An entry is the name of a fixture, or the start of names followed by `*`
+  (`receipt.*`). A key that is left out means every fixture of that kind, so `{}` is a
+  reader that reads everything, and `[]` one that reads none. A read of a fixture that is
+  not listed fails, so the lists say who depends on what.
+- A reader **verifies** the consumer fixtures whose names start with its name and a dot:
+  `consumer/web.place-order.request.json` is a request of the reader `web`. A verify under
+  another name fails. The names of two readers therefore never collide, and the fixture
+  format is the same with and without readers.
+- For a reader, the lists of fixtures the helpers give (and the two coverage assertions
+  built on them) hold the fixtures that reader verifies or reads.
+- Where `readers` is declared, a consumer has to be one of them: a reader of another name,
+  and a consumer without one, are refused before anything is verified, read or checked.
+  Without `readers` nothing changes for a consumer that names no reader, and a consumer that
+  does name one reads everything, verifies the consumer fixtures that start with its name,
+  and has its own ledger.
+
+A version of the packages that does not know `readers` (before 0.2.0) reports the key as
+`unknown-key`, and so refuses the whole directory. That is intended: such a consumer would
+record into `.ledger/consumer.jsonl`, which no check of a reader looks at.
 
 ## Comparison
 
@@ -724,7 +770,9 @@ the environment variable `CI` is `true` or `1`, `CONTRACT_FIXTURES_UPDATE=1` is 
 
 ## Ledger
 
-Every successful verify and read appends one line to `<contracts>/.ledger/<side>.jsonl`:
+Every successful verify and read appends one line to `<contracts>/.ledger/<side>.jsonl`, or
+to `<contracts>/.ledger/consumer.<reader>.jsonl` for a consumer that names its
+[reader](#readers). The lines are the same in both:
 
 ```json
 {"side":"provider","action":"verified","file":"provider/order.created.json"}
@@ -738,7 +786,8 @@ hold nothing but spaces, tabs and carriage returns.
 A ledger is a file. When something else is in its place (a directory), or the file cannot be
 read, written or removed, nothing is passed over: the verify or read fails, and so do the
 reset and the check, each with the message
-`<tool>: the ledger .ledger/<side>.jsonl cannot be used (it is not a file, or it cannot be read or written)`.
+`<tool>: the ledger .ledger/<side>.jsonl cannot be used (it is not a file, or it cannot be read or written)`
+(with the name of the file of a reader, `.ledger/consumer.<reader>.jsonl`, for that one).
 A missing ledger is not such a case (nothing was recorded), and neither is a file in the place
 of the directory `.ledger`: there is no ledger then, until a verify or read tries to write
 one. The ledger of the *other* side is only looked at for a hint; when it cannot be used, it
@@ -758,8 +807,20 @@ The check fails when, for the given side:
 | `invalid` | A fixture does not follow this format, or `config.json` does not (the problem then names `config.json`, which is not counted as a fixture). |
 | `unverified` | A fixture this side must verify was not verified: it is stale (this side no longer produces it) or its test is gone. |
 | `unread` | A fixture or table this side must read was not read: nothing on this side depends on it. |
+| `unclaimed` | Provider side, in a directory with `readers`: no reader takes the fixture. A provider fixture or table is listed for none of them, or the name of a consumer fixture starts with the name of none. No check of a reader would ever ask for it. |
 | `ledger` | A ledger line is not an entry of this side: it cannot be parsed, names the other side, or has an unknown action. |
 | `empty` | There are no fixtures at all (most likely a wrong directory). |
+
+With `--reader <name>` (a `reader` for the function of a package) the check is the one of
+that [reader](#readers). It looks at `.ledger/consumer.<reader>.jsonl`, and at the fixtures
+the reader verifies or reads; the number of fixtures in its report counts those. Its first
+line names the reader, `<tool> check (consumer side, reader <name>): ...`, and its last line
+is ``Run `<tool> reset --side consumer --reader <name>` and the tests of that reader before this check.``
+
+An entry of a reader that names no fixture of the directory is reported as a problem of
+`config.json` (`invalid`), by the check of that reader and by the check of the provider
+side: it exempts nothing, and is most likely a name that was mistyped or a fixture that is
+gone.
 
 Exit codes of the check command: `0` no problems, `1` at least one problem, `2` wrong usage
 (see [Command line](#command-line)). The reset command exits with `0`, or with `2` for wrong
@@ -775,7 +836,8 @@ their own lines. As soon as the ledger has one entry, every fixture is listed.
 
 The check always looks at every fixture. It is meant to run after all tests of a side; when
 the tests run in several shards, concatenate the ledger files of the shards into
-`<contracts>/.ledger/<side>.jsonl` first (the order and repetition of lines do not matter).
+`<contracts>/.ledger/<side>.jsonl` (for a reader, `.ledger/consumer.<reader>.jsonl`) first;
+the order and repetition of lines do not matter.
 
 The ledger proves that a fixture was loaded, not that the test asserted anything about it. See
 the README for the recommended way to keep reading tests honest (an expectation table whose keys
@@ -867,6 +929,14 @@ print. Everything else is the same text in every package.
 
 - `reset --side <provider|consumer>` and `check --side <provider|consumer>` act on one side;
   `summary` takes no `--side`. `--depth <n>` is for `summary` only.
+- `--reader <name>`, with `--side consumer`, makes `reset` and `check` act for one
+  [reader](#readers). Without it, on the consumer side of a directory whose `config.json`
+  declares readers, the command acts for every declared reader, in the order of their names
+  (UTF-16 code units): one line or report each, to standard output or standard error as for
+  one, and the exit code `1` when the check of any reader has a problem. A `--reader` that
+  the configuration does not declare (while it declares others) is refused in one line,
+  `<tool>: config.json declares no reader named <name> (declared: <names>)`, with the exit
+  code `1`.
 - `--dir <contracts>` is the contracts directory. Without it, the environment variable
   `CONTRACT_FIXTURES_DIR` is used, and an empty value there counts as not set. An option is
   written `--dir <value>` or `--dir=<value>`; when it is given twice, the last one counts.
@@ -875,6 +945,8 @@ print. Everything else is the same text in every package.
 - A reset, and a check without problems, print one line to standard output:
   `<tool> reset (<side> side): OK (no entries in .ledger/<side>.jsonl)` and
   `<tool> check (<side> side): OK (<n> fixture(s), all verified or read by this side's tests)`.
+  For a reader, the parentheses hold `consumer side, reader <name>`, and the ledger is
+  `.ledger/consumer.<name>.jsonl`.
 - A check with problems prints its report to standard error. The first line is
   `<tool> check (<side> side): <n> problem(s) in <m> fixture(s)`; then one line per problem
   (or one line for all fixtures that were not touched, when the ledger has no entries; see
@@ -882,8 +954,9 @@ print. Everything else is the same text in every package.
 - Wrong usage prints `<tool>: <what is wrong>`, an empty line and the help to standard error.
   Wrong usage is: an unknown command, option or argument, an option without its value, a
   missing or wrong `--side` (or a `--side` for `summary`), a `--depth` that is not a whole
-  number from 1 to 9 (or a `--depth` for `reset` or `check`), no contracts directory, and a
-  `--dir` that is not a directory.
+  number from 1 to 9 (or a `--depth` for `reset` or `check`), a `--reader` that is not the
+  name of a reader (or a `--reader` for `summary` or with `--side provider`), no contracts
+  directory, and a `--dir` that is not a directory.
 - A command that cannot finish prints to standard error and exits with `1`, without the
   help. For a ledger that cannot be used, the one line is the message given under
   [Ledger](#ledger). For any other failure of the file system (a fixture that cannot be

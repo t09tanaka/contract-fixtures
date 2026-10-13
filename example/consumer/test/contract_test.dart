@@ -1,10 +1,10 @@
-// The consumer side of the contract.
+// The consumer side of the contract, for the app: the reader `app` of the directory.
 //
 // - provider fixtures: feed the responses the API really gave (../contracts/provider/,
 //   verified by the provider's tests) to the client's real response handling. Where the
 //   API returned a secret, the fixture holds a placeholder.
 // - consumer fixtures: verify the requests the client really builds against
-//   ../contracts/consumer/ (the provider's tests pass those to the real handler).
+//   ../contracts/consumer/app.* (the provider's tests pass those to the real handler).
 // - tables: run the shared rows through this side's calculation.
 import 'package:contract_fixtures/contract_fixtures.dart';
 import 'package:contract_fixtures_example_consumer/orders_client.dart';
@@ -12,6 +12,7 @@ import 'package:test/test.dart';
 
 final contract = ContractFixtures(
   side: ContractSide.consumer,
+  reader: 'app',
   dir: '../contracts',
 );
 
@@ -165,9 +166,9 @@ void main() {
       );
     }
 
-    test('create-order.request', () {
+    test('app.create-order.request', () {
       verify(
-        'create-order.request',
+        'app.create-order.request',
         'The request the client sends to place an order',
         buildCreateOrderRequest(
           authorization: '<token:customer-1>',
@@ -177,9 +178,9 @@ void main() {
       );
     });
 
-    test('create-order.with-coupon.request', () {
+    test('app.create-order.with-coupon.request', () {
       verify(
-        'create-order.with-coupon.request',
+        'app.create-order.with-coupon.request',
         'The request the client sends to place an order with a coupon',
         buildCreateOrderRequest(
           authorization: '<token:customer-1>',

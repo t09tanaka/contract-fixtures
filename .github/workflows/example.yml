@@ -1,5 +1,5 @@
 # The contract of the example, the way a repository with an API and two clients would run it:
-# one job per side, started by a change to that side or to a contracts directory it uses.
+# one job per side and per reader, started by a change to that side or to the contracts directory.
 # docs/adoption.md quotes this file.
 name: Example contracts
 
@@ -7,7 +7,6 @@ on:
   pull_request:
     paths:
       - "example/contracts/**"
-      - "example/contracts-web/**"
       - "example/provider/**"
       - "example/consumer/**"
       - "example/consumer-web/**"
@@ -50,13 +49,11 @@ jobs:
           npm run reset
           rm -rf .test-build && npx tsc -p tsconfig.json
           node --test --test-shard=${{ matrix.shard }}/2 .test-build/test/*.test.js
-      - name: Collect the ledgers of this shard
+      - name: Collect the ledger of this shard
         run: |
-          for dir in contracts contracts-web; do
-            mkdir -p "ledgers/$dir"
-            ledger="example/$dir/.ledger/provider.jsonl"
-            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir/${{ matrix.shard }}.jsonl"; fi
-          done
+          mkdir -p ledgers
+          ledger="example/contracts/.ledger/provider.jsonl"
+          if [ -f "$ledger" ]; then cp "$ledger" "ledgers/${{ matrix.shard }}.jsonl"; fi
       - uses: actions/upload-artifact@v4
         with:
           name: ledgers-${{ matrix.shard }}
@@ -82,10 +79,8 @@ jobs:
           merge-multiple: true
       - name: Join the ledgers of the shards, then check
         run: |
-          for dir in contracts contracts-web; do
-            mkdir -p "example/$dir/.ledger"
-            cat "ledgers/$dir"/*.jsonl > "example/$dir/.ledger/provider.jsonl"
-          done
+          mkdir -p example/contracts/.ledger
+          cat ledgers/*.jsonl > example/contracts/.ledger/provider.jsonl
           npm run check -w example/provider
 
   # The same tests without shards: reset, test and check in one job.
@@ -144,6 +139,6 @@ jobs:
       - working-directory: example/consumer
         run: |
           dart analyze --fatal-infos
-          dart run contract_fixtures reset --side consumer --dir ../contracts
+          dart run contract_fixtures reset --side consumer --reader app --dir ../contracts
           dart test
-          dart run contract_fixtures check --side consumer --dir ../contracts
+          dart run contract_fixtures check --side consumer --reader app --dir ../contracts
