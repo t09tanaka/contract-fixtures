@@ -790,3 +790,106 @@ describe("what the helpers return, for a test that has to end in an assertion", 
     assert.deepEqual(written.secret, { "request.headers.authorization": "<token:customer-1>" });
   });
 });
+
+describe("a consumer that is one reader of several", () => {
+  const request = (name: string) => ({ name, description: "An order", request: observedResponse.request });
+  const declared = (config: object = { app: {}, web: { provider: ["order.created"], tables: [] } }): string => {
+    const dir = copyOfContracts();
+    writeFile(dir, "config.json", JSON.stringify({ format: 1, readers: config }));
+    return dir;
+  };
+
+  it("has a ledger of its own, next to the ledgers of the others", () => {
+    const dir = declared();
+    const web = contractFixtures({ side: "consumer", reader: "web", dir, update: true });
+    const app = contractFixtures({ side: "consumer", reader: "app", dir });
+    assert.equal(web.reader, "web");
+    web.readResponse("order.created");
+    web.verifyRequest(request("web.place-order.request"));
+    app.readTable("order-total");
+    assert.deepEqual(ledgerLines(dir, "consumer.web"), [
+      '{"side":"consumer","action":"read","file":"provider/order.created.json"}',
+      '{"side":"consumer","action":"verified","file":"consumer/web.place-order.request.json"}',
+    ]);
+    assert.deepEqual(ledgerLines(dir, "consumer.app"), ['{"side":"consumer","action":"read","file":"tables/order-total.json"}']);
+    assert.deepEqual(ledgerLines(dir, "consumer"), []);
+    assert.deepEqual(checkContracts({ dir, side: "consumer", reader: "web" }).problems, []);
+    resetLedger({ dir, side: "consumer", reader: "web" });
+    assert.deepEqual(ledgerLines(dir, "consumer.web"), []);
+    assert.equal(ledgerLines(dir, "consumer.app").length, 1);
+  });
+
+  it("lists, and covers, the fixtures it takes and no others", () => {
+    const dir = declared();
+    writeFile(dir, "consumer/web.place-order.request.json", "{}");
+    const web = contractFixtures({ side: "consumer", reader: "web", dir });
+    assert.deepEqual(web.list("provider"), ["order.created"]);
+    assert.deepEqual(web.list("tables"), []);
+    assert.deepEqual(web.list("consumer"), ["web.place-order.request"]);
+    assert.deepEqual(web.assertCovers("provider", ["order.created"]), ["order.created"]);
+    const app = contractFixtures({ side: "consumer", reader: "app", dir });
+    assert.deepEqual(app.list("provider"), ["order.created", "order.out-of-stock"]);
+    assert.deepEqual(app.list("consumer"), []);
+  });
+
+  it("does not read a fixture the configuration does not list for it", () => {
+    const dir = declared();
+    const web = contractFixtures({ side: "consumer", reader: "web", dir });
+    assert.throws(() => web.readResponse("order.out-of-stock"), {
+      name: "ContractUsageError",
+      message:
+        "contract-fixtures: provider/order.out-of-stock.json is not a fixture the reader web reads " +
+        "(readers.web.provider in config.json does not name it)",
+    });
+    assert.throws(() => web.readTable("order-total"), /readers\.web\.tables in config\.json/);
+    assert.deepEqual(ledgerLines(dir, "consumer.web"), []);
+  });
+
+  it("verifies requests under its own name only", () => {
+    const dir = declared();
+    const web = contractFixtures({ side: "consumer", reader: "web", dir, update: true });
+    assert.throws(() => web.verifyRequest(request("app.place-order.request")), {
+      name: "ContractUsageError",
+      message:
+        "contract-fixtures: the consumer fixtures of the reader web have names that start with " +
+        '"web.", and "app.place-order.request" does not',
+    });
+    assert.ok(!fs.existsSync(path.join(dir, "consumer", "app.place-order.request.json")));
+  });
+
+  it("has to be one of the readers the configuration declares, and has to say which", () => {
+    const dir = declared();
+    const ios = contractFixtures({ side: "consumer", reader: "ios", dir });
+    const message = "contract-fixtures: config.json declares no reader named ios (declared: app, web)";
+    assert.throws(() => ios.readResponse("order.created"), { name: "ContractUsageError", message });
+    assert.throws(() => ios.list("provider"), { message });
+    assert.throws(() => checkContracts({ dir, side: "consumer", reader: "ios" }), { message });
+    const nobody = contractFixtures({ side: "consumer", dir, update: true });
+    const which = "contract-fixtures: config.json declares readers (app, web): say which one this is";
+    assert.throws(() => nobody.readResponse("order.created"), { name: "ContractUsageError", message: which });
+    assert.throws(() => nobody.verifyRequest(request("create-order.request")), { message: which });
+    assert.throws(() => checkContracts({ dir, side: "consumer" }), { message: which });
+    assert.deepEqual(ledgerLines(dir, "consumer"), []);
+    // The provider side has no readers: it verifies and reads for all of them.
+    contractFixtures({ side: "provider", dir }).readRequest("create-order.request");
+  });
+
+  it("needs no declaration to read everything", () => {
+    const dir = copyOfContracts();
+    const web = contractFixtures({ side: "consumer", reader: "web", dir });
+    assert.deepEqual(web.list("provider"), ["order.created", "order.out-of-stock"]);
+    web.readResponse("order.out-of-stock");
+    assert.equal(ledgerLines(dir, "consumer.web").length, 1);
+  });
+
+  it("is refused on the provider side, and with a name that could leave the directory", () => {
+    assert.throws(() => contractFixtures({ side: "provider", reader: "web", dir: "." }), {
+      name: "ContractUsageError",
+      message: "contract-fixtures: a reader is a consumer: there is none on the provider side",
+    });
+    for (const reader of ["../web", "Web", "a.b", ""]) {
+      assert.throws(() => contractFixtures({ side: "consumer", reader, dir: "." }), /is not the name of a reader/);
+      assert.throws(() => resetLedger({ dir: ".", side: "consumer", reader }), /is not the name of a reader/);
+    }
+  });
+});

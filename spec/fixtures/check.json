@@ -1,5 +1,5 @@
 {
-  "description": "Cases for the check. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, write `ledger` to .ledger/<side>.jsonl (write no such file when `noLedger` is true) and `otherLedger` to the other side's ledger, then check `side`. Every implementation must report exactly these problems, in this order, and exactly these hints, word for word. `report` is the whole text the check command prints for the case, character for character (to standard output when there are no problems, to standard error otherwise); in it, {tool} stands for the name of the executable (contract-fixtures in the TypeScript package, contract_fixtures in the Dart package).",
+  "description": "Cases for the check. Start from a copy of contracts/ (or an empty directory when `empty` is true), add `files`, write `ledger` to .ledger/<side>.jsonl (write no such file when `noLedger` is true) and `otherLedger` to the other side's ledger, then check `side`. Every implementation must report exactly these problems, in this order, and exactly these hints, word for word. `report` is the whole text the check command prints for the case, character for character (to standard output when there are no problems, to standard error otherwise); in it, {tool} stands for the name of the executable (contract-fixtures in the TypeScript package, contract_fixtures in the Dart package). With `reader`, the check is the one of that reader, and `ledger` is written to .ledger/<side>.<reader>.jsonl.",
   "cases": [
     {
       "case": "provider side: everything verified or read",
@@ -794,7 +794,7 @@
         }
       ],
       "hints": [],
-      "report": "{tool} check (provider side): 2 problem(s) in 5 fixture(s)\n  - config.json: invalid configuration: extra unknown key (allowed: format, forbidden)\n  - config.json: invalid configuration: forbidden.1 must be a pattern (a string)\nRun `{tool} reset` and the provider side's tests before this check."
+      "report": "{tool} check (provider side): 2 problem(s) in 5 fixture(s)\n  - config.json: invalid configuration: extra unknown key (allowed: format, forbidden, readers)\n  - config.json: invalid configuration: forbidden.1 must be a pattern (a string)\nRun `{tool} reset` and the provider side's tests before this check."
     },
     {
       "case": "no entries and one fixture that is invalid: the one line counts the others and stands where the first of them would",
@@ -831,6 +831,205 @@
         ".ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?"
       ],
       "report": "{tool} check (provider side): 5 problem(s) in 5 fixture(s)\n  - none of the 4 fixture(s) that follow the format was verified or read by the provider side's tests (they are not listed one by one)\n  - consumer/broken.json: invalid fixture: (root) is not valid JSON\nHint: .ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?\nRun `{tool} reset` and the provider side's tests before this check."
+    },
+    {
+      "case": "readers: a reader is asked for the fixtures the configuration lists for it",
+      "side": "consumer",
+      "reader": "web",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"app\":{},\"web\":{\"provider\":[\"order.created\"],\"tables\":[]}}}"
+      },
+      "fixtures": 1,
+      "problems": [],
+      "hints": [],
+      "report": "{tool} check (consumer side, reader web): OK (1 fixture(s), all verified or read by this side's tests)"
+    },
+    {
+      "case": "readers: a reader verifies the consumer fixtures that start with its name",
+      "side": "consumer",
+      "reader": "web",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"app\":{},\"web\":{\"provider\":[\"order.created\"],\"tables\":[]}}}",
+        "consumer/web.place-order.request.json": "{\"format\":1,\"name\":\"web.place-order.request\",\"description\":\"The request the web client sends to place an order\",\"request\":{\"method\":\"POST\",\"path\":\"/orders\",\"body\":{\"sku\":\"tea-100\",\"quantity\":2}}}"
+      },
+      "fixtures": 2,
+      "problems": [
+        {
+          "file": "consumer/web.place-order.request.json",
+          "code": "unverified"
+        }
+      ],
+      "hints": [],
+      "report": "{tool} check (consumer side, reader web): 1 problem(s) in 2 fixture(s)\n  - consumer/web.place-order.request.json: not verified by the consumer side's tests (stale: delete it, or restore the test that produces it)\nRun `{tool} reset --side consumer --reader web` and the tests of that reader before this check."
+    },
+    {
+      "case": "readers: a reader the configuration lists nothing for reads every provider fixture and table",
+      "side": "consumer",
+      "reader": "app",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"app\":{},\"web\":{\"provider\":[\"order.created\"],\"tables\":[]}}}"
+      },
+      "fixtures": 3,
+      "problems": [
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unread"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        "Only 1 of the 3 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check."
+      ],
+      "report": "{tool} check (consumer side, reader app): 2 problem(s) in 3 fixture(s)\n  - provider/order.out-of-stock.json: not read by the consumer side's tests (add a test that feeds it to the real code)\n  - tables/order-total.json: not read by the consumer side's tests (add a test that feeds it to the real code)\nHint: Only 1 of the 3 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.\nRun `{tool} reset --side consumer --reader app` and the tests of that reader before this check."
+    },
+    {
+      "case": "readers: without a declaration, a reader reads everything and verifies its own",
+      "side": "consumer",
+      "reader": "web",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"verified\",\"file\":\"consumer/web.place-order.request.json\"}"
+      ],
+      "files": {
+        "consumer/web.place-order.request.json": "{\"format\":1,\"name\":\"web.place-order.request\",\"description\":\"The request the web client sends to place an order\",\"request\":{\"method\":\"POST\",\"path\":\"/orders\",\"body\":{\"sku\":\"tea-100\",\"quantity\":2}}}"
+      },
+      "fixtures": 4,
+      "problems": [],
+      "hints": [],
+      "report": "{tool} check (consumer side, reader web): OK (4 fixture(s), all verified or read by this side's tests)"
+    },
+    {
+      "case": "readers: a reader without a ledger",
+      "side": "consumer",
+      "reader": "web",
+      "noLedger": true,
+      "ledger": [],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"app\":{},\"web\":{\"provider\":[\"order.created\"],\"tables\":[]}}}"
+      },
+      "fixtures": 1,
+      "problems": [
+        {
+          "file": "provider/order.created.json",
+          "code": "unread"
+        }
+      ],
+      "hints": [
+        ".ledger/consumer.web.jsonl does not exist. Did the consumer side's tests run, and do they use this contracts directory?"
+      ],
+      "report": "{tool} check (consumer side, reader web): 1 problem(s) in 1 fixture(s)\n  - none of the 1 fixture(s) that follow the format was verified or read by the consumer side's tests (they are not listed one by one)\nHint: .ledger/consumer.web.jsonl does not exist. Did the consumer side's tests run, and do they use this contracts directory?\nRun `{tool} reset --side consumer --reader web` and the tests of that reader before this check."
+    },
+    {
+      "case": "readers: lines of the provider in the ledger of a reader",
+      "side": "consumer",
+      "reader": "web",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}"
+      ],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"app\":{},\"web\":{\"provider\":[\"order.created\"],\"tables\":[]}}}"
+      },
+      "fixtures": 1,
+      "problems": [
+        {
+          "file": ".ledger/consumer.web.jsonl",
+          "code": "ledger"
+        }
+      ],
+      "hints": [],
+      "report": "{tool} check (consumer side, reader web): 1 problem(s) in 1 fixture(s)\n  - .ledger/consumer.web.jsonl: line 2 is not a ledger entry of the consumer side\nRun `{tool} reset --side consumer --reader web` and the tests of that reader before this check."
+    },
+    {
+      "case": "readers: the provider side is told what no reader takes, and which entries name nothing",
+      "side": "provider",
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/create-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/web.place-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"web\":{\"provider\":[\"order.created\",\"payment.*\"],\"tables\":[\"rates\"]}}}",
+        "consumer/web.place-order.request.json": "{\"format\":1,\"name\":\"web.place-order.request\",\"description\":\"The request the web client sends to place an order\",\"request\":{\"method\":\"POST\",\"path\":\"/orders\",\"body\":{\"sku\":\"tea-100\",\"quantity\":2}}}"
+      },
+      "fixtures": 5,
+      "problems": [
+        {
+          "file": "config.json",
+          "code": "invalid"
+        },
+        {
+          "file": "config.json",
+          "code": "invalid"
+        },
+        {
+          "file": "provider/order.out-of-stock.json",
+          "code": "unclaimed"
+        },
+        {
+          "file": "consumer/create-order.request.json",
+          "code": "unclaimed"
+        },
+        {
+          "file": "tables/order-total.json",
+          "code": "unclaimed"
+        }
+      ],
+      "hints": [],
+      "report": "{tool} check (provider side): 5 problem(s) in 5 fixture(s)\n  - config.json: invalid configuration: readers.web.provider.1 names no fixture in provider/ (payment.*)\n  - config.json: invalid configuration: readers.web.tables.0 names no fixture in tables/ (rates)\n  - provider/order.out-of-stock.json: read by no reader of config.json (list it for a reader under readers, or delete it)\n  - consumer/create-order.request.json: verified by no reader of config.json (the name of a consumer fixture starts with the name of its reader and a dot)\n  - tables/order-total.json: read by no reader of config.json (list it for a reader under readers, or delete it)\nRun `{tool} reset` and the provider side's tests before this check."
+    },
+    {
+      "case": "readers: the provider side has nothing to add when every fixture has a reader",
+      "side": "provider",
+      "empty": true,
+      "ledger": [
+        "{\"side\":\"provider\",\"action\":\"verified\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"consumer/app.place-order.request.json\"}",
+        "{\"side\":\"provider\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"app\":{\"provider\":[\"order.*\"]},\"web\":{\"provider\":[],\"tables\":[]}}}",
+        "provider/order.created.json": "{\n  \"format\": 1,\n  \"name\": \"order.created\",\n  \"description\": \"An order is accepted\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"path\": \"/orders\",\n    \"headers\": {\n      \"authorization\": \"<token:customer-1>\"\n    },\n    \"body\": {\n      \"sku\": \"tea-100\",\n      \"quantity\": 2\n    }\n  },\n  \"response\": {\n    \"status\": 201,\n    \"body\": {\n      \"id\": \"ord_81f3\",\n      \"status\": \"confirmed\",\n      \"total_minor\": 1200,\n      \"created_at\": \"2026-01-15T09:30:00Z\",\n      \"lines\": [\n        {\n          \"sku\": \"tea-100\",\n          \"quantity\": 2,\n          \"line_id\": \"ln_1\"\n        }\n      ]\n    }\n  },\n  \"volatile\": [\n    \"response.body.id\",\n    \"response.body.created_at\",\n    \"response.body.lines.*.line_id\"\n  ]\n}\n",
+        "tables/order-total.json": "{\n  \"format\": 1,\n  \"name\": \"order-total\",\n  \"description\": \"Total in minor units. The discount is rounded half up before it is subtracted.\",\n  \"rows\": [\n    {\n      \"case\": \"no discount\",\n      \"unit_price_minor\": 600,\n      \"quantity\": 2,\n      \"discount_percent\": 0,\n      \"expected_minor\": 1200\n    },\n    {\n      \"case\": \"10 percent\",\n      \"unit_price_minor\": 999,\n      \"quantity\": 1,\n      \"discount_percent\": 10,\n      \"expected_minor\": 899\n    }\n  ]\n}\n",
+        "consumer/app.place-order.request.json": "{\"format\":1,\"name\":\"app.place-order.request\",\"description\":\"The request the app client sends to place an order\",\"request\":{\"method\":\"POST\",\"path\":\"/orders\",\"body\":{\"sku\":\"tea-100\",\"quantity\":2}}}"
+      },
+      "fixtures": 3,
+      "problems": [],
+      "hints": [],
+      "report": "{tool} check (provider side): OK (3 fixture(s), all verified or read by this side's tests)"
+    },
+    {
+      "case": "readers: an entry of another reader that names nothing is not this reader's problem",
+      "side": "consumer",
+      "reader": "app",
+      "ledger": [
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.created.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"provider/order.out-of-stock.json\"}",
+        "{\"side\":\"consumer\",\"action\":\"read\",\"file\":\"tables/order-total.json\"}"
+      ],
+      "files": {
+        "config.json": "{\"format\":1,\"readers\":{\"app\":{},\"web\":{\"provider\":[\"gone\"]}}}"
+      },
+      "fixtures": 3,
+      "problems": [],
+      "hints": [],
+      "report": "{tool} check (consumer side, reader app): OK (3 fixture(s), all verified or read by this side's tests)"
     }
   ]
 }

@@ -2,7 +2,7 @@ export { checkContracts, formatCheckResult, requiredAction } from "./check.js";
 export type { CheckProblem, CheckResult } from "./check.js";
 export { runCli, USAGE } from "./cli.js";
 export { readConfig, validateConfig } from "./configuration.js";
-export type { ContractsConfig } from "./configuration.js";
+export type { ContractsConfig, ReaderConfig } from "./configuration.js";
 export type { CliIo } from "./cli.js";
 export { contractFixtures, DIR_ENV, UPDATE_ENV } from "./contract.js";
 export type { ContractFixtures, ContractFixturesOptions } from "./contract.js";

@@ -46,6 +46,7 @@ export interface FormatIssue {
     | "secret-removed"
     | "jwt"
     | "forbidden"
+    | "readers"
     | "rows"
     | "number";
   /** Where in the file, as a dot separated path (`(root)` for the file itself). */
@@ -450,7 +451,7 @@ export function validateFixtureValue(
   kind: Kind,
   name: string,
   value: unknown,
-  config?: ContractsConfig,
+  config?: Pick<ContractsConfig, "forbidden">,
 ): FormatIssue[] {
   const forbidden = (config?.forbidden ?? []).map(compilePattern);
   const issues: FormatIssue[] = [];
@@ -519,7 +520,7 @@ export function validateFixture(
   kind: Kind,
   name: string,
   text: string,
-  config?: ContractsConfig,
+  config?: Pick<ContractsConfig, "forbidden">,
 ): { value: unknown; issues: FormatIssue[] } {
   let value: unknown;
   try {
@@ -541,7 +542,7 @@ export function validateFixtureFile(
   kind: Kind,
   name: string,
   filePath: string,
-  config?: ContractsConfig,
+  config?: Pick<ContractsConfig, "forbidden">,
 ): { value: unknown; issues: FormatIssue[] } {
   let text: string;
   try {
