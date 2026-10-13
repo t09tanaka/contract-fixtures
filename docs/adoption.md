@@ -202,11 +202,10 @@ without having read the error.
 
 **What to do.** Record `content-type` on the provider side for every response with a body
 that a client on such a library reads: `responseHeaders: ["content-type"]` in
-`exchangeFromTestResponse`, as the example does for the receipt and for a body that is not
-JSON. The header then is part of the agreement, which it is: without it the deployed client
-would not decode the response either. The dio adapter in the
-[Dart README](../packages/dart/README.md#dio) refuses a fixture that has a body and no JSON
-`content-type`.
+`exchangeFromTestResponse`, as the example does for every response. The header then is part of the agreement, which it is: without it the deployed client
+would not decode the response either. The dio adapter of
+[`contract_fixtures_dio`](../packages/dart_dio/README.md) refuses a fixture that has a body
+and no JSON `content-type`.
 
 ### Request headers that change the response
 
@@ -292,8 +291,9 @@ and that the API accepts it is checked by the provider's tests.
 
 If the client cannot be given a `fetch`, replace `globalThis.fetch` for the duration of the
 test. A client built on another library has that library's test transport; the
-[Dart README](../packages/dart/README.md#http-in-tests) shows `MockClient` of `package:http`
-and an `HttpClientAdapter` of dio.
+[Dart README](../packages/dart/README.md#http-in-tests) shows `MockClient` of `package:http`,
+and [`contract_fixtures_dio`](../packages/dart_dio/README.md) has an `HttpClientAdapter` for
+dio.
 
 `toFetchResponse` adds no `content-type`. If the client looks at it, the provider's test
 should record it, as the example does for the receipt.

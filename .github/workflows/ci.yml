@@ -59,3 +59,35 @@ jobs:
         working-directory: packages/dart
       - run: dart test
         working-directory: packages/dart
+
+  dart-dio:
+    name: Dart, dio adapter (${{ matrix.sdk }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: ["3.5.0", stable]
+    defaults:
+      run:
+        working-directory: packages/dart_dio
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ matrix.sdk }}
+      - name: Use the contract_fixtures of this repository
+        # Not committed and not published: the manifest asks for the published package.
+        run: |
+          printf 'dependency_overrides:\n  contract_fixtures:\n    path: ../dart\n' > pubspec_overrides.yaml
+      - name: Get dependencies
+        run: dart pub get
+      - name: Format
+        # The formatter's output differs between SDK versions; the newest one decides.
+        if: matrix.sdk == 'stable'
+        run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      - run: dart test
+      - name: Package contents
+        if: matrix.sdk == 'stable'
+        run: dart pub publish --dry-run

@@ -5,8 +5,10 @@ A deliberately tiny, made-up order API with two readers.
 - [`provider/`](./provider): the API in TypeScript. `src/orders.ts` is the handler,
   `src/server.ts` puts it behind HTTP, and `src/main.ts` is the entry point. The contract tests
   in `test/` start the same server as the entry point and reach it with an HTTP test client.
-- [`consumer/`](./consumer): the app, in Dart. `lib/orders_client.dart` builds the request and
-  decides what the app does with a response; `test/contract_test.dart` is its side.
+- [`consumer/`](./consumer): the app, in Dart, built on dio. `lib/orders_client.dart` builds
+  the request, sends it and decides what the app does with a response;
+  `test/contract_test.dart` gives it a dio whose adapter answers with fixtures
+  ([`contract_fixtures_dio`](../packages/dart_dio)).
 - [`consumer-web/`](./consumer-web): the web client, in TypeScript. `src/orders-client.ts`
   calls `fetch`; `test/contract.test.ts` gives it a `fetch` that answers with fixtures.
 - [`contracts/`](./contracts): the fixtures the API shares with both.

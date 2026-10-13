@@ -2,6 +2,7 @@ node_modules/
 dist/
 .dart_tool/
 pubspec.lock
+pubspec_overrides.yaml
 coverage/
 .worktrees/
 .DS_Store

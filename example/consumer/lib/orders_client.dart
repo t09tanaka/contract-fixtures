@@ -1,8 +1,76 @@
-/// The client of the tiny order API: how it builds a request and what it makes of a
-/// response. There is no HTTP here; a real client would send [ApiRequest] with its HTTP
-/// library and pass the status and decoded body to [readCreateOrderResponse] or
-/// [readStartPaymentResponse], and the response headers as well to [readReceiptResponse].
+/// The client of the tiny order API: how it builds a request, how it sends it with dio,
+/// and what it makes of a response.
 library;
+
+import 'package:dio/dio.dart';
+
+/// The calls the app makes. It is given the [Dio] to send with, so a test can hand it one
+/// whose adapter answers with fixtures; everything else is the code the app runs.
+class OrdersClient {
+  OrdersClient(this._dio, {required this.authorization});
+
+  final Dio _dio;
+  final String authorization;
+
+  Future<OrderOutcome> placeOrder({
+    required String sku,
+    required int quantity,
+    String? coupon,
+  }) async {
+    final response = await _send(
+      buildCreateOrderRequest(
+        authorization: authorization,
+        sku: sku,
+        quantity: quantity,
+        coupon: coupon,
+      ),
+    );
+    return readCreateOrderResponse(response.statusCode ?? 0, response.data);
+  }
+
+  Future<PaymentOutcome> startPayment(String orderId) async {
+    final response = await _send(
+      ApiRequest(
+        method: 'POST',
+        path: '/payments',
+        headers: {'Authorization': authorization},
+        body: {'order_id': orderId},
+      ),
+    );
+    return readStartPaymentResponse(response.statusCode ?? 0, response.data);
+  }
+
+  Future<ReceiptOutcome> loadReceipt(String orderId) async {
+    final response = await _send(
+      ApiRequest(
+        method: 'GET',
+        path: '/orders/$orderId/receipt',
+        headers: {'Authorization': authorization},
+      ),
+    );
+    return readReceiptResponse(
+      response.statusCode ?? 0,
+      // One value per name. (Joining is right for the headers of this response; it would
+      // not be for set-cookie.)
+      {
+        for (final header in response.headers.map.entries)
+          header.key: header.value.join(', '),
+      },
+      response.data,
+    );
+  }
+
+  /// Every status is an answer the app reads, so none of them is an exception here.
+  Future<Response<Object?>> _send(ApiRequest request) => _dio.request<Object?>(
+        request.path,
+        data: request.body,
+        options: Options(
+          method: request.method,
+          headers: request.headers,
+          validateStatus: (_) => true,
+        ),
+      );
+}
 
 class ApiRequest {
   const ApiRequest({

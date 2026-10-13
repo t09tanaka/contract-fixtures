@@ -14,6 +14,9 @@
   },
   "response": {
     "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
     "body": {
       "id": "pay_mv3vvd5w1",
       "order_id": "ord_demo1",

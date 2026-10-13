@@ -16,6 +16,9 @@
   },
   "response": {
     "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
     "body": {
       "id": "ord_mv4g7ht41",
       "customer": "customer-1",

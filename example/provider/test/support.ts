@@ -43,7 +43,11 @@ export interface Scenario {
   name: string;
   description: string;
   call: Call;
-  /** Response headers that are part of the agreement. */
+  /**
+   * Response headers that are part of the agreement. Without a list, the `content-type`: the
+   * app is built on an HTTP library that decodes a body as JSON only when the response says
+   * it is JSON.
+   */
   responseHeaders?: string[];
   volatile?: VolatileEntry[];
   /** Where the response holds a secret, and the placeholder the fixture stores instead. */
@@ -63,7 +67,7 @@ export function verify(scenario: Scenario, res: request.Response): void {
   assert.ok(res.status < 500, `${scenario.name}: the status ${res.status} is not a response to record`);
   const exchange = exchangeFromTestResponse(res, {
     requestHeaders: ["authorization"],
-    responseHeaders: scenario.responseHeaders,
+    responseHeaders: scenario.responseHeaders ?? ["content-type"],
     // The test client does not show the body it sent.
     request: { body: scenario.call.body },
   });
