@@ -374,7 +374,7 @@ void main() {
                 .cast<Object>();
         final secret = (observed['secret'] as Map<String, dynamic>? ??
                 const <String, dynamic>{})
-            .cast<String, String>();
+            .cast<String, Object>();
 
         var outcome = 'ok';
         var message = '';

@@ -138,14 +138,14 @@ final headers = resolvePlaceholders(recorded.headers ?? {}, (kind, name) => secr
 
 | Member | Side | What it does |
 |---|---|---|
-| `verifyResponse(name:, description:, request:, response:, volatile:, secret:)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatch` listing the differences. Writes the file in update mode. |
+| `verifyResponse(name:, description:, request:, response:, volatile:, secret:)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatch` listing the differences. Writes the file in update mode. Returns a `Verified` (`file`, `written`). |
 | `verifyRequest(name:, description:, request:, volatile:, secret:)` | consumer | The same for `consumer/<name>.json`. |
 | `readResponse(name)` | consumer | Reads and validates `provider/<name>.json`; returns a `ProviderFixture`. |
 | `readRequest(name)` | provider | Reads and validates `consumer/<name>.json`; returns a `ConsumerFixture`. |
 | `readTable(name)` | both | Reads and validates `tables/<name>.json`; returns a `TableFixture`. |
 | `list(kind, prefix:)` | both | Sorted fixture names of a `FixtureKind`. |
-| `assertCovers(kind, names, prefix:)` | both | Throws `ContractCoverageException` unless `names` are exactly the fixtures on disk (those that start with `prefix`). |
-| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageException` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. |
+| `assertCovers(kind, names, prefix:)` | both | Throws `ContractCoverageException` unless `names` are exactly the fixtures on disk (those that start with `prefix`). Returns the names it looked at. |
+| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageException` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. Returns the names it looked at. |
 
 Calling a method from the wrong side throws `ContractUsageException`. A missing or invalid
 fixture throws `ContractFixtureException`.
@@ -166,7 +166,8 @@ fixture throws `ContractFixtureException`.
   is refused when `CI` is `true` or `1`.
 - `volatile` lists the values that change between runs. An entry is a path
   (`'response.body.note'`: only the JSON type is compared) or a
-  `VolatilePattern(path, pattern)` (a string that must match the pattern as a whole). In a
+  `VolatilePattern(path, pattern)` (a string that must match the pattern as a whole). A map
+  works too, `{'path': ..., 'pattern': ...}`, and `{'path': ...}` alone is the path. In a
   path, `*` is one key or index and `**` any number of them: `response.body.**.created_at`. A
   path that ends in `**` compares keys and types of everything below and cannot have a
   pattern. `request.path` can be volatile too:
@@ -189,6 +190,16 @@ fixture throws `ContractFixtureException`.
   nothing, or a value that is not a string, throws `ContractFixtureException`. So does update
   mode when the stored fixture lists a secret path that the test does not pass: remove the
   path from the stored file by hand if it is no longer a secret.
+- A helper that verifies many requests names a credential that only some of them carry (no
+  `authorization` or `cookie` on a request that is not signed in). For such a path pass
+  `OptionalSecret('<token:customer-1>')` in the place of the placeholder: where the path
+  matches nothing the entry is left out, and where it matches it is a secret like any other.
+  The default stays strict, because a secret that disappears is a change. The fixture holds
+  path and placeholder in both cases.
+- A project whose lint asks for an `expect` in every test can end a test in one: the helpers
+  that throw on failure return what they did.
+  `expect(contract.verifyResponse(...).file, 'provider/order.created.json')`, and
+  `expect(contract.assertCovers(FixtureKind.provider, expectations.keys), isNotEmpty)`.
 - A fixture that contains a string of the shape of a JSON Web Token is not written (in update
   mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
   recognised, unless the contracts directory has a `config.json` that describes them:

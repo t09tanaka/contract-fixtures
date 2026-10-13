@@ -96,7 +96,9 @@ class ContractFixtures {
   ///
   /// Give it the keys of the table of expectations a reading test iterates over: a new
   /// fixture then fails this test until somebody writes down what should happen for it.
-  void assertCovers(
+  /// Returns the names of the fixtures it looked at, sorted, for a test that has to end in
+  /// an `expect`.
+  List<String> assertCovers(
     FixtureKind kind,
     Iterable<String> expected, {
     String prefix = '',
@@ -111,7 +113,7 @@ class ContractFixtures {
       for (final name in wanted)
         if (!onDisk.contains(name)) name,
     ];
-    if (withoutExpectation.isEmpty && withoutFixture.isEmpty) return;
+    if (withoutExpectation.isEmpty && withoutFixture.isEmpty) return onDisk;
     final scope = prefix.isEmpty ? '${kind.name}/' : '${kind.name}/$prefix*';
     throw ContractCoverageException(
       [
@@ -132,8 +134,10 @@ class ContractFixtures {
   /// has a fixture.
   ///
   /// Tests that call [assertCovers] with a prefix each cover a part of the fixtures; this
-  /// is the one test that shows the parts leave nothing out.
-  void assertPrefixesCover(FixtureKind kind, Iterable<String> prefixes) {
+  /// is the one test that shows the parts leave nothing out. Like [assertCovers], it
+  /// returns the names of the fixtures it looked at, sorted.
+  List<String> assertPrefixesCover(
+      FixtureKind kind, Iterable<String> prefixes) {
     final onDisk = list(kind);
     final wanted = prefixes.toSet().toList()..sort();
     final outside = [
@@ -144,7 +148,7 @@ class ContractFixtures {
       for (final prefix in wanted)
         if (!onDisk.any((name) => name.startsWith(prefix))) prefix,
     ];
-    if (outside.isEmpty && unused.isEmpty) return;
+    if (outside.isEmpty && unused.isEmpty) return onDisk;
     throw ContractCoverageException(
       [
         'the prefixes of this test do not cover the fixtures in ${kind.name}/:',
@@ -163,17 +167,24 @@ class ContractFixtures {
   /// Throws [ContractMismatch] on a difference; writes the fixture in update mode.
   ///
   /// [secret] maps paths to placeholders: the real value at such a path is replaced by its
-  /// placeholder before anything is compared, printed or written.
-  void verifyResponse({
+  /// placeholder before anything is compared, printed or written. A value may also be an
+  /// [OptionalSecret], for a path that need not be there: where it matches nothing, the
+  /// entry is left out.
+  ///
+  /// An entry of [volatile] is a path, `{'path': ..., 'pattern': ...}`, or `{'path': ...}`
+  /// alone, which means the same as the path.
+  ///
+  /// Returns the file it verified and whether it wrote it.
+  Verified verifyResponse({
     required String name,
     required String description,
     required ExchangeRequest request,
     required ExchangeResponse response,
     List<Object> volatile = const [],
-    Map<String, String> secret = const {},
+    Map<String, Object> secret = const {},
   }) {
     _requireSide(ContractSide.provider, 'verifyResponse');
-    _verify(FixtureKind.provider, name, {
+    return _verify(FixtureKind.provider, name, {
       'format': formatVersion,
       'name': name,
       'description': description,
@@ -188,16 +199,16 @@ class ContractFixtures {
   /// `consumer/<name>.json`.
   ///
   /// Throws [ContractMismatch] on a difference; writes the fixture in update mode.
-  /// [secret] works as in [verifyResponse].
-  void verifyRequest({
+  /// [volatile] and [secret] work as in [verifyResponse], and so does what it returns.
+  Verified verifyRequest({
     required String name,
     required String description,
     required ExchangeRequest request,
     List<Object> volatile = const [],
-    Map<String, String> secret = const {},
+    Map<String, Object> secret = const {},
   }) {
     _requireSide(ContractSide.consumer, 'verifyRequest');
-    _verify(FixtureKind.consumer, name, {
+    return _verify(FixtureKind.consumer, name, {
       'format': formatVersion,
       'name': name,
       'description': description,
@@ -277,7 +288,11 @@ class ContractFixtures {
     }
   }
 
-  void _verify(FixtureKind kind, String name, Map<String, dynamic> observed) {
+  Verified _verify(
+    FixtureKind kind,
+    String name,
+    Map<String, dynamic> observed,
+  ) {
     _requireName(name);
     final file = '${kind.name}/$name.json';
     final target = File('$dir/$file');
@@ -294,6 +309,8 @@ class ContractFixtures {
       );
     }
     _lowerCaseHeaders(file, produced);
+    _plainPaths(produced);
+    _placeholders(produced);
     // From here on the real values are gone: nothing below can print or write them.
     replaceSecrets(
       produced,
@@ -328,8 +345,10 @@ class ContractFixtures {
     if (early.isNotEmpty) {
       throw invalid(early, end: _statusChange(stored?.value, produced));
     }
+    var written = false;
     void write() {
       if (late.isNotEmpty) throw invalid(late);
+      written = true;
       target.parent.createSync(recursive: true);
       target.writeAsStringSync(canonicalJson(produced));
       // Written all the same: a fixture of a 5xx may be meant. But a response that used to
@@ -416,6 +435,53 @@ class ContractFixtures {
       }
     }
     appendLedger(dir, side, LedgerAction.verified, kind, name);
+    return Verified(file, written: written);
+  }
+
+  /// `{path}` alone is the path: a fixture holds it as a string.
+  void _plainPaths(Object? produced) {
+    if (produced is! Map<String, dynamic>) return;
+    final volatile = produced['volatile'];
+    if (volatile is! List) return;
+    for (var i = 0; i < volatile.length; i++) {
+      final entry = volatile[i];
+      if (entry is Map<String, dynamic> &&
+          entry.length == 1 &&
+          entry['path'] is String) {
+        volatile[i] = entry['path'];
+      }
+    }
+  }
+
+  /// Makes `secret` what a fixture holds: path and placeholder. A test may pass
+  /// `{placeholder, optional}` in the place of a placeholder; with `optional: true`, an
+  /// entry whose path matches nothing is left out. Every other entry stays, so a path that
+  /// matches nothing is still reported, and so is a value of another shape.
+  void _placeholders(Object? produced) {
+    if (produced is! Map<String, dynamic>) return;
+    final secret = produced['secret'];
+    if (secret is! Map<String, dynamic>) return;
+    for (final path in secret.keys.toList()) {
+      final value = secret[path];
+      if (value is! Map<String, dynamic> ||
+          value['placeholder'] is! String ||
+          value.keys.any(
+            (key) =>
+                key != 'placeholder' &&
+                !(key == 'optional' && value['optional'] is bool),
+          )) {
+        continue;
+      }
+      final absent =
+          secretPathProblem(path, const ['request', 'response']) == null &&
+              secretNodes(produced, path.split('.')).isEmpty;
+      if (value['optional'] == true && absent) {
+        secret.remove(path);
+      } else {
+        secret[path] = value['placeholder'];
+      }
+    }
+    if (secret.isEmpty) produced.remove('secret');
   }
 
   /// The status of the response of a fixture, if it has one.

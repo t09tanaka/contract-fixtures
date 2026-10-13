@@ -65,8 +65,36 @@ export interface TableFixture<Row = Record<string, unknown>> {
   rows: Row[];
 }
 
+/**
+ * An entry of `volatile` as a test passes it: what a fixture holds, or `{ path }` alone, which
+ * means the same as the path as a string and is written as that.
+ */
+export type ObservedVolatileEntry = VolatileEntry | { path: string };
+
+/**
+ * A value of `secret` as a test passes it: the placeholder, or the placeholder with
+ * `optional: true` for a path that need not be there (a header that only some requests of a
+ * shared helper carry). Where the path matches nothing, such an entry is left out; a fixture
+ * always holds path and placeholder.
+ */
+export type ObservedSecret = string | { placeholder: string; optional?: boolean };
+
+/** What only the verifying test says, in the form a test passes it. */
+interface ObservedMarks {
+  volatile?: ObservedVolatileEntry[];
+  secret?: Record<string, ObservedSecret>;
+}
+
 /** What a provider test observed, to be verified against `provider/<name>.json`. */
-export type ObservedResponse = Omit<ProviderFixture, "format">;
+export type ObservedResponse = Omit<ProviderFixture, "format" | "volatile" | "secret"> & ObservedMarks;
 
 /** What a consumer test built, to be verified against `consumer/<name>.json`. */
-export type ObservedRequest = Omit<ConsumerFixture, "format">;
+export type ObservedRequest = Omit<ConsumerFixture, "format" | "volatile" | "secret"> & ObservedMarks;
+
+/** What a verify did, for a test that wants to assert on it. A verify that fails throws. */
+export interface Verified {
+  /** The fixture, as `check` names it: `provider/order.created.json`. */
+  file: string;
+  /** Whether update mode wrote the file in this call. */
+  written: boolean;
+}

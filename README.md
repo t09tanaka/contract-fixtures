@@ -188,6 +188,15 @@ over it, and call `assertCovers` with its keys. A new fixture then fails the rea
 somebody writes down what should happen for it, and a deleted fixture fails until its
 expectation is removed. Whether the expectation is meaningful remains the job of code review.
 
+Some projects have a lint rule that every test must call `expect`. The helpers that throw on
+failure return something to hand to it: a verify returns the file it verified and whether it
+wrote it, `assertCovers` and `assertPrefixesCover` the names they looked at.
+
+```ts
+expect(contract.verifyResponse({ name: "order.created", /* ... */ }).file).toBe("provider/order.created.json");
+expect(contract.assertCovers("provider", Object.keys(expectations))).not.toHaveLength(0);
+```
+
 With many fixtures, one table becomes unwieldy. Split it by the prefix of the names, and give
 each test its part: `assertCovers(kind, names, { prefix: "order." })` looks only at the
 fixtures that start with `order.`. One more test then lists the prefixes, so that the parts
@@ -272,8 +281,9 @@ volatile: [
   be a string that matches the pattern as a whole, in the stored file and in every run. A
   response that starts to return `"81f3"` instead of `"ord_81f3"` fails the provider's test:
   `response.body.id: "ord_81f3" -> "81f3" (volatile: does not match ^ord_[a-z0-9]+$)`.
-- An entry that is only a path (`"response.body.note"`) compares the JSON type and nothing
-  else. Use it when there is nothing to say about the shape.
+- An entry that is only a path (`"response.body.note"`, or `{ path: "response.body.note" }`)
+  compares the JSON type and nothing else. Use it when there is nothing to say about the
+  shape.
 - A value that is a string in one place and `null` in another (the time something was closed, in
   a list of which some rows are closed and some are not) gets `nullable: true` next to its
   pattern:
@@ -360,6 +370,11 @@ that is compared exactly on every run, although the API returns a new key each t
   index (`"response.headers.set-cookie.0": "<cookie:session-1>"`).
 - A secret path that matches nothing, or a value there that is not a string, fails the test: a
   secret that disappears from a response is a change the other side needs to hear about.
+- A path that need not be there says so. A helper shared by many tests names the
+  `authorization` or `cookie` header, and a request that is not signed in has neither:
+  `"request.headers.authorization": { placeholder: "<token:customer-1>", optional: true }`
+  (`OptionalSecret('<token:customer-1>')` in Dart). Where such a path matches nothing, the
+  entry is left out; the fixture holds path and placeholder as before.
 - Update mode never drops a secret path. When the stored fixture lists a path that the test
   no longer passes, the fixture is not rewritten (the real value would end up in the file).
   Pass the path again, or remove it from the stored file by hand.
@@ -381,7 +396,8 @@ that is compared exactly on every run, although the API returns a new key each t
   The patterns are those of `volatile`, except that one matches when a part of the string
   does (`Bearer sec_live_...` is found). A string that matches is not written, in update mode
   either, and a stored one fails `check` as `invalid`; the message names the path and never
-  the value. The answer is the same as for a token: list the path under `secret`, when the
+  the value, and lists every such string of the fixture at once. The answer is the same as
+  for a token: list the path under `secret`, when the
   string is a value in headers or a body; anywhere else (a description, a pattern, the path of
   a request) the message says to change the text. Both sides
   and both packages read the same file; without it nothing changes.

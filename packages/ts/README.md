@@ -98,14 +98,14 @@ contract.verifyRequest({
 
 | Member | Side | What it does |
 |---|---|---|
-| `verifyResponse(observed)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatchError` listing the differences. Writes the file in update mode. |
+| `verifyResponse(observed)` | provider | Compares with `provider/<name>.json`; throws `ContractMismatchError` listing the differences. Writes the file in update mode. Returns `{ file, written }`. |
 | `verifyRequest(observed)` | consumer | The same for `consumer/<name>.json`. |
 | `readResponse(name)` | consumer | Reads and validates `provider/<name>.json`. |
 | `readRequest(name)` | provider | Reads and validates `consumer/<name>.json`. |
 | `readTable<Row>(name)` | both | Reads and validates `tables/<name>.json`. |
 | `list(kind, { prefix? })` | both | Sorted fixture names of `"provider"`, `"consumer"` or `"tables"`. |
-| `assertCovers(kind, names, { prefix? })` | both | Throws `ContractCoverageError` unless `names` are exactly the fixtures on disk (those that start with `prefix`). |
-| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageError` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. |
+| `assertCovers(kind, names, { prefix? })` | both | Throws `ContractCoverageError` unless `names` are exactly the fixtures on disk (those that start with `prefix`). Returns the names it looked at. |
+| `assertPrefixesCover(kind, prefixes)` | both | Throws `ContractCoverageError` unless every fixture starts with one of `prefixes` and every prefix has a fixture. Use it once next to several `assertCovers` with a prefix. Returns the names it looked at. |
 
 Calling a method from the wrong side throws `ContractUsageError`. A missing or invalid fixture
 throws `ContractFixtureError`.
@@ -126,7 +126,8 @@ throws `ContractFixtureError`.
   is refused when `CI` is `true` or `1`.
 - `observed.volatile` lists the values that change between runs. An entry is a path
   (`"response.body.note"`: only the JSON type is compared) or `{ path, pattern }` (a string
-  that must match the pattern as a whole; type `VolatileEntry`). In a path, `*` is one key or
+  that must match the pattern as a whole; type `VolatileEntry`). `{ path }` alone is the
+  path, and is written as the string. In a path, `*` is one key or
   index and `**` any number of them: `response.body.**.created_at`. A path that ends in `**`
   compares keys and types of everything below and cannot have a pattern. `request.path` can
   be volatile too: `{ path: "request.path", pattern: "^/orders/ord_[a-z0-9]+/receipt$" }`.
@@ -149,6 +150,16 @@ throws `ContractFixtureError`.
   nothing, or a value that is not a string, throws `ContractFixtureError`. So does update mode
   when the stored fixture lists a secret path that the test does not pass: remove the path
   from the stored file by hand if it is no longer a secret.
+- A helper that verifies many requests names a credential that only some of them carry (no
+  `authorization` or `cookie` on a request that is not signed in). For such a path pass
+  `{ placeholder: "<token:customer-1>", optional: true }` in the place of the placeholder:
+  where the path matches nothing the entry is left out, and where it matches it is a secret
+  like any other. The default stays strict, because a secret that disappears is a change.
+  The fixture holds path and placeholder in both cases.
+- A project whose lint asks for an `expect` in every test can end a test in one: the helpers
+  that throw on failure return what they did.
+  `expect(contract.verifyResponse({ ... }).file).toBe("provider/order.created.json")`, and
+  `expect(contract.assertCovers("provider", Object.keys(expectations))).not.toHaveLength(0)`.
 - A fixture that contains a string of the shape of a JSON Web Token is not written (in update
   mode either) and fails `check`; list its path in `secret`. Other kinds of secrets are not
   recognised, unless the contracts directory has a `config.json` that describes them:

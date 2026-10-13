@@ -20,7 +20,7 @@ import {
   sortedKeys,
 } from "./json.js";
 import { appendLedger } from "./ledger.js";
-import { replaceSecrets } from "./secrets.js";
+import { replaceSecrets, secretNodes, secretPathProblem } from "./secrets.js";
 import type { VolatileEntry } from "./volatile.js";
 import {
   FORMAT_VERSION,
@@ -31,6 +31,7 @@ import {
   type ProviderFixture,
   type Side,
   type TableFixture,
+  type Verified,
 } from "./types.js";
 import {
   formatIssues,
@@ -78,27 +79,32 @@ export interface ContractFixtures {
    * Fails unless `expected` names exactly the fixtures of `kind` (that start with `prefix`).
    * Give it the keys of the table of expectations a reading test iterates over: a new fixture
    * then fails this test until somebody writes down what should happen for it.
+   * Returns the names of the fixtures it looked at, sorted, for a test that has to end in
+   * an assertion of its test framework.
    */
-  assertCovers(kind: Kind, expected: Iterable<string>, options?: { prefix?: string }): void;
+  assertCovers(kind: Kind, expected: Iterable<string>, options?: { prefix?: string }): string[];
 
   /**
    * Fails unless every fixture of `kind` starts with one of `prefixes`, and every prefix has
    * a fixture. Tests that call `assertCovers` with a prefix each cover a part of the
    * fixtures; this is the one test that shows the parts leave nothing out.
+   * Like `assertCovers`, it returns the names of the fixtures it looked at, sorted.
    */
-  assertPrefixesCover(kind: Kind, prefixes: Iterable<string>): void;
+  assertPrefixesCover(kind: Kind, prefixes: Iterable<string>): string[];
 
   /**
    * Provider side: compares a real response with `provider/<name>.json`.
    * Throws `ContractMismatchError` on a difference; writes the fixture in update mode.
+   * Returns the file it verified and whether it wrote it.
    */
-  verifyResponse(observed: ObservedResponse): void;
+  verifyResponse(observed: ObservedResponse): Verified;
 
   /**
    * Consumer side: compares a request this side really built with `consumer/<name>.json`.
    * Throws `ContractMismatchError` on a difference; writes the fixture in update mode.
+   * Returns the file it verified and whether it wrote it.
    */
-  verifyRequest(observed: ObservedRequest): void;
+  verifyRequest(observed: ObservedRequest): Verified;
 
   /** Consumer side: reads `provider/<name>.json` to feed the response to the real client code. */
   readResponse(name: string): ProviderFixture;
@@ -144,6 +150,31 @@ function exchangePart(file: string, value: unknown, keys: readonly string[]): un
   return out;
 }
 
+/**
+ * `secret` as a fixture holds it: path and placeholder. A test may pass
+ * `{ placeholder, optional }` in the place of a placeholder; with `optional: true`, an entry
+ * whose path matches nothing in `fixture` is left out. Every other entry stays, so a path
+ * that matches nothing is still reported, and so is a value of another shape.
+ */
+function placeholders(fixture: Record<string, unknown>, secret: Record<string, unknown>): Record<string, unknown> {
+  // A Map, because assigning the key "__proto__" to a plain object would not create a key.
+  const out = new Map<string, unknown>();
+  for (const [path, value] of Object.entries(secret)) {
+    const given =
+      isObject(value) &&
+      typeof value.placeholder === "string" &&
+      Object.keys(value).every((key) => key === "placeholder" || (key === "optional" && typeof value.optional === "boolean"));
+    if (!given) {
+      out.set(path, value);
+      continue;
+    }
+    const absent =
+      secretPathProblem(path, ["request", "response"]) === null && secretNodes(fixture, path.split(".")).length === 0;
+    if (value.optional !== true || !absent) out.set(path, value.placeholder);
+  }
+  return Object.fromEntries(out);
+}
+
 /** The fixture a side produced, as it would be written: placeholders in place of secrets. */
 function candidate(file: string, observed: object): Record<string, unknown> {
   let wire: Record<string, unknown>;
@@ -167,9 +198,15 @@ function candidate(file: string, observed: object): Record<string, unknown> {
   if (Array.isArray(out.volatile)) {
     if (out.volatile.length === 0) delete out.volatile;
     else {
-      out.volatile = out.volatile.map((e: unknown) => (isObject(e) ? ordered(e, ["path", "pattern", "nullable"]) : e));
+      out.volatile = out.volatile.map((e: unknown) => {
+        if (!isObject(e)) return e;
+        // `{ path }` alone is the path: a fixture holds it as a string.
+        if (typeof e.path === "string" && Object.keys(e).length === 1) return e.path;
+        return ordered(e, ["path", "pattern", "nullable"]);
+      });
     }
   }
+  if (isObject(out.secret)) out.secret = placeholders(out, out.secret);
   if (isObject(out.secret) && Object.keys(out.secret).length === 0) delete out.secret;
   // From here on the real values are gone: nothing below can print or write them.
   replaceSecrets(out, out.secret, "strings");
@@ -310,7 +347,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     }
   };
 
-  const verify = (kind: "provider" | "consumer", observed: { name: string }): void => {
+  const verify = (kind: "provider" | "consumer", observed: { name: string }): Verified => {
     const name = requireName(observed?.name);
     const dir = resolveDir();
     const file = `${kind}/${name}.json`;
@@ -336,8 +373,10 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     const late = producedIssues.filter(waits);
     const early = producedIssues.filter((issue) => !waits(issue));
     if (early.length > 0) throw invalid(early, undefined, statusChange(stored?.value, produced));
+    let written = false;
     const write = (): void => {
       if (late.length > 0) throw invalid(late);
+      written = true;
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, canonicalJson(produced));
       // Written all the same: a fixture of a 5xx may be meant. But a response that used to be
@@ -409,6 +448,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       }
     }
     appendLedger(dir, side, "verified", kind, name);
+    return { file, written };
   };
 
   const read = (kind: Kind, rawName: string): unknown => {
@@ -453,7 +493,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       const wanted = [...new Set(expected)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       const withoutExpectation = onDisk.filter((name) => !wanted.includes(name));
       const withoutFixture = wanted.filter((name) => !onDisk.includes(name));
-      if (withoutExpectation.length === 0 && withoutFixture.length === 0) return;
+      if (withoutExpectation.length === 0 && withoutFixture.length === 0) return onDisk;
       const scope = coverOptions.prefix ? `${kind}/${coverOptions.prefix}*` : `${kind}/`;
       const lines = [
         `the expectations of this test do not cover the fixtures in ${scope}:`,
@@ -472,7 +512,7 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
       const wanted = [...new Set(prefixes)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       const outside = onDisk.filter((name) => !wanted.some((prefix) => name.startsWith(prefix)));
       const unused = wanted.filter((prefix) => !onDisk.some((name) => name.startsWith(prefix)));
-      if (outside.length === 0 && unused.length === 0) return;
+      if (outside.length === 0 && unused.length === 0) return onDisk;
       const lines = [
         `the prefixes of this test do not cover the fixtures in ${kind}/:`,
         ...outside.map((name) => `  ${kind}/${name}.json: starts with none of the prefixes`),
@@ -482,11 +522,11 @@ export function contractFixtures(options: ContractFixturesOptions): ContractFixt
     },
     verifyResponse(observed) {
       requireSide("provider", "verifyResponse");
-      verify("provider", observed);
+      return verify("provider", observed);
     },
     verifyRequest(observed) {
       requireSide("consumer", "verifyRequest");
-      verify("consumer", observed);
+      return verify("consumer", observed);
     },
     readResponse(name) {
       requireSide("consumer", "readResponse");

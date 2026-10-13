@@ -747,3 +747,46 @@ describe("a string in the place of a list of names", () => {
     assert.throws(() => contract.assertCovers("provider", "order.created"), /takes a list of names, not one string/);
   });
 });
+
+describe("what the helpers return, for a test that has to end in an assertion", () => {
+  it("a verify returns the file, and whether it wrote it", () => {
+    const dir = tempDir();
+    const recording = contractFixtures({ side: "provider", dir, update: true });
+    assert.deepEqual(recording.verifyResponse(observedResponse), {
+      file: "provider/order.out-of-stock.json",
+      written: true,
+    });
+    assert.deepEqual(recording.verifyResponse(observedResponse), {
+      file: "provider/order.out-of-stock.json",
+      written: false,
+    });
+    const consumer = contractFixtures({ side: "consumer", dir, update: true });
+    const request = { name: "create-order.request", description: "An order", request: observedResponse.request };
+    assert.deepEqual(consumer.verifyRequest(request), { file: "consumer/create-order.request.json", written: true });
+  });
+
+  it("the coverage helpers return the names they looked at", () => {
+    const contract = contractFixtures({ side: "consumer", dir: copyOfContracts() });
+    const names = ["order.created", "order.out-of-stock"];
+    assert.deepEqual(contract.assertCovers("provider", [...names].reverse()), names);
+    assert.deepEqual(contract.assertCovers("provider", ["order.created"], { prefix: "order.c" }), ["order.created"]);
+    assert.deepEqual(contract.assertPrefixesCover("provider", ["order."]), names);
+  });
+
+  it("takes { path } alone and an optional secret where the types say so", () => {
+    const contract = contractFixtures({ side: "provider", dir: tempDir(), update: true });
+    contract.verifyResponse({
+      ...observedResponse,
+      volatile: [{ path: "response.body.error" }],
+      secret: {
+        "request.headers.authorization": { placeholder: "<token:customer-1>", optional: true },
+        "request.headers.cookie": { placeholder: "<cookie:session-1>", optional: true },
+      },
+    });
+    const written = JSON.parse(
+      fs.readFileSync(path.join(contract.dir, "provider", "order.out-of-stock.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.deepEqual(written.volatile, ["response.body.error"]);
+    assert.deepEqual(written.secret, { "request.headers.authorization": "<token:customer-1>" });
+  });
+});
