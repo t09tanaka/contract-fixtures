@@ -6,8 +6,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "rm -rf .test-build && tsc -p tsconfig.json && node --test --test-reporter=spec .test-build/test/*.test.js",
     "contract": "npm run reset && npm test && npm run check",
-    "reset": "contract-fixtures reset --side provider --dir ../contracts && contract-fixtures reset --side provider --dir ../contracts-web",
-    "check": "contract-fixtures check --side provider --dir ../contracts && contract-fixtures check --side provider --dir ../contracts-web"
+    "reset": "contract-fixtures reset --side provider --dir ../contracts",
+    "check": "contract-fixtures check --side provider --dir ../contracts"
   },
   "devDependencies": {
     "@t09tanaka/contract-fixtures": "*",

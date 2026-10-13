@@ -372,59 +372,100 @@ fixture whose value is a whole number.
 ### Two clients of one API
 
 **What happens.** An API has an app and an admin screen, or an app and a web client. With one
-contracts directory, the check of each client asks it to read **every** provider fixture. A
-client that has no use for the other one's exchanges fails with `unread`, and the tool has no
-way to exempt a fixture.
+contracts directory and one consumer side, the check asks that side to read **every**
+provider fixture, and both clients write into the same ledger. A client that has no use for
+the other one's exchanges fails with `unread`.
 
-**What to do.** One contracts directory per pair of provider and consumer. The example has
-[`contracts/`](../example/contracts) for the app and
-[`contracts-web/`](../example/contracts-web) for the web client. The provider opens both and
-verifies a response into the directory of every reader that depends on it:
-
-```ts
-export const contracts: Record<Reader, ContractFixtures> = {
-  app: contractFixtures({ side: "provider", dir: "../contracts" }),
-  web: contractFixtures({ side: "provider", dir: "../contracts-web" }),
-};
-```
+**What to do.** Keep one contracts directory and give each client a name: it is a **reader**
+of the directory. The example has the readers `app` (Dart) and `web` (TypeScript) on
+[`contracts/`](../example/contracts). Each opens the directory under its name,
 
 ```ts
-{
-  name: "order.created",
-  description: "An order is accepted",
-  readers: ["app", "web"],
-  call: order({ sku: "tea-100", quantity: 2 }),
-  volatile: [anOrderId, anyCreatedAt],
-},
-{
-  name: "order.created-with-coupon",
-  description: "An order with a valid coupon is accepted at the discounted total",
-  readers: ["app"],
-  // ...
-},
+const contract = contractFixtures({ side: "consumer", reader: "web", dir: "../contracts" });
 ```
 
-A response both depend on exists as two files with the same content. That is intended: a
-change of the API changes both, and each reader's tests fail on their own. The provider runs
-`reset` and `check` once per directory; each reader runs them on its own directory only:
+```dart
+final contract = ContractFixtures(
+  side: ContractSide.consumer,
+  reader: 'app',
+  dir: '../contracts',
+);
+```
+
+and runs `reset` and `check` with `--reader`:
 
 ```json
-"reset": "contract-fixtures reset --side provider --dir ../contracts && contract-fixtures reset --side provider --dir ../contracts-web",
-"check": "contract-fixtures check --side provider --dir ../contracts && contract-fixtures check --side provider --dir ../contracts-web"
+"contract": "contract-fixtures reset --side consumer --reader web --dir ../contracts && npm test && contract-fixtures check --side consumer --reader web --dir ../contracts"
 ```
 
-The directories also show at a glance which reader depends on what.
+A reader has a ledger of its own (`.ledger/consumer.web.jsonl`), so the two test runs do not
+meet: not in one job, not in two, and not across languages. What each reader reads is
+written next to the fixtures, in [`config.json`](../example/contracts/config.json):
 
-Where to put them: next to each other, at a place both the provider and the reader reach
-with a relative path (the example has them beside the three projects), and named after the
-reader (`contracts-web`, `contracts-app`). A reader in another language changes nothing:
-the web client reads with the TypeScript package, the mobile app with the Dart package, and
-the provider writes both directories with whichever it uses.
+```json
+{
+  "format": 1,
+  "readers": {
+    "app": {
+      "provider": [
+        "order.coupon-unknown",
+        "order.created",
+        "order.created-with-coupon",
+        "order.invalid-quantity",
+        "order.out-of-stock",
+        "order.token-invalid",
+        "payment.*",
+        "receipt.*"
+      ]
+    },
+    "web": {
+      "provider": [
+        "order.body-not-json",
+        "order.created",
+        "order.out-of-stock",
+        "order.token-invalid",
+        "receipt.*"
+      ],
+      "tables": []
+    }
+  }
+}
+```
 
-Expect two sets: a response both readers depend on is recorded twice, an update of the API
-changes two files, and a review shows both. `summary` runs per directory. The work of
-keeping them is the provider's and is done by the test helper, which is why the helper takes
-the list of readers per scenario.
+An entry is the name of a fixture, or the start of names followed by `*`. A key that is left
+out means all of them (the app reads every table), and a reader that reads everything is
+`{}`. The check of a reader asks for the fixtures listed for it, and so do its `list` and
+`assertCovers`; reading a fixture that is not listed fails, so the file stays true. The
+requests a reader builds are named after it (`consumer/web.place-order.request.json`), and
+each reader verifies its own.
+
+The provider side does not know about readers. It verifies every response once, reads every
+request and table, and runs one `reset` and one `check`. Its check also reports a fixture
+that no reader takes (`unclaimed`), which no reader's check would notice. `check --side
+consumer` without `--reader` runs the check of every declared reader, for a job that has all
+ledgers at hand.
+
+Every side of such a directory needs version 0.2.0 or later: an older one refuses a
+`config.json` with `readers`.
+
+**From one directory per reader.** Before 0.2.0 each reader needed a contracts directory of
+its own, and a response both depend on was stored twice. To join two such directories:
+
+1. Update the packages on every side to 0.2.0.
+2. Rename the consumer fixtures of each directory to `<reader>.<name>` (the file, the `name`
+   in it, and the name the reader's test passes to `verifyRequest`).
+3. Move everything into one directory. A provider fixture that both had is the same file;
+   keep one.
+4. Write `config.json` with `readers`, listing for each reader the provider fixtures (and
+   tables) its old directory held.
+5. Let the provider's tests verify into that one directory, once per response, and run one
+   `reset` and one `check`.
+6. Pass `reader` where each consumer opens the directory, and `--reader` to its `reset` and
+   `check`. In CI, replace the old directory in `paths` by the shared one.
+7. Run every side once (`reset`, tests, `check`); all three checks must pass without update
+   mode.
+
+Two directories still work, and remain the way to go while one side cannot be updated.
 
 ### An API and a screen in one application
 
@@ -499,15 +540,22 @@ it("every order fixture has an expectation here", () => {
 To see whether routes answer alike, print the fixtures side by side:
 
 ```
-$ npx contract-fixtures summary --dir example/contracts-web
-FIXTURE                            REQUEST                            STATUS  RESPONSE BODY
-provider/order.body-not-json       POST /orders                       400     {error: string}
-provider/order.created             POST /orders                       201     {created_at: string, customer: string, id: string, status: string, total_minor: number}
-provider/order.out-of-stock        POST /orders                       409     {available: number, error: string}
-provider/order.token-invalid       POST /orders                       401     {error: string}
-provider/receipt.downloaded        GET /orders/ord_mv3vvd651/receipt  200     {lines: array, order_id: string, total_minor: number}
-consumer/download-receipt.request  GET /orders/ord_demo1/receipt      -       -
-consumer/place-order.request       POST /orders                       -       -
+$ npx contract-fixtures summary --dir example/contracts
+FIXTURE                                        REQUEST                            STATUS  RESPONSE BODY
+provider/order.body-not-json                   POST /orders                       400     {error: string}
+provider/order.coupon-unknown                  POST /orders                       422     {error: string}
+provider/order.created                         POST /orders                       201     {coupon_redeemed_at: null, created_at: string, customer: string, id: string, status: string, total_minor: number}
+provider/order.created-with-coupon             POST /orders                       201     {coupon_redeemed_at: string, created_at: string, customer: string, id: string, status: string, total_minor: number}
+provider/order.invalid-quantity                POST /orders                       422     {error: string, field: string}
+provider/order.out-of-stock                    POST /orders                       409     {available: number, error: string}
+provider/order.token-invalid                   POST /orders                       401     {error: string}
+provider/payment.started                       POST /payments                     201     {confirm_key: string, id: string, order_id: string, status: string}
+provider/receipt.downloaded                    GET /orders/ord_mv3vvd651/receipt  200     {lines: array, order_id: string, total_minor: number}
+consumer/app.create-order.request              POST /orders                       -       -
+consumer/app.create-order.with-coupon.request  POST /orders                       -       -
+consumer/web.download-receipt.request          GET /orders/ord_demo1/receipt      -       -
+consumer/web.place-order.request               POST /orders                       -       -
+tables/order-total                             -                                  -       5 row(s)
 ```
 
 An API where the same failure is `{error: string}` on one route and
@@ -579,7 +627,7 @@ of a client that reads one, or the routes behind one, whenever CI did not. From
 
 ```
 $ npx contract-fixtures check --side provider --dir ../contracts
-contract-fixtures check (provider side): OK (11 fixture(s), all verified or read by this side's tests)
+contract-fixtures check (provider side): OK (14 fixture(s), all verified or read by this side's tests)
 ```
 
 A check that last ran weeks ago says nothing about today: when CI comes back, run both sides
@@ -600,7 +648,6 @@ on:
   pull_request:
     paths:
       - "example/contracts/**"
-      - "example/contracts-web/**"
       - "example/provider/**"
       - "example/consumer/**"
       - "example/consumer-web/**"
@@ -610,8 +657,7 @@ on:
       - ".github/workflows/example.yml"
 ```
 
-With one workflow per side, each lists its own project and its contracts directory or
-directories (in this repository the list also has the packages the example is built on). If
+With one workflow per side, each lists its own project and the contracts directory (in this repository the list also has the packages the example is built on). If
 the jobs are required checks, remember that a workflow that is not started reports nothing: a
 pull request outside these paths then waits for a check that never arrives.
 
@@ -633,13 +679,11 @@ the end of a shard:
           npm run reset
           rm -rf .test-build && npx tsc -p tsconfig.json
           node --test --test-shard=${{ matrix.shard }}/2 .test-build/test/*.test.js
-      - name: Collect the ledgers of this shard
+      - name: Collect the ledger of this shard
         run: |
-          for dir in contracts contracts-web; do
-            mkdir -p "ledgers/$dir"
-            ledger="example/$dir/.ledger/provider.jsonl"
-            if [ -f "$ledger" ]; then cp "$ledger" "ledgers/$dir/${{ matrix.shard }}.jsonl"; fi
-          done
+          mkdir -p ledgers
+          ledger="example/contracts/.ledger/provider.jsonl"
+          if [ -f "$ledger" ]; then cp "$ledger" "ledgers/${{ matrix.shard }}.jsonl"; fi
       - uses: actions/upload-artifact@v4
         with:
           name: ledgers-${{ matrix.shard }}
@@ -656,18 +700,16 @@ and the job after them:
           merge-multiple: true
       - name: Join the ledgers of the shards, then check
         run: |
-          for dir in contracts contracts-web; do
-            mkdir -p "example/$dir/.ledger"
-            cat "ledgers/$dir"/*.jsonl > "example/$dir/.ledger/provider.jsonl"
-          done
+          mkdir -p example/contracts/.ledger
+          cat ledgers/*.jsonl > example/contracts/.ledger/provider.jsonl
           npm run check -w example/provider
 ```
 
 The ledger is copied out of `.ledger/` under another name, so that the upload does not depend
-on how the action treats hidden directories. Each contracts directory gets a directory of its
-own among the copies: a ledger names fixtures as `provider/order.created.json`, without the
-contracts directory, so the lines of one directory must never be joined into the ledger of
-another.
+on how the action treats hidden directories. A ledger names fixtures as
+`provider/order.created.json`, without the contracts directory and without the reader: join
+only the shards of one side (for a consumer with a name, of one reader, into
+`.ledger/consumer.<reader>.jsonl`) and of one directory.
 
 Several workers on **one** machine need nothing: every verify and read appends one line to
 the same file, from whichever process it runs in. Reset once before the run, not in a setup

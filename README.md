@@ -463,13 +463,16 @@ a run of a part of the tests (a filter, one shard) leaves the rest `unverified` 
 When the state of the ledger suggests a cause, the report ends with a hint:
 
 ```
-$ dart run contract_fixtures check --side consumer --dir ../contracts
-contract_fixtures check (consumer side): 8 problem(s) in 11 fixture(s)
+$ dart run contract_fixtures check --side consumer --reader app --dir ../contracts
+contract_fixtures check (consumer side, reader app): 9 problem(s) in 11 fixture(s)
   - provider/order.coupon-unknown.json: not read by the consumer side's tests (add a test that feeds it to the real code)
   ...
-Hint: Only 3 of the 11 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.
-Run `contract_fixtures reset` and the consumer side's tests before this check.
+Hint: Only 2 of the 11 fixtures that follow the format were verified or read. If a part of the tests ran (a filter, one shard of several), run all of them, or join the ledgers of all shards, before this check.
+Run `contract_fixtures reset --side consumer --reader app` and the tests of that reader before this check.
 ```
+
+(The example has two consumers, so its app says which reader it is; see
+[More than one consumer](#more-than-one-consumer).)
 
 Other hints are given when the ledger is missing or has no entries (did the tests run, and on
 this directory? is `--side` right, if the other side has a ledger?), when none of its entries
@@ -481,8 +484,8 @@ list them one by one. From `example/provider`, after a `reset` and without the t
 
 ```
 $ npx contract-fixtures check --side provider --dir ../contracts
-contract-fixtures check (provider side): 11 problem(s) in 11 fixture(s)
-  - none of the 11 fixture(s) that follow the format was verified or read by the provider side's tests (they are not listed one by one)
+contract-fixtures check (provider side): 14 problem(s) in 14 fixture(s)
+  - none of the 14 fixture(s) that follow the format was verified or read by the provider side's tests (they are not listed one by one)
 Hint: .ledger/provider.jsonl does not exist. Did the provider side's tests run, and do they use this contracts directory?
 Run `contract-fixtures reset` and the provider side's tests before this check.
 ```
@@ -495,6 +498,41 @@ The exit codes of the commands are listed under [Command line](#command-line).
 a pass. A CI job for one side should also be triggered by changes to the contracts directory.
 The [adoption guide](./docs/adoption.md#ci) has workflow examples for separate jobs, `paths`,
 shards and containers.
+
+## More than one consumer
+
+An API with an app and a web client has one contracts directory and one set of provider
+fixtures. Each consumer is a **reader** with a name and a ledger of its own:
+
+```ts
+const contract = contractFixtures({ side: "consumer", reader: "web", dir: "../contracts" });
+```
+
+```dart
+final contract = ContractFixtures(side: ContractSide.consumer, reader: 'app', dir: '../contracts');
+```
+
+```sh
+npx contract-fixtures reset --side consumer --reader web --dir ../contracts
+npm test
+npx contract-fixtures check --side consumer --reader web --dir ../contracts
+```
+
+- The provider side does not change: it verifies every response once, and runs one `reset`
+  and one `check`.
+- A reader that has no use for some of the responses says so in `config.json`, next to the
+  fixtures: `"readers": { "app": {}, "web": { "provider": ["order.created", "receipt.*"], "tables": [] } }`.
+  An entry is the name of a fixture, or the start of names followed by `*`; a key that is
+  left out means all of them. The check of a reader, and its `list` and `assertCovers`, look
+  at the fixtures listed for it.
+- The requests a reader builds are named after it: `consumer/web.place-order.request.json`.
+- `check --side consumer` without `--reader` checks every reader that `config.json`
+  declares, one after the other.
+
+The two tests can run in separate processes, jobs and languages; neither touches the ledger
+of the other. [`spec/format.md`](./spec/format.md#readers) has the rules, the
+[adoption guide](./docs/adoption.md#two-clients-of-one-api) how to get there from one
+directory per client, and [`example/`](./example) is built this way.
 
 ## Reading the fixtures side by side
 
@@ -544,20 +582,22 @@ messages, the two print the same text.
 
 | Command | What it does |
 |---|---|
-| `reset --side <provider\|consumer> [--dir <contracts>]` | Forgets what earlier test runs of this side did. Run it before the tests. |
-| `check --side <provider\|consumer> [--dir <contracts>]` | Fails unless this side's tests verified or read every fixture since the reset, and every fixture follows the format. Run it after all tests of this side. |
+| `reset --side <provider\|consumer> [--reader <name>] [--dir <contracts>]` | Forgets what earlier test runs of this side did. Run it before the tests. |
+| `check --side <provider\|consumer> [--reader <name>] [--dir <contracts>]` | Fails unless this side's tests verified or read every fixture since the reset, and every fixture follows the format. Run it after all tests of this side. |
 | `summary [--dir <contracts>] [--depth <n>]` | Prints one line per fixture. Takes no `--side` and does not touch the ledger. `--depth` (1 to 9, default 1) is the number of levels of objects in a response body that are opened. |
 
 `--dir` is the **contracts directory**: the one that holds `provider/`, `consumer/` and
 `tables/`. It is not the directory of a package, and it does not default to the current
 directory: without `--dir` the commands use `CONTRACT_FIXTURES_DIR`, and without either they
-exit with 2. `-h, --help` prints the help, `-v, --version` the version of the package.
+exit with 2. `--reader`, with `--side consumer`, names one consumer of several (see
+[More than one consumer](#more-than-one-consumer)); without it, the command acts for every
+reader that `config.json` declares. `-h, --help` prints the help, `-v, --version` the version of the package.
 
 | Exit code | `reset` | `check` | `summary` |
 |---|---|---|---|
 | 0 | The ledger of the side has no entries now | Every fixture follows the format and was verified or read by this side's tests | The lines were printed |
-| 1 | The ledger could not be removed (it is not a file, or its directory cannot be written) | At least one problem: a fixture or `config.json` is `invalid`, a fixture is `unverified` or `unread`, the ledger has a line that is not an entry of this side, or there are no fixtures. Also when the command could not finish (a ledger that is not a file, a fixture that cannot be read) | The directory holds no fixtures, or the command could not finish |
-| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, a `--depth`, no contracts directory, or a `--dir` that is not a directory | The same | The same, a `--side`, or a `--depth` that is not a whole number from 1 to 9 |
+| 1 | The ledger could not be removed (it is not a file, or its directory cannot be written) | At least one problem: a fixture or `config.json` is `invalid`, a fixture is `unverified`, `unread` or (for the provider, with readers) `unclaimed`, the ledger has a line that is not an entry of this side, or there are no fixtures. Also when the command could not finish (a ledger that is not a file, a fixture that cannot be read) | The directory holds no fixtures, or the command could not finish |
+| 2 | Wrong usage: an unknown command, option or argument, an option without its value, a missing or wrong `--side`, a wrong `--reader`, a `--depth`, no contracts directory, or a `--dir` that is not a directory | The same | The same, a `--side`, or a `--depth` that is not a whole number from 1 to 9 |
 
 A `reset`, and a `check` without problems, print one line to standard output. From
 `example/provider`:
@@ -566,11 +606,11 @@ A `reset`, and a `check` without problems, print one line to standard output. Fr
 $ npx contract-fixtures reset --side provider --dir ../contracts
 contract-fixtures reset (provider side): OK (no entries in .ledger/provider.jsonl)
 $ npx contract-fixtures check --side provider --dir ../contracts
-contract-fixtures check (provider side): OK (11 fixture(s), all verified or read by this side's tests)
+contract-fixtures check (provider side): OK (14 fixture(s), all verified or read by this side's tests)
 ```
 
 A `check` with problems prints its report to standard error, starting with
-`contract-fixtures check (provider side): 1 problem(s) in 12 fixture(s)`. Wrong usage prints
+`contract-fixtures check (provider side): 2 problem(s) in 15 fixture(s)`. Wrong usage prints
 one line that says what is wrong, an empty line and the help, to standard error.
 
 ### Environment variables
@@ -643,7 +683,7 @@ instead.
 spec/            the format (format.md, JSON Schemas) and cases both packages must pass
 packages/ts/     @t09tanaka/contract-fixtures
 packages/dart/   contract_fixtures
-example/         a TypeScript API with two clients (Dart, TypeScript), each with a contracts directory
+example/         a TypeScript API with two clients (Dart, TypeScript) that share one contracts directory
 docs/            the adoption guide
 ```
 

@@ -4,9 +4,9 @@
  * - The tests reach the API over HTTP, through the server the entry point starts
  *   (`assembleServer`), with an HTTP test client. Nothing between the client and the handler is
  *   replaced, so a fixture holds what the deployed API answers.
- * - The API has two readers, and each has a contracts directory of its own: the app (Dart,
- *   `../contracts`) and the web client (TypeScript, `../contracts-web`). A response that both
- *   depend on is verified into both directories.
+ * - The API has two readers, the app (Dart) and the web client (TypeScript), and one
+ *   contracts directory. A response is verified once, whoever reads it; which reader reads
+ *   what is written in `../contracts/config.json`.
  */
 import assert from "node:assert/strict";
 
@@ -16,19 +16,13 @@ import {
   contractFixtures,
   exchangeFromTestResponse,
   resolvePlaceholders,
-  type ContractFixtures,
   type ExchangeRequest,
   type VolatileEntry,
 } from "@t09tanaka/contract-fixtures";
 
 import { assembleServer } from "../src/server.js";
 
-export type Reader = "app" | "web";
-
-export const contracts: Record<Reader, ContractFixtures> = {
-  app: contractFixtures({ side: "provider", dir: "../contracts" }),
-  web: contractFixtures({ side: "provider", dir: "../contracts-web" }),
-};
+export const contract = contractFixtures({ side: "provider", dir: "../contracts" });
 
 /** The real value behind each placeholder that fixtures use instead of a secret. */
 const SECRETS: Record<string, string> = { "token:customer-1": "Bearer test-token-of-customer-1" };
@@ -48,8 +42,6 @@ export interface Call {
 export interface Scenario {
   name: string;
   description: string;
-  /** The readers that depend on this response. */
-  readers: Reader[];
   call: Call;
   /** Response headers that are part of the agreement. */
   responseHeaders?: string[];
@@ -64,7 +56,7 @@ export async function send(client: ReturnType<typeof api>, call: Call): Promise<
   return call.body === undefined ? await sending : await sending.send(call.body);
 }
 
-/** Verifies a response of the API into the directory of every reader that depends on it. */
+/** Verifies a response of the API against its fixture. */
 export function verify(scenario: Scenario, res: request.Response): void {
   // No scenario here expects a 5xx. One would come from a test application that differs
   // from the deployed one, and must fail the test before it can become a fixture.
@@ -78,15 +70,13 @@ export function verify(scenario: Scenario, res: request.Response): void {
   // The token of customer-1 is a credential; a token the API rejects is not.
   const token: Record<string, string> =
     scenario.call.authorization === TOKEN ? { "request.headers.authorization": "<token:customer-1>" } : {};
-  for (const reader of scenario.readers) {
-    contracts[reader].verifyResponse({
-      name: scenario.name,
-      description: scenario.description,
-      ...exchange,
-      volatile: scenario.volatile,
-      secret: { ...token, ...scenario.secret },
-    });
-  }
+  contract.verifyResponse({
+    name: scenario.name,
+    description: scenario.description,
+    ...exchange,
+    volatile: scenario.volatile,
+    secret: { ...token, ...scenario.secret },
+  });
 }
 
 /** Sends a request a consumer recorded, with real values in the place of its placeholders. */

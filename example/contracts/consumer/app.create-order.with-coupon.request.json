@@ -1,7 +1,7 @@
 {
   "format": 1,
-  "name": "create-order.request",
-  "description": "The request the client sends to place an order",
+  "name": "app.create-order.with-coupon.request",
+  "description": "The request the client sends to place an order with a coupon",
   "request": {
     "method": "POST",
     "path": "/orders",
@@ -10,8 +10,9 @@
       "content-type": "application/json"
     },
     "body": {
-      "sku": "tea-100",
-      "quantity": 2
+      "sku": "tin-300",
+      "quantity": 1,
+      "coupon": "SAVE10"
     }
   }
 }

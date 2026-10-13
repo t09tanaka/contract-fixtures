@@ -1,12 +1,13 @@
 /**
- * The consumer side of the contract, for the web client.
+ * The consumer side of the contract, for the web client: the reader `web` of the directory.
  *
  * The client calls `fetch`. These tests give it a `fetch` that answers with a fixture and
  * keeps the request, so the client's own code builds the request and decodes the response.
  *
- * - provider fixtures (../contracts-web/provider/, verified by the provider's tests): what the
- *   client makes of the responses the API really gave.
- * - consumer fixtures (../contracts-web/consumer/): the requests the client really sends; the
+ * - provider fixtures (../contracts/provider/, verified by the provider's tests): what the
+ *   client makes of the responses the API really gave. `list`, `assertCovers` and the check
+ *   look at the ones `config.json` lists for this reader.
+ * - consumer fixtures (../contracts/consumer/web.*): the requests the client really sends; the
  *   provider's tests send them to the real server.
  */
 import assert from "node:assert/strict";
@@ -22,7 +23,7 @@ import {
 
 import { createOrdersClient } from "../src/orders-client.js";
 
-const contract = contractFixtures({ side: "consumer", dir: "../contracts-web" });
+const contract = contractFixtures({ side: "consumer", reader: "web", dir: "../contracts" });
 
 /** A client whose `fetch` answers with the fixture `name`; `sent` collects what it sends. */
 function clientAnsweredBy(name: string) {
@@ -97,26 +98,26 @@ describe("consumer fixtures: the requests the client really sends", () => {
   /** The client was given a real-looking token; the fixture gets the placeholder. */
   const secret = { "request.headers.authorization": "<token:customer-1>" };
 
-  it("place-order.request", async () => {
+  it("web.place-order.request", async () => {
     const { client, sent } = clientAnsweredBy("order.created");
     await client.placeOrder("tea-100", 1);
 
     assert.equal(sent.length, 1);
     contract.verifyRequest({
-      name: "place-order.request",
+      name: "web.place-order.request",
       description: "The request the web client sends to place an order",
       request: sent[0]!,
       secret,
     });
   });
 
-  it("download-receipt.request", async () => {
+  it("web.download-receipt.request", async () => {
     const { client, sent } = clientAnsweredBy("receipt.downloaded");
     await client.loadReceipt("ord_demo1");
 
     assert.equal(sent.length, 1);
     contract.verifyRequest({
-      name: "download-receipt.request",
+      name: "web.download-receipt.request",
       description: "The request the web client sends to download the receipt of an order",
       request: sent[0]!,
       secret,

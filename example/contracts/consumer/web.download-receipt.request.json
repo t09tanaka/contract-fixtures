@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "name": "download-receipt.request",
+  "name": "web.download-receipt.request",
   "description": "The request the web client sends to download the receipt of an order",
   "request": {
     "method": "GET",
