@@ -38,10 +38,10 @@ first and install the file.
 git clone https://github.com/t09tanaka/contract-fixtures.git
 cd contract-fixtures
 npm ci
-npm pack -w packages/ts --pack-destination ..   # builds, then writes ../t09tanaka-contract-fixtures-0.1.0.tgz
+npm pack -w packages/ts --pack-destination ..   # builds, then writes ../t09tanaka-contract-fixtures-0.1.1.tgz
 
 cd ../your-project
-npm install --save-dev ../t09tanaka-contract-fixtures-0.1.0.tgz
+npm install --save-dev ../t09tanaka-contract-fixtures-0.1.1.tgz
 npx contract-fixtures --version
 ```
 
@@ -258,7 +258,9 @@ so they fit any HTTP library. Where the values come from in practice:
 
 - **A Dart client on `package:http` or dio.** The Dart package has no HTTP dependency; its
   README shows the few lines that put a fixture behind a `MockClient` or an
-  `HttpClientAdapter`, and how to answer several requests of one test in order.
+  `HttpClientAdapter`, and how to answer several requests of one test in order. dio decodes
+  a body only when the response has a JSON `content-type`, so the provider's test has to
+  record that header.
 
 These helpers record what a test hands them and nothing else, like the rest of the tool:
 response headers by name only, and real credentials replaced through `secret`. See the

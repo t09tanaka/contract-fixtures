@@ -27,8 +27,9 @@ To install a version that is not on pub.dev, from the repository, see
 [Install](https://github.com/t09tanaka/contract-fixtures#install)
 in the repository README.
 
-A Flutter project that keeps its tests under `lib/`, next to the sources, needs the package
-under `dependencies`, not `dev_dependencies` (`dart pub add contract_fixtures`): the lint
+**Tests under `lib/`.** A Flutter project that keeps its tests under `lib/`, next to the
+sources, needs the package under `dependencies`, not `dev_dependencies`
+(`dart pub add contract_fixtures`): the lint
 `depend_on_referenced_packages` does not accept an import from `lib/` of a package that is
 only a dev dependency.
 
@@ -40,6 +41,12 @@ import 'package:contract_fixtures/contract_fixtures.dart';
 // One object per test file.
 final contract = ContractFixtures(side: ContractSide.consumer, dir: '../contracts');
 ```
+
+**`dir` is relative to the current directory of the process, not to the test file.**
+`dart test` and `flutter test` run with the package root (the directory of `pubspec.yaml`)
+as the current directory, so `'../contracts'` is a directory next to the package. A tool
+that starts the tests from somewhere else needs `CONTRACT_FIXTURES_DIR` with an absolute
+path instead.
 
 ### Consumer side
 
