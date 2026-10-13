@@ -64,7 +64,9 @@ export function toFetchResponse(response: ExchangeResponse): Response {
     }
     // What `get` of the standard gives: the values without the white space around them, joined.
     if (items.every((item) => typeof item === "string")) {
-      expected.set(name, items.map((item) => item.replace(/^[\t ]+|[\t ]+$/g, "")).join(", "));
+      const lower = asciiLowerCase(name);
+      const values = items.map((item) => item.replace(/^[\t ]+|[\t ]+$/g, ""));
+      expected.set(lower, [...(expected.has(lower) ? [expected.get(lower)!] : []), ...values].join(", "));
     }
   }
   // Bytes, not a string: a string would make the Response invent `content-type: text/plain`.
@@ -216,7 +218,9 @@ export async function requestFromFetch(
   });
   const text: unknown = await request.text();
   // A stand-in that drops the body would record a request without one.
-  if (typeof text !== "string" || (typeof init?.body === "string" && text !== init.body)) {
+  // Compared as fetch would send it: a lone surrogate in a string becomes U+FFFD.
+  const given = typeof init?.body === "string" ? Buffer.from(init.body, "utf8").toString("utf8") : undefined;
+  if (typeof text !== "string" || (given !== undefined && text !== given)) {
     throw notStandard("requestFromFetch", "Request", "its text is not the body it was made with");
   }
   let body: unknown;

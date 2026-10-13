@@ -303,9 +303,20 @@ describe("a test environment without the fetch classes of the standard", () => {
         ...(status === 204 ? {} : { body: { status } }),
       });
       assert.ok(response instanceof Response);
+      assert.equal(response.headers.get("x-note"), "padded");
       assert.equal(response.ok, status === 200 || status === 204);
       if (status !== 204) assert.deepEqual(await response.json(), { status });
     }
+  });
+
+  it("still reads what the real Request of Node.js makes of unusual arguments", async () => {
+    assert.deepEqual(
+      await requestFromFetch("https://api.example.test/a%20b/../orders?q=1#part", { method: "patch", body: '"\ud800"' }),
+      { method: "patch", path: "/orders?q=1", headers: { "content-type": "text/plain;charset=UTF-8" }, body: "\ufffd" },
+    );
+    const request = new Request("https://api.example.test/orders", { method: "PUT", body: "{}" });
+    assert.equal((await requestFromFetch(request, { method: "delete", body: undefined })).method, "DELETE");
+    assert.equal(toFetchResponse({ status: 200, headers: { "X-Note": "a", "x-note": "b" } }).headers.get("x-note"), "a, b");
   });
 
   it("refuses a stand-in Request, and an environment that has none", async () => {
