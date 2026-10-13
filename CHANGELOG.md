@@ -2,7 +2,7 @@
 
 Both packages are versioned together.
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-13)
 
 Nothing in it breaks a test written for 0.1.x, and the fixture format is the same. A
 directory that does not use readers is laid out as before, ledger included.
